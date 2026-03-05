@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Toggle Button -->
+  <button id="toggleBtn"></button>
+
+  <!-- Sidebar container -->
+  <div id="sidebar-container"></div>
+
+  <!-- Main Content -->
+  <main id="main-content">
+    <h1 style="margin-left: 50px;" >Fire Monitoring Dashboard</h1>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-number" id="active-devices-stat">-</div>
+        <div class="stat-label">Active Devices</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-number" id="today-alerts-stat">-</div>
+        <div class="stat-label">Today's Alerts</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-number" id="system-uptime-stat">-</div>
+        <div class="stat-label">System Uptime</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-number" id="total-locations-stat">-</div>
+        <div class="stat-label">Total Locations</div>
+      </div>
+    </div>
+
+    <!-- System Status Banner -->
+    <div class="status-banner">
+      <div class="status-indicator">
+        <div class="status-light" id="status-light-indicator"></div>
+        <div class="status-info">
+          <h3 id="system-status-text">System Status: Loading...</h3>
+          <p id="system-status-desc">Loading system information...</p>
+        </div>
+      </div>
+      <div class="last-update">
+        <span>Last updated: <strong id="last-update-time">Loading...</strong></span>
+      </div>
+    </div>
+
+    <!-- Panels Container -->
+    <div class="panels-container" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 2rem;">
+      <div class="panel geomap" style="flex: 2; min-width: 400px;">
+        <h3>Barangay Map</h3>
+        <div class="iframe-box">
+          <iframe id="barangayMapPanel"
+            src="/grafana/d-solo/ad4hh2f/barangay-map?orgId=1&panelId=1&from=now-6h&to=now&timezone=browser&__feature.dashboardSceneSolo=true&theme=light"
+            width="100%" height="600" frameborder="0" loading="lazy"></iframe>
+        </div>
+      </div>
+
+      <div class="panel status" style="flex: 1; min-width: 300px;">
+        <h3>Alert Status Table</h3>
+        <div class="iframe-box">
+          <iframe id="deviceListPanel"
+            src="/grafana/d-solo/adqm2x4/current-reading-warning-table?orgId=1&from=now-6h&to=now&timezone=browser&theme=light&panelId=1&__feature.dashboardSceneSolo=true"
+            width="100%" height="300" frameborder="0" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="activity-section">
+      <h2>Recent System Activity</h2>
+      <div class="activity-box">
+        <div class="activity-header">
+          <h3>Latest Status</h3>
+          <span class="status-badge" id="activity-badge">Loading...</span>
+        </div>
+        <div class="activity-content">
+          <p id="activity-line-1">Loading activity data...</p>
+          <p id="activity-line-2">Please wait...</p>
+          <p id="activity-line-3">📡 Last sync: Loading...</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/protected/script.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Sidebar toggle
+      setTimeout(() => {
+        const toggleBtn = document.getElementById('toggleBtn');
+        const sidebar = document.getElementById('sidebar');
+        const main = document.getElementById('main-content');
+        if (sidebar && main) {
+          let sidebarVisible = true;
+          const toggleBtn = document.getElementById('toggleBtn');
+
+          if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+              if (sidebarVisible) {
+                sidebar.style.transform = 'translateX(-260px)';
+                main.style.marginLeft = '0';
+              } else {
+                sidebar.style.transform = 'translateX(0)';
+                main.style.marginLeft = '260px';
+              }
+              sidebarVisible = !sidebarVisible;
+            });
+          }
+          const currentPage = window.location.pathname;
+          document.querySelectorAll('#sidebar a').forEach(link => {
+            if (link.getAttribute('href') === currentPage) link.classList.add('active');
+          });
+        }
+      }, 100);
+
+      const lastUpdateEl = document.getElementById('last-update-time');
+      const activityLine1 = document.getElementById('activity-line-1');
+      const activityLine2 = document.getElementById('activity-line-2');
+      const activityLine3 = document.getElementById('activity-line-3');
+
+      let lastSyncTimer = null;
+      let lastSyncTimestamp = null;
+
+      const formatRelativeTime = (diffMs) => {
+        const seconds = Math.max(0, Math.floor(diffMs / 1000));
+        if (seconds < 5) return 'moments ago';
+        if (seconds < 60) return `${seconds}s ago`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) {
+          const remainingSeconds = seconds % 60;
+          return remainingSeconds ? `${minutes}m ${remainingSeconds}s ago` : `${minutes}m ago`;
+        }
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return remainingMinutes ? `${hours}h ${remainingMinutes}m ago` : `${hours}h ago`;
+      };
+
+      function updateLastSyncUI() {
+        if (!lastSyncTimestamp) return;
+        const now = Date.now();
+        const relative = formatRelativeTime(now - lastSyncTimestamp);
+        const absolute = new Date(lastSyncTimestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+        const message = `${absolute} (${relative})`;
+        lastUpdateEl.textContent = message;
+        activityLine3.textContent = `📡 Last sync: ${message}`;
+      }
+
+      function stopLastSyncTicker() {
+        if (lastSyncTimer) {
+          clearInterval(lastSyncTimer);
+          lastSyncTimer = null;
+        }
+        lastSyncTimestamp = null;
+      }
+
+      function startLastSyncTicker(timestamp) {
+        if (!timestamp) {
+          stopLastSyncTicker();
+          lastUpdateEl.textContent = 'Unknown';
+          activityLine3.textContent = '📡 Last sync: Unknown';
+          return;
+        }
+        lastSyncTimestamp = new Date(timestamp).getTime();
+        updateLastSyncUI();
+        if (lastSyncTimer) clearInterval(lastSyncTimer);
+        lastSyncTimer = setInterval(updateLastSyncUI, 1000);
+      }
+
+      // Dashboard stats
+      async function loadDashboardStats() {
+        try {
+          const res = await fetch('/api/dashboard/stats', { credentials: 'include' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          const data = await res.json();
+          document.getElementById('active-devices-stat').textContent = data.activeDevices || 0;
+          document.getElementById('today-alerts-stat').textContent = data.todayAlerts || 0;
+          document.getElementById('system-uptime-stat').textContent = data.systemUptime || '0%';
+          document.getElementById('total-locations-stat').textContent = data.totalLocations || 0;
+        } catch (err) {
+          console.error('Error loading dashboard stats:', err);
+          ['active-devices-stat','today-alerts-stat','system-uptime-stat','total-locations-stat'].forEach(id => {
+            document.getElementById(id).textContent = 'Error';
+          });
+        }
+      }
+
+      // Dashboard status
+      async function loadDashboardStatus() {
+        try {
+          const res = await fetch('/api/dashboard/status', { credentials: 'include' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          const data = await res.json();
+
+          const statusText = document.getElementById('system-status-text');
+          const statusDesc = document.getElementById('system-status-desc');
+          const statusLight = document.getElementById('status-light-indicator');
+
+          statusText.textContent = `System Status: ${data.systemStatus || 'Unknown'}`;
+          statusDesc.textContent = data.systemStatus === 'Operational'
+            ? 'All monitoring systems are functioning normally'
+            : data.systemStatus === 'Warning'
+              ? 'Devices with confirmed alerts detected'
+              : data.systemStatus === 'Monitoring'
+                ? 'Awaiting live telemetry from field devices'
+                : data.systemStatus === 'No Live Data'
+                  ? 'No devices have reported data recently'
+                  : 'Critical alerts detected - immediate attention required';
+
+          statusLight.className = 'status-light';
+          if (data.systemStatus === 'Operational') statusLight.classList.add('green');
+          else if (data.systemStatus === 'Warning') statusLight.classList.add('yellow');
+          else statusLight.classList.add('red');
+
+          if (data.lastUpdateTimestamp) {
+            startLastSyncTicker(data.lastUpdateTimestamp);
+          } else {
+            stopLastSyncTicker();
+            const fallback = data.lastUpdate || 'Unknown';
+            lastUpdateEl.textContent = fallback;
+            activityLine3.textContent = `📡 Last sync: ${fallback}`;
+          }
+
+          // Activity
+          const activityBadge = document.getElementById('activity-badge');
+          activityBadge.className = 'status-badge';
+          if (data.systemStatus === 'Operational') {
+            activityBadge.classList.add('normal');
+            activityBadge.textContent = 'All Systems Normal';
+          } else if (data.systemStatus === 'Warning') {
+            activityBadge.classList.add('warning');
+            activityBadge.textContent = 'Confirmed Alerts Active';
+          } else if (data.systemStatus === 'Monitoring') {
+            activityBadge.classList.add('normal');
+            activityBadge.textContent = 'Monitoring';
+          } else if (data.systemStatus === 'No Live Data') {
+            activityBadge.classList.add('warning');
+            activityBadge.textContent = 'No Live Data';
+          } else {
+            activityBadge.classList.add('critical');
+            activityBadge.textContent = 'Critical Alert';
+          }
+
+          activityLine1.textContent = `✅ ${data.recentActivity || 'System check in progress'}`;
+          const alertingDevices = Number(data.alertingDevices || 0);
+          if (alertingDevices > 0) {
+            activityLine2.textContent = `${alertingDevices} device${alertingDevices === 1 ? '' : 's'} with confirmed alerts`;
+          } else {
+            activityLine2.textContent = `📡 ${data.activityDetails || 'Checking devices...'}`;
+          }
+        } catch (err) {
+          console.error('Error loading dashboard status:', err);
+        }
+      }
+
+      async function loadDashboardData() {
+        await Promise.all([loadDashboardStats(), loadDashboardStatus()]);
+      }
+
+      loadDashboardData();
+      setInterval(loadDashboardData, 300000); // refresh every 5 mins
+
+      // Panel fallback
+      ['barangayMapPanel','deviceListPanel'].forEach(id => {
+        const iframe = document.getElementById(id);
+        iframe.onload = () => console.log(`${id} loaded successfully`);
+        iframe.onerror = () => {
+          iframe.style.display = 'none';
+          const msg = document.createElement('p');
+          msg.textContent = `Grafana panel "${id}" is unavailable. Verify the /grafana reverse proxy or Nginx route.`;
+          iframe.parentNode.appendChild(msg);
+        };
+      });
+
+    });
+  </script>
+</body>
+</html>

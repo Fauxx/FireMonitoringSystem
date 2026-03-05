@@ -1,0 +1,227 @@
+version: '3.8'
+
+x-env-file: &default-env
+  - ./.env
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: fire-monitoring-db
+    restart: unless-stopped
+    env_file: *default-env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
+      POSTGRES_USER: ${POSTGRES_USER:-fireuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/sql/database_migration.sql:/docker-entrypoint-initdb.d/01-migration.sql
+      - ./infrastructure/sql/INCIDENT_ALERTS_MIGRATION.sql:/docker-entrypoint-initdb.d/02-incident-alerts.sql
+      - ./infrastructure/sql/official_incidents_migration.sql:/docker-entrypoint-initdb.d/03-official-incidents.sql
+    networks:
+      - fire-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # InfluxDB (time-series storage)
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: fire-monitoring-influxdb
+    restart: unless-stopped
+    env_file: *default-env
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-fireops}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-changeme}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-fire-monitoring}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-influx-token}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - ./infrastructure/influxdb:/etc/influxdb2:ro
+    networks:
+      - fire-net
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fire-monitoring-grafana
+    restart: unless-stopped
+    env_file: *default-env
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - fire-net
+    depends_on:
+      - postgres
+      - influxdb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node.js Web Application
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: fire-monitoring-api
+    restart: unless-stopped
+    env_file: *default-env
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=8000
+      - DATABASE_URL=${DATABASE_URL:-postgresql://fireuser:changeme@postgres:5432/fire_monitoring}
+      - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key}
+    ports:
+      - "8000:8000"
+    volumes:
+      - api_logs:/usr/src/app/logs
+    networks:
+      - fire-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Dashboard service
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: fire-monitoring-dashboard
+    restart: unless-stopped
+    env_file: *default-env
+    ports:
+      - "8080:80"
+    networks:
+      - fire-net
+
+  # ETL processor service
+  etl-processor:
+    build:
+      context: ./etl-processor
+      dockerfile: Dockerfile
+    container_name: fire-monitoring-etl
+    restart: unless-stopped
+    env_file: *default-env
+    depends_on:
+      - postgres
+      - influxdb
+    networks:
+      - fire-net
+
+  # Telegraf metrics agent
+  telegraf:
+    image: telegraf:1.29-alpine
+    container_name: fire-monitoring-telegraf
+    restart: unless-stopped
+    env_file: *default-env
+    environment:
+      - INFLUX_TOKEN=${INFLUXDB_TOKEN:-influx-token}
+    volumes:
+      - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    depends_on:
+      - postgres
+      - influxdb
+      - mqtt-broker
+    networks:
+      - fire-net
+
+  # MQTT broker
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    container_name: fire-monitoring-mqtt
+    restart: unless-stopped
+    env_file: *default-env
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infrastructure/mqtt/data:/mosquitto/data
+      - ./infrastructure/mqtt/log:/mosquitto/log
+    networks:
+      - fire-net
+
+  # External RDS placeholder (replace with cloud DB connection)
+  rds-placeholder:
+    image: alpine:3.19
+    container_name: fire-monitoring-rds-placeholder
+    command: ["/bin/sh", "-c", "sleep infinity"]
+    env_file: *default-env
+    environment:
+      - RDS_HOST=${RDS_HOST:-rds.example.com}
+      - RDS_PORT=${RDS_PORT:-5432}
+      - RDS_DB=${RDS_DB:-fire_monitoring}
+      - RDS_USER=${RDS_USER:-fireuser}
+      - RDS_PASSWORD=${RDS_PASSWORD:-changeme}
+    networks:
+      - fire-net
+    profiles:
+      - rds
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fire-monitoring-nginx
+    restart: unless-stopped
+    env_file: *default-env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./dashboard/public:/usr/share/nginx/html:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - fire-net
+    depends_on:
+      - api
+      - dashboard
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  grafana_data:
+  influxdb_data:
+  nginx_logs:
+  api_logs:
+
+networks:
+  fire-net:
+    driver: bridge
+

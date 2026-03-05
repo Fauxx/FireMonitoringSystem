@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SMS Messages - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Toggle Button -->
+  <button id="toggleBtn"></button>
+
+  <!-- Sidebar container -->
+  <div id="sidebar-container"></div>
+
+  <!-- Main content -->
+  <main id="main-content">
+    <h1>SMS Messages</h1>
+
+    <div class="page-placeholder">
+      <div class="placeholder-icon"></div>
+      <h2 class="placeholder-title">SMS Alert System</h2>
+      <p class="placeholder-description">
+        Manage SMS notifications and emergency alerts sent to responders and key personnel.
+      </p>
+      <ul class="placeholder-features">
+        <li>Emergency alert broadcasting</li>
+        <li>👥 Contact group management</li>
+        <li>📋 Message history tracking</li>
+        <li>Custom alert templates</li>
+        <li>Delivery status monitoring</li>
+      </ul>
+    </div>
+  </main>
+
+  <!-- Load auth script -->
+  <script src="/protected/script.js"></script>
+
+  <!-- Page-specific functionality -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait for sidebar to load, then setup toggle
+      setTimeout(() => {
+        const toggleBtn = document.getElementById('toggleBtn');
+        const sidebar = document.getElementById('sidebar');
+        const main = document.getElementById('main-content');
+
+        if (toggleBtn && sidebar && main) {
+          let sidebarVisible = true;
+          toggleBtn.addEventListener('click', () => {
+            if (sidebarVisible) {
+              sidebar.style.transform = 'translateX(-260px)';
+              main.style.marginLeft = '0';
+            } else {
+              sidebar.style.transform = 'translateX(0)';
+              main.style.marginLeft = '260px';
+            }
+            sidebarVisible = !sidebarVisible;
+          });
+
+          // Highlight current page
+          const currentPage = window.location.pathname;
+          document.querySelectorAll('#sidebar a').forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+              link.classList.add('active');
+            }
+          });
+        }
+      }, 100);
+    });
+  </script>
+</body>
+</html>

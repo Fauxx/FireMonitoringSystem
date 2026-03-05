@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Export - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    .export-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    .export-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--neutral-700);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--neutral-200);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--primary-red);
+    }
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    .verified-incidents-list {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid var(--neutral-200);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .incident-item {
+      padding: 1rem;
+      border-bottom: 1px solid var(--neutral-200);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .incident-item:hover {
+      background: var(--neutral-50);
+    }
+    .incident-item.selected {
+      background: rgba(220, 38, 38, 0.1);
+      border-left: 4px solid var(--primary-red);
+    }
+    .incident-item:last-child {
+      border-bottom: none;
+    }
+    .incident-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .incident-device {
+      font-weight: 600;
+      color: var(--neutral-900);
+    }
+    .incident-time {
+      font-size: 0.875rem;
+      color: var(--neutral-600);
+    }
+    .incident-details {
+      font-size: 0.875rem;
+      color: var(--neutral-600);
+    }
+    .export-actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .btn-export {
+      flex: 1;
+      padding: 1rem;
+      background: linear-gradient(135deg, var(--primary-red) 0%, var(--primary-red-light) 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-export:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+    .btn-export:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: var(--neutral-500);
+    }
+    .info-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--neutral-100);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      color: var(--neutral-600);
+      margin-left: 0.5rem;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    @media (max-width: 1024px) {
+      .export-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Modal Styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .modal-overlay.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 90vw;
+      max-height: 90vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      animation: slideUp 0.3s ease;
+      overflow: hidden;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .modal-header {
+      padding: 1.5rem 2rem;
+      border-bottom: 2px solid var(--neutral-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(135deg, var(--primary-red) 0%, var(--primary-red-light) 100%);
+      color: white;
+    }
+    
+    .modal-header h2 {
+      margin: 0;
+      color: white;
+      font-size: 1.5rem;
+    }
+    
+    .modal-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: rotate(90deg);
+    }
+    
+    .modal-body {
+      padding: 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    
+    .records-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    
+    .records-table thead {
+      background: var(--neutral-50);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    
+    .records-table th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--neutral-700);
+      border-bottom: 2px solid var(--neutral-200);
+      white-space: nowrap;
+    }
+    
+    .records-table td {
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid var(--neutral-200);
+      color: var(--neutral-700);
+    }
+    
+    .records-table tbody tr {
+      transition: background 0.2s;
+    }
+    
+    .records-table tbody tr:hover {
+      background: var(--neutral-50);
+    }
+    
+    .records-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .badge-level-0 { background: #dcfce7; color: #166534; }
+    .badge-level-1 { background: #fef3c7; color: #92400e; }
+    .badge-level-2 { background: #fed7aa; color: #9a3412; }
+    .badge-level-3 { background: #fee2e2; color: #991b1b; }
+    
+    .modal-footer {
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--neutral-200);
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      background: var(--neutral-50);
+    }
+    
+    .empty-records {
+      text-align: center;
+      padding: 3rem;
+      color: var(--neutral-500);
+    }
+    
+    .empty-records-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toggle Button -->
+  <button id="toggleBtn"></button>
+
+  <div id="sidebar-container"></div>
+
+  <main id="main-content">
+    <h1 style="margin-left: 50px;" >Export Official Incident Records</h1>
+
+    <div class="export-container">
+      <!-- Left: Select Verified Incident -->
+      <div class="export-section">
+        <h2>1. Select Verified Incident</h2>
+        <div class="form-group">
+          <label>Filter by Device:</label>
+          <select id="filterDevice">
+            <option value="">All Devices</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date Range:</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <input type="date" id="startDate">
+            <input type="date" id="endDate">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadVerifiedIncidents()" style="width: 100%; margin-bottom: 1rem;">Load Incidents</button>
+        
+        <div id="verified-incidents-container" class="verified-incidents-list">
+          <div class="empty-state">
+            <div>📋</div>
+            <div>No verified incidents available</div>
+            <div style="font-size: 0.875rem; margin-top: 0.5rem;">Click "Load Incidents" to fetch verified incidents</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: BFP Fields Form -->
+      <div class="export-section">
+        <h2>2. Complete BFP Reporting Fields</h2>
+        <form id="officialIncidentForm">
+          <input type="hidden" id="verifiedIncidentId">
+          
+          <div class="form-group">
+            <label>Incident Type <span class="info-badge">Required</span></label>
+            <select id="incidentType" required>
+              <option value="">Select incident type</option>
+              <option value="Fire">Fire</option>
+              <option value="False Alarm">False Alarm</option>
+              <option value="Smoke Detection">Smoke Detection</option>
+              <option value="Gas Leak">Gas Leak</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Barangay <span class="info-badge">Required</span></label>
+            <input type="text" id="barangay" required placeholder="Enter barangay">
+          </div>
+
+          <div class="form-group">
+            <label>City/Municipality <span class="info-badge">Required</span></label>
+            <input type="text" id="city" required placeholder="Enter city or municipality">
+          </div>
+
+          <div class="form-group">
+            <label>Establishment Type</label>
+            <select id="establishmentType">
+              <option value="">Select type</option>
+              <option value="Residential">Residential</option>
+              <option value="Commercial">Commercial</option>
+              <option value="Industrial">Industrial</option>
+              <option value="Educational">Educational</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Government">Government</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Probable Cause</label>
+            <textarea id="probableCause" placeholder="Describe the probable cause of the incident"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Estimated Damage (PHP)</label>
+            <input type="number" id="estimatedDamage" min="0" step="0.01" placeholder="0.00">
+          </div>
+
+          <div class="form-group">
+            <label>Responding Units</label>
+            <textarea id="respondingUnits" placeholder="List responding units (e.g., BFP Station 1, Local Fire Department)"></textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label>Casualties - Injured</label>
+              <input type="number" id="casualtiesInjured" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label>Casualties - Fatalities</label>
+              <input type="number" id="casualtiesFatalities" min="0" value="0">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Narrative Remarks</label>
+            <textarea id="narrativeRemarks" placeholder="Additional narrative remarks for the incident report"></textarea>
+          </div>
+
+          <div class="export-actions">
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+            <button type="submit" class="btn-export" id="saveBtn" disabled>Save Official Record</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Export Actions -->
+    <div class="export-section">
+      <h2>3. Export Records</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+        <button class="btn-export" onclick="exportToCSV()" id="exportCSVBtn" disabled>
+          📄 Export to CSV
+        </button>
+        <button class="btn-export" onclick="exportToExcel()" id="exportExcelBtn" disabled>
+          Export to Excel
+        </button>
+        <button class="btn-export" onclick="viewOfficialRecords()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+          📋 View All Records
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Records Modal -->
+  <div id="recordsModal" class="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>📋 Official Incident Records</h2>
+        <button class="modal-close" onclick="closeRecordsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="recordsTableContainer">
+          <div class="empty-records">
+            <div class="empty-records-icon">⏳</div>
+            <div>Loading records...</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRecordsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/protected/script.js"></script>
+
+  <script>
+    let verifiedIncidents = [];
+    let selectedIncident = null;
+    let officialRecords = [];
+
+    // Load devices for filter
+    async function loadDevices() {
+      try {
+        const res = await fetch('/api/analytics/devices');
+        const data = await res.json();
+        const select = document.getElementById('filterDevice');
+        select.innerHTML = '<option value="">All Devices</option>';
+        // data.devices is an array of strings, not objects
+        (data.devices || []).forEach(deviceId => {
+          const opt = document.createElement('option');
+          opt.value = deviceId;
+          opt.textContent = deviceId;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error loading devices:', err);
+      }
+    }
+
+    // Load verified incidents
+    async function loadVerifiedIncidents() {
+      const device = document.getElementById('filterDevice').value;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+
+      const params = new URLSearchParams();
+      params.append('type', 'verified');
+      if (device) params.append('device', device);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      params.append('limit', '100');
+
+      try {
+        const res = await fetch(`/api/incidents?${params.toString()}`);
+        const data = await res.json();
+        verifiedIncidents = data.verified || [];
+        renderVerifiedIncidents();
+      } catch (err) {
+        console.error('Error loading verified incidents:', err);
+        showNotification('Error loading incidents', 'error');
+      }
+    }
+
+    // Render verified incidents list
+    function renderVerifiedIncidents() {
+      const container = document.getElementById('verified-incidents-container');
+      
+      if (verifiedIncidents.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div>📋</div><div>No verified incidents found</div></div>';
+        return;
+      }
+
+      container.innerHTML = verifiedIncidents.map((incident, index) => `
+        <div class="incident-item ${selectedIncident?.id === incident.id ? 'selected' : ''}" 
+             onclick="selectIncident(${index})">
+          <div class="incident-header">
+            <span class="incident-device">${incident.device_id || 'N/A'}</span>
+            <span class="incident-time">${new Date(incident.timestamp).toLocaleString()}</span>
+          </div>
+          <div class="incident-details">
+            Alert Level: ${incident.alert_level} | 
+            Verified by: ${incident.verified_by_username || 'N/A'} | 
+            ${new Date(incident.verified_at).toLocaleDateString()}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Select incident
+    function selectIncident(index) {
+      selectedIncident = verifiedIncidents[index];
+      document.getElementById('verifiedIncidentId').value = selectedIncident.id;
+      
+      // Populate form with incident data
+      document.getElementById('incidentType').value = '';
+      document.getElementById('barangay').value = '';
+      document.getElementById('city').value = '';
+      document.getElementById('establishmentType').value = '';
+      document.getElementById('probableCause').value = '';
+      document.getElementById('estimatedDamage').value = '';
+      document.getElementById('respondingUnits').value = '';
+      document.getElementById('casualtiesInjured').value = '0';
+      document.getElementById('casualtiesFatalities').value = '0';
+      document.getElementById('narrativeRemarks').value = '';
+
+      // Enable save button
+      document.getElementById('saveBtn').disabled = false;
+      
+      renderVerifiedIncidents();
+    }
+
+    // Save official incident record
+    document.getElementById('officialIncidentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      if (!selectedIncident) {
+        showNotification('Please select a verified incident first', 'error');
+        return;
+      }
+
+      const formData = {
+        verified_incident_id: selectedIncident.id,
+        device_id: selectedIncident.device_id,
+        incident_timestamp: selectedIncident.timestamp,
+        alert_level: selectedIncident.alert_level,
+        flame_value: selectedIncident.flame_value,
+        smoke_value: selectedIncident.smoke_value,
+        temp_value: selectedIncident.temp_value,
+        incident_type: document.getElementById('incidentType').value,
+        barangay: document.getElementById('barangay').value,
+        city: document.getElementById('city').value,
+        establishment_type: document.getElementById('establishmentType').value,
+        probable_cause: document.getElementById('probableCause').value,
+        estimated_damage: document.getElementById('estimatedDamage').value || null,
+        responding_units: document.getElementById('respondingUnits').value,
+        casualties_injured: parseInt(document.getElementById('casualtiesInjured').value) || 0,
+        casualties_fatalities: parseInt(document.getElementById('casualtiesFatalities').value) || 0,
+        narrative_remarks: document.getElementById('narrativeRemarks').value
+      };
+
+      try {
+        const res = await fetch('/api/official-incidents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(formData)
+        });
+
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          showNotification('✅ Official incident record saved successfully!', 'success');
+          // Enable export buttons
+          document.getElementById('exportCSVBtn').disabled = false;
+          document.getElementById('exportExcelBtn').disabled = false;
+          // Reload verified incidents to refresh list
+      setTimeout(() => {
+            loadVerifiedIncidents();
+          }, 500);
+          clearForm();
+        } else {
+          showNotification('❌ Error: ' + (data.error || 'Failed to save record'), 'error');
+        }
+      } catch (err) {
+        console.error('Error saving official incident:', err);
+        showNotification('❌ Failed to save record. Please try again.', 'error');
+      }
+    });
+
+    // Clear form
+    function clearForm() {
+      document.getElementById('officialIncidentForm').reset();
+      document.getElementById('verifiedIncidentId').value = '';
+      selectedIncident = null;
+      document.getElementById('saveBtn').disabled = true;
+      renderVerifiedIncidents();
+    }
+
+    // Export to CSV
+    async function exportToCSV() {
+      try {
+        // Show loading state
+        const btn = document.getElementById('exportCSVBtn');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Exporting...';
+        
+        const res = await fetch('/api/official-incidents/export?format=csv', {
+          credentials: 'include'
+        });
+        
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            // Handle JSON error response
+            const errorData = await res.json();
+            showNotification('❌ Error: ' + (errorData.error || 'No records to export'), 'error');
+          } else {
+            // Handle file download
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fire_incidents_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showNotification('✅ CSV exported successfully!', 'success');
+          }
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          showNotification('❌ Error: ' + (errorData.error || 'Failed to export CSV'), 'error');
+        }
+        
+        btn.disabled = false;
+        btn.textContent = originalText;
+      } catch (err) {
+        console.error('Error exporting CSV:', err);
+        showNotification('❌ Failed to export CSV', 'error');
+        document.getElementById('exportCSVBtn').disabled = false;
+        document.getElementById('exportCSVBtn').textContent = '📄 Export to CSV';
+      }
+    }
+
+    // Export to Excel
+    async function exportToExcel() {
+      try {
+        // Show loading state
+        const btn = document.getElementById('exportExcelBtn');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Exporting...';
+        
+        const res = await fetch('/api/official-incidents/export?format=excel', {
+          credentials: 'include'
+        });
+        
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            // Handle JSON error response
+            const errorData = await res.json();
+            showNotification('❌ Error: ' + (errorData.error || 'No records to export'), 'error');
+          } else {
+            // Handle file download
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fire_incidents_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            showNotification('✅ Excel file exported successfully!', 'success');
+          }
+            } else {
+          const errorData = await res.json().catch(() => ({}));
+          showNotification('❌ Error: ' + (errorData.error || 'Failed to export Excel'), 'error');
+        }
+        
+        btn.disabled = false;
+        btn.textContent = originalText;
+      } catch (err) {
+        console.error('Error exporting Excel:', err);
+        showNotification('❌ Failed to export Excel', 'error');
+        document.getElementById('exportExcelBtn').disabled = false;
+        document.getElementById('exportExcelBtn').textContent = 'Export to Excel';
+      }
+    }
+
+    // View official records
+    async function viewOfficialRecords() {
+      const modal = document.getElementById('recordsModal');
+      const container = document.getElementById('recordsTableContainer');
+      
+      // Show modal with loading state
+      modal.classList.add('active');
+      container.innerHTML = `
+        <div class="empty-records">
+          <div class="empty-records-icon">⏳</div>
+          <div>Loading records...</div>
+        </div>
+      `;
+      
+      try {
+        const res = await fetch('/api/official-incidents?limit=100', {
+          credentials: 'include'
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          officialRecords = data.records || [];
+          
+          if (officialRecords.length === 0) {
+            container.innerHTML = `
+              <div class="empty-records">
+                <div class="empty-records-icon">📋</div>
+                <div style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">No Official Records</div>
+                <div>No official incident records have been created yet.</div>
+                <div style="margin-top: 1rem; font-size: 0.875rem; color: var(--neutral-400);">
+                  Create an official record by selecting a verified incident and completing the BFP form.
+                </div>
+              </div>
+            `;
+            return;
+          }
+          
+          // Render table
+          renderRecordsTable(officialRecords);
+        } else {
+          container.innerHTML = `
+            <div class="empty-records">
+              <div class="empty-records-icon">❌</div>
+              <div>Error loading records</div>
+              <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--neutral-400);">
+                Please try again later.
+              </div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Error loading official records:', err);
+        container.innerHTML = `
+          <div class="empty-records">
+            <div class="empty-records-icon">❌</div>
+            <div>Failed to load records</div>
+            <div style="font-size: 0.875rem; margin-top: 0.5rem; color: var(--neutral-400);">
+              ${err.message || 'Network error. Please check your connection.'}
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    // Render records table
+    function renderRecordsTable(records) {
+      const container = document.getElementById('recordsTableContainer');
+      
+      const tableHTML = `
+        <div style="margin-bottom: 1rem; padding: 1rem; background: var(--neutral-50); border-radius: 8px;">
+          <strong>Total Records: ${records.length}</strong>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Device ID</th>
+                <th>Incident Time</th>
+                <th>Type</th>
+                <th>Alert Level</th>
+                <th>Location</th>
+                <th>Establishment</th>
+                <th>Damage (PHP)</th>
+                <th>Casualties</th>
+                <th>Verified By</th>
+                <th>Generated By</th>
+                <th>Generated At</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${records.map(record => `
+                <tr>
+                  <td><strong>#${record.id}</strong></td>
+                  <td>${record.device_id || 'N/A'}</td>
+                  <td>${new Date(record.incident_timestamp).toLocaleString()}</td>
+                  <td><strong>${record.incident_type || 'N/A'}</strong></td>
+                  <td>
+                    <span class="badge badge-level-${record.alert_level || 0}">
+                      Level ${record.alert_level || 0}
+                    </span>
+                  </td>
+                  <td>
+                    ${record.barangay || 'N/A'}, ${record.city || 'N/A'}
+                  </td>
+                  <td>${record.establishment_type || 'N/A'}</td>
+                  <td>${record.estimated_damage ? '₱' + parseFloat(record.estimated_damage).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'N/A'}</td>
+                  <td>
+                    ${(record.casualties_injured || 0) > 0 || (record.casualties_fatalities || 0) > 0 
+                      ? `👤 ${record.casualties_injured || 0} injured<br>💀 ${record.casualties_fatalities || 0} fatalities`
+                      : 'None'}
+                  </td>
+                  <td>${record.verified_by_username || 'N/A'}</td>
+                  <td><strong>${record.generated_by_username || 'N/A'}</strong></td>
+                  <td>${new Date(record.generated_at).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      container.innerHTML = tableHTML;
+    }
+    
+    // Close modal
+    function closeRecordsModal() {
+      const modal = document.getElementById('recordsModal');
+      modal.classList.remove('active');
+    }
+    
+    // Close modal when clicking overlay
+    function closeModalOnOverlay(event) {
+      if (event.target.id === 'recordsModal') {
+        closeRecordsModal();
+      }
+    }
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeRecordsModal();
+      }
+    });
+
+    // Show notification
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      notification.className = `notification notification-${type}`;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        background: ${type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+      `;
+      notification.textContent = message;
+      document.body.appendChild(notification);
+
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
+
+    // Check if there are official records to enable export buttons
+    async function checkOfficialRecords() {
+      try {
+        const res = await fetch('/api/official-incidents?limit=1', {
+          credentials: 'include'
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.records && data.records.length > 0) {
+            document.getElementById('exportCSVBtn').disabled = false;
+            document.getElementById('exportExcelBtn').disabled = false;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking official records:', err);
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDevices();
+      checkOfficialRecords(); // Check for existing records
+      // Auto-load incidents on page load
+      setTimeout(loadVerifiedIncidents, 500);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Tell GitHub that HTML files are just "documentation" 
+# This removes them from the percentage calculation
+*.html linguist-documentation=true
+
+# Ensure your JavaScript and CSS are fully counted
+*.js linguist-detectable=true
+*.css linguist-detectable=true
+
+# If you have large JSON files for your fire monitoring data, 
+# you can ignore them so they don't show up as "Other"
+*.json linguist-documentation=true

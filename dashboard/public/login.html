@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FireAlarm Pro - Login</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-header">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">
+        </div>
+        <h2>FireAlarm Pro</h2>
+        <p>Secure Fire Monitoring System</p>
+      </div>
+
+      <form action="/auth/login" method="POST" class="login-form">
+        <div class="form-group">
+          <label for="email" class="form-label">Username or Email</label>
+          <input
+            type="text"
+            id="email"
+            name="email"
+            required
+            class="form-input"
+            placeholder="Enter your username or email"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            class="form-input"
+            placeholder="Enter your password"
+          />
+        </div>
+        
+        <button type="submit" class="login-btn">
+          🔐 Sign In to Dashboard
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <p>
+          <a href="/signup.html" style="color: #dc2626; text-decoration: none; font-weight: 500;">Don't have an account? Sign Up</a><br>
+          <span style="color: #6b7280; font-size: 0.75rem;">🔒 Secure Access Only</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Alert Scripts -->
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+
+    if (message === 'logout') {
+      Swal.fire({
+        icon: 'success',
+        title: 'Logged Out Successfully',
+        text: 'You have been securely logged out.',
+        iconColor: '#10b981',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'session') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Authentication Required',
+        text: 'Please log in to access the fire monitoring dashboard.',
+        iconColor: '#f59e0b',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'invalid') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Login Failed',
+        text: 'Invalid email or password. Please try again.',
+        iconColor: '#dc2626',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'pending') {
+      Swal.fire({
+        icon: 'info',
+        title: 'Account Pending Approval',
+        html: 'Your account has been created successfully, but it is pending admin approval.<br><br>An administrator will review your request and approve your account. You will be able to log in once your account is approved.',
+        iconColor: '#3b82f6',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'rejected') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Account Rejected',
+        text: 'Your account has been rejected. Please contact an administrator for assistance.',
+        iconColor: '#dc2626',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'signedup') {
+      Swal.fire({
+        icon: 'success',
+        title: 'Account Created!',
+        html: 'Your account has been created successfully!<br><br>Your account is pending admin approval. An administrator will review your request and approve your account. You will be able to log in once your account is approved.',
+        iconColor: '#10b981',
+        confirmButtonColor: '#dc2626'
+      });
+    }
+
+    // Clean the URL so alerts don't repeat on refresh
+    if (message) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Add some interactive effects
+    document.addEventListener('DOMContentLoaded', function() {
+      const inputs = document.querySelectorAll('.form-input');
+      
+      inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.style.transform = 'translateY(-2px)';
+        });
+        
+        input.addEventListener('blur', function() {
+          this.parentElement.style.transform = 'translateY(0)';
+        });
+      });
+    });
+  </script>
+</body>
+</html>

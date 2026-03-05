@@ -1,0 +1,862 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css">
+  <style>
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .users-table th {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: white;
+      padding: 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .users-table td {
+      padding: 16px;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 14px;
+    }
+    
+    .users-table tr:hover {
+      background: #f9fafb;
+    }
+    
+    .role-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .role-admin {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+    
+    .role-responder {
+      background: #f0f9ff;
+      color: #0284c7;
+      border: 1px solid #bae6fd;
+    }
+    
+    .action-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      margin-right: 8px;
+    }
+    
+    .btn-edit {
+      background: #f59e0b;
+      color: white;
+    }
+    
+    .btn-edit:hover {
+      background: #d97706;
+      transform: translateY(-1px);
+    }
+    
+    .btn-delete {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-delete:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
+    }
+    
+    .settings-section {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #f3f4f6;
+    }
+    
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1f2937;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .add-user-btn {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .add-user-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(5, 150, 105, 0.3);
+    }
+    
+    .no-users {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+      font-style: italic;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 5% auto;
+      padding: 32px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      animation: modalSlideIn 0.3s ease;
+    }
+    
+    @keyframes modalSlideIn {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #374151;
+    }
+    
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+      box-sizing: border-box;
+    }
+    
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #dc2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    }
+    
+    .close {
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #9ca3af;
+      transition: color 0.2s ease;
+    }
+    
+    .close:hover {
+      color: #374151;
+    }
+    
+    .permission-notice {
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      color: #92400e;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .current-user-compact {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 2px solid #e9ecef;
+    }
+    
+    .user-avatar {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    
+    .user-details {
+      flex: 1;
+    }
+    
+    .user-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+    
+    .user-email {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+    
+    .user-role-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #ef4444;
+      color: white;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .error-message {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .success-message {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toggle Button -->
+  <button id="toggleBtn"></button>
+
+  <!-- Sidebar Container -->
+  <div id="sidebar-container"></div>
+
+
+  <!-- Main Content -->
+  <main id="main-content">
+    <h1 style="margin-left: 50px;" > System Settings</h1>
+
+    <!-- Current User Info -->
+    <div class="settings-section">
+      <div class="section-header">
+        <h2 class="section-title">👤 Current User Information</h2>
+      </div>
+      <div class="current-user-compact">
+        <div class="user-avatar">
+          <span id="user-initials">?</span>
+        </div>
+        <div class="user-details">
+          <div class="user-name" id="current-username">Loading...</div>
+          <div class="user-email" id="current-email">Loading...</div>
+          <div class="user-role-badge">
+            <span id="current-role">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending User Approvals Section (Admin Only) -->
+    <div class="settings-section" id="pending-approvals-section" style="display: none;">
+      <div class="section-header">
+        <h2 class="section-title">⏳ Pending User Approvals</h2>
+        <span class="status-badge warning" id="pending-count-badge" style="display: none;">0 Pending</span>
+      </div>
+      
+      <div id="pending-users-table-container">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>👤 Username</th>
+              <th>📧 Email</th>
+              <th>🏷️ Role</th>
+              <th>📅 Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pending-users-tbody">
+            <tr>
+              <td colspan="5" class="no-users">Loading pending users...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- User Management Section -->
+    <div class="settings-section">
+      <div class="section-header">
+        <h2 class="section-title">👥 User Management</h2>
+        <button id="addUserBtn" class="add-user-btn" style="display: none;">
+          ➕ Add New User
+        </button>
+      </div>
+      
+      <div id="permission-notice" class="permission-notice" style="display: none;">
+        ℹ️ As a Responder, you can view user information but cannot modify user accounts or roles.
+      </div>
+      
+      <div id="users-table-container">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>👤 Username</th>
+              <th>📧 Email</th>
+              <th>🏷️ Role</th>
+              <th>📅 Created</th>
+              <th id="actions-header" style="display: none;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody">
+            <tr>
+              <td colspan="5" class="no-users">Loading users...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add User Modal -->
+  <div id="addUserModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeAddUser">&times;</span>
+      <h2 style="margin-bottom: 24px; color: #1f2937;">➕ Add New User</h2>
+      <div id="addUserError" class="error-message" style="display: none;"></div>
+      <form id="addUserForm">
+        <div class="form-group">
+          <label for="newUsername">Username:</label>
+          <input type="text" id="newUsername" name="username" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label for="newEmail">Email:</label>
+          <input type="email" id="newEmail" name="email" required placeholder="Enter email address">
+        </div>
+        <div class="form-group">
+          <label for="newPassword">Password:</label>
+          <input type="password" id="newPassword" name="password" required placeholder="Enter password">
+        </div>
+        <div class="form-group">
+          <label for="newRole">Role:</label>
+          <select id="newRole" name="role" required>
+            <option value="responder">🚒 Responder</option>
+            <option value="admin">👑 Administrator</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+          <button type="button" id="cancelAddUser" style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer; font-weight: 600;">Cancel</button>
+          <button type="submit" class="add-user-btn">Add User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div id="editUserModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeEditUser">&times;</span>
+      <h2 style="margin-bottom: 24px; color: #1f2937;">✏️ Edit User Details</h2>
+      <div id="editUserError" class="error-message" style="display: none;"></div>
+      <form id="editUserForm">
+        <input type="hidden" id="editUserId" name="userId">
+        <div class="form-group">
+          <label for="editUsername">Username:</label>
+          <input type="text" id="editUsername" name="username" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label for="editEmail">Email:</label>
+          <input type="email" id="editEmail" name="email" required placeholder="Enter email address">
+        </div>
+        <div class="form-group">
+          <label for="editPassword">New Password (leave blank to keep current):</label>
+          <input type="password" id="editPassword" name="password" placeholder="Enter new password or leave blank">
+        </div>
+        <div class="form-group">
+          <label for="editRole">Role:</label>
+          <select id="editRole" name="role" required>
+            <option value="responder">🚒 Responder</option>
+            <option value="admin">👑 Administrator</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+          <button type="button" id="cancelEditUser" style="padding: 12px 24px; border: 2px solid #e5e7eb; background: white; border-radius: 8px; cursor: pointer; font-weight: 600;">Cancel</button>
+          <button type="submit" class="btn-edit" style="padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600;">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Load scripts -->
+  <script src="/protected/script.js"></script>
+  
+  <script>
+    let currentUserRole = null;
+    let currentUserId = null;
+    let allUsers = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        loadUserInfo();
+      }, 500);
+    });
+
+    async function loadUserInfo() {
+      try {
+        const response = await fetch('/auth/session', { credentials: 'include' });
+        const sessionData = await response.json();
+        
+        console.log('Settings page session:', sessionData);
+        currentUserRole = sessionData.role;
+        currentUserId = sessionData.id;
+
+        // Update current user info
+        document.getElementById('current-username').textContent = sessionData.username || 'Unknown';
+        document.getElementById('current-email').textContent = sessionData.email || 'Unknown';
+        document.getElementById('current-role').textContent = sessionData.role || 'Unknown';
+        
+        // Set user initials
+        const initials = (sessionData.username || 'U').split(' ')
+          .map(name => name.charAt(0).toUpperCase())
+          .join('')
+          .substring(0, 2);
+        document.getElementById('user-initials').textContent = initials;
+
+        // Configure UI based on role
+        if (sessionData.role === 'admin') {
+          document.getElementById('addUserBtn').style.display = 'flex';
+          document.getElementById('actions-header').style.display = 'table-cell';
+          document.getElementById('pending-approvals-section').style.display = 'block';
+          setupAdminFunctionality();
+          loadAllUsers(); // Only admins can view all users
+          loadPendingUsers(); // Load pending user approvals
+        } else {
+          document.getElementById('permission-notice').style.display = 'flex';
+          document.getElementById('users-tbody').innerHTML = '<tr><td colspan="5" class="no-users">👮‍♂️ Admin access required to view user list</td></tr>';
+        }
+      } catch (error) {
+        console.error('Error getting session:', error);
+        showError('Failed to load user session');
+      }
+    }
+
+    async function loadAllUsers() {
+      try {
+        const response = await fetch('/api/users', { credentials: 'include' });
+        
+        if (!response.ok) {
+          if (response.status === 403) {
+            document.getElementById('users-tbody').innerHTML = '<tr><td colspan="5" class="no-users">👮‍♂️ Admin access required</td></tr>';
+            return;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const users = await response.json();
+        allUsers = users;
+        renderUsersTable();
+      } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('users-tbody').innerHTML = '<tr><td colspan="5" class="no-users">❌ Error loading users</td></tr>';
+      }
+    }
+
+    // Load pending users for approval
+    async function loadPendingUsers() {
+      try {
+        const response = await fetch('/api/users/pending', { credentials: 'include' });
+        
+        if (!response.ok) {
+          if (response.status === 403) {
+            return;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const pendingUsers = await response.json();
+        renderPendingUsersTable(pendingUsers);
+        
+        // Update pending count badge
+        const badge = document.getElementById('pending-count-badge');
+        if (pendingUsers.length > 0) {
+          badge.textContent = `${pendingUsers.length} Pending`;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      } catch (error) {
+        console.error('Error loading pending users:', error);
+        document.getElementById('pending-users-tbody').innerHTML = '<tr><td colspan="5" class="no-users">❌ Error loading pending users</td></tr>';
+      }
+    }
+
+    // Render pending users table
+    function renderPendingUsersTable(pendingUsers) {
+      const tbody = document.getElementById('pending-users-tbody');
+      
+      if (pendingUsers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="no-users">✅ No pending user approvals</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = pendingUsers.map(user => {
+        const createdDate = new Date(user.created_at).toLocaleDateString();
+        const roleBadgeClass = user.role === 'admin' ? 'role-admin' : 'role-responder';
+        const roleIcon = user.role === 'admin' ? '👑' : '🚒';
+        
+        return `
+          <tr>
+            <td>${user.username}</td>
+            <td>${user.email}</td>
+            <td><span class="role-badge ${roleBadgeClass}">${roleIcon} ${user.role}</span></td>
+            <td>${createdDate}</td>
+            <td>
+              <button class="action-btn" style="background: #22c55e; color: white; margin-right: 8px;" onclick="approveUser(${user.id}, '${user.username}')">
+                ✅ Approve
+              </button>
+              <button class="action-btn btn-delete" onclick="rejectUser(${user.id}, '${user.username}')">
+                ❌ Reject
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Approve user
+    async function approveUser(userId, username) {
+      if (!confirm(`Are you sure you want to approve user "${username}"?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/users/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ userId })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to approve user');
+        }
+
+        showSuccess(`✅ User "${username}" has been approved!`);
+        loadPendingUsers(); // Refresh pending users list
+        loadAllUsers(); // Refresh all users list
+      } catch (error) {
+        console.error('Error approving user:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+
+    // Reject user
+    async function rejectUser(userId, username) {
+      if (!confirm(`Are you sure you want to reject user "${username}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/users/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ userId })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to reject user');
+        }
+
+        showSuccess(`❌ User "${username}" has been rejected.`);
+        loadPendingUsers(); // Refresh pending users list
+      } catch (error) {
+        console.error('Error rejecting user:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+
+    function renderUsersTable() {
+      const tbody = document.getElementById('users-tbody');
+      
+      if (allUsers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="no-users">No users found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = allUsers.map(user => {
+        const createdDate = new Date(user.created_at).toLocaleDateString();
+        const roleBadgeClass = user.role === 'admin' ? 'role-admin' : 'role-responder';
+        const roleIcon = user.role === 'admin' ? '👑' : '🚒';
+        
+        const actionsCell = currentUserRole === 'admin' ? `
+          <td>
+            <button class="action-btn btn-edit" onclick="openEditUserModal(${user.id}, '${user.username}', '${user.email}', '${user.role}')">
+              ✏️ Edit
+            </button>
+            ${parseInt(user.id) !== currentUserId ? `<button class="action-btn btn-delete" onclick="deleteUser(${user.id}, '${user.username}')">🗑️ Delete</button>` : ''}
+          </td>
+        ` : '';
+        
+        return `
+          <tr>
+            <td><strong>${user.username}</strong></td>
+            <td>${user.email}</td>
+            <td><span class="role-badge ${roleBadgeClass}">${roleIcon} ${user.role}</span></td>
+            <td>${createdDate}</td>
+            ${actionsCell}
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setupAdminFunctionality() {
+      const addUserModal = document.getElementById('addUserModal');
+      const editUserModal = document.getElementById('editUserModal');
+      
+      // Add User Modal
+      document.getElementById('addUserBtn').addEventListener('click', () => {
+        clearForm('addUserForm');
+        hideError('addUserError');
+        addUserModal.style.display = 'block';
+      });
+      
+      document.getElementById('closeAddUser').addEventListener('click', () => {
+        addUserModal.style.display = 'none';
+      });
+      
+      document.getElementById('cancelAddUser').addEventListener('click', () => {
+        addUserModal.style.display = 'none';
+      });
+
+      // Edit User Modal
+      document.getElementById('closeEditUser').addEventListener('click', () => {
+        editUserModal.style.display = 'none';
+      });
+      
+      document.getElementById('cancelEditUser').addEventListener('click', () => {
+        editUserModal.style.display = 'none';
+      });
+
+      // Close modals when clicking outside
+      window.addEventListener('click', (event) => {
+        if (event.target === addUserModal) {
+          addUserModal.style.display = 'none';
+        }
+        if (event.target === editUserModal) {
+          editUserModal.style.display = 'none';
+        }
+      });
+
+      // Handle forms
+      document.getElementById('addUserForm').addEventListener('submit', handleAddUser);
+      document.getElementById('editUserForm').addEventListener('submit', handleEditUser);
+    }
+
+    function openEditUserModal(userId, username, email, currentRole) {
+      document.getElementById('editUserId').value = userId;
+      document.getElementById('editUsername').value = username;
+      document.getElementById('editEmail').value = email;
+      document.getElementById('editPassword').value = '';
+      document.getElementById('editRole').value = currentRole;
+      hideError('editUserError');
+      document.getElementById('editUserModal').style.display = 'block';
+    }
+
+    async function handleAddUser(e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const userData = Object.fromEntries(formData);
+
+      try {
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(userData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          showError('addUserError', result.error || 'Failed to add user');
+          return;
+        }
+
+        document.getElementById('addUserModal').style.display = 'none';
+        showSuccess(`✅ User "${userData.username}" added successfully!`);
+        loadAllUsers(); // Refresh the user list
+        clearForm('addUserForm');
+      } catch (error) {
+        console.error('Error adding user:', error);
+        showError('addUserError', 'Network error. Please try again.');
+      }
+    }
+
+    async function handleEditUser(e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const userData = Object.fromEntries(formData);
+      const userId = userData.userId;
+
+      try {
+        const response = await fetch(`/api/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(userData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          showError('editUserError', result.error || 'Failed to update user');
+          return;
+        }
+
+        document.getElementById('editUserModal').style.display = 'none';
+        showSuccess(`✅ User "${userData.username}" updated successfully!`);
+        loadAllUsers(); // Refresh the user list
+      } catch (error) {
+        console.error('Error updating user:', error);
+        showError('editUserError', 'Network error. Please try again.');
+      }
+    }
+
+    async function deleteUser(userId, username) {
+      if (confirm(`⚠️ Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        try {
+          const response = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            alert(`❌ Error: ${result.error || 'Failed to delete user'}`);
+            return;
+          }
+
+          showSuccess(`✅ User "${username}" deleted successfully!`);
+          loadAllUsers(); // Refresh the user list
+        } catch (error) {
+          console.error('Error deleting user:', error);
+          alert('❌ Network error. Please try again.');
+        }
+      }
+    }
+
+    function showError(elementId, message) {
+      const errorElement = document.getElementById(elementId);
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+    }
+
+    function hideError(elementId) {
+      const errorElement = document.getElementById(elementId);
+      errorElement.style.display = 'none';
+    }
+
+    function showSuccess(message) {
+      // Create or update success message
+      let successDiv = document.getElementById('success-message');
+      if (!successDiv) {
+        successDiv = document.createElement('div');
+        successDiv.id = 'success-message';
+        successDiv.className = 'success-message';
+        document.querySelector('main').insertBefore(successDiv, document.querySelector('.settings-section'));
+      }
+      
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+      
+      // Auto-hide after 3 seconds
+      setTimeout(() => {
+        successDiv.style.display = 'none';
+      }, 3000);
+    }
+
+    function clearForm(formId) {
+      document.getElementById(formId).reset();
+    }
+  </script>
+</body>
+</html>

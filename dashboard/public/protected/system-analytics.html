@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>System Health Analytics</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  
+  <style>
+    /* Dashboard Layout */
+    body { background-color: #f3f4f6; }
+
+    .header-section { margin-bottom: 25px; }
+    .header-section h1 { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 0; }
+    .header-section p { color: #6b7280; font-size: 0.9rem; margin-top: 5px; }
+
+    /* KPI Cards */
+    .metrics-section { margin-bottom: 30px; }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .stat-number { font-size: 2.2rem; font-weight: 800; color: #111827; margin-top: 5px; }
+    .stat-label { color: #9ca3af; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Main Chart */
+    .performance-section { margin-bottom: 30px; }
+    .chart-container-lg {
+      background: white;
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      height: 500px; /* Large view for detailed 24h timeline */
+      position: relative;
+    }
+    
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .chart-header h3 { font-size: 1.1rem; font-weight: 600; color: #374151; margin: 0; }
+    
+    .live-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #ecfdf5;
+      color: #059669;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .blink { width: 8px; height: 8px; background: #059669; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+  </style>
+</head>
+<body>
+  <button id="toggleBtn"></button>
+  <div id="sidebar-container"></div>
+
+  <main id="main-content">
+    
+    <div class="header-section">
+      <h1 style="margin-left: 50px;" >System Health Analytics</h1>
+      <p style="margin-left: 50px;" >24-Hour Performance & Operational Status Monitor</p>
+    </div>
+
+    <div class="metrics-section">
+      <div class="metrics-grid">
+        <div class="stat-card">
+          <div class="stat-label">Current Status</div>
+          <div class="stat-number" id="system-health">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Online Devices</div>
+          <div class="stat-number" id="active-devices" style="color: #3b82f6;">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Locations</div>
+          <div class="stat-number" id="total-locations">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Alerts Today</div>
+          <div class="stat-number" id="today-alerts">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="performance-section">
+      <div class="chart-container-lg">
+        <div class="chart-header">
+          <h3>Daily System Health Timeline</h3>
+          <div class="live-indicator"><span class="blink"></span> LIVE VIEW (Today)</div>
+        </div>
+        <canvas id="healthChart"></canvas>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/protected/script.js"></script>
+
+  <script>
+    let healthChart;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadSystemKPIs();
+      await loadDailyHealthTimeline(); 
+    });
+
+    // ==========================================
+    // 1. KPI LOADER
+    // ==========================================
+    async function loadSystemKPIs() {
+      try {
+        const statsRes = await fetch('/api/dashboard/stats', { credentials: 'include' });
+        const stats = await statsRes.json();
+        
+        document.getElementById('active-devices').textContent = stats.activeDevices || 0;
+        document.getElementById('total-locations').textContent = stats.totalLocations || 0;
+        
+        const alertEl = document.getElementById('today-alerts');
+        alertEl.textContent = stats.todayAlerts || 0;
+        alertEl.style.color = stats.todayAlerts > 0 ? '#ef4444' : '#111827';
+
+        const statusRes = await fetch('/api/dashboard/status', { credentials: 'include' });
+        const statusData = await statusRes.json();
+        const healthEl = document.getElementById('system-health');
+        const statusText = statusData.systemStatus || 'Unknown';
+        healthEl.textContent = statusText;
+        
+        const colors = {
+          'Operational': '#22c55e',
+          'Monitoring (Idle)': '#3b82f6',
+          'Warning': '#f59e0b',
+          'Critical': '#ef4444',
+          'No Live Data': '#6b7280'
+        };
+        healthEl.style.color = colors[statusText] || '#111827';
+      } catch (err) { console.error("KPI Error:", err); }
+    }
+
+    // ==========================================
+    // 2. 24-HOUR HEALTH TIMELINE (Battery Style)
+    // ==========================================
+    async function loadDailyHealthTimeline() {
+      try {
+        // Force date to TODAY (00:00 to 23:59)
+        const now = new Date();
+        const startStr = now.toISOString().split('T')[0];
+        const endStr = startStr;
+
+        // Fetch data from System Metrics (Heartbeat)
+        const url = `/api/analytics/hourly?startDate=${startStr}&endDate=${endStr}`;
+        const res = await fetch(url, { credentials: 'include' });
+        const data = await res.json();
+        const rows = data.rows || [];
+
+        const ctx = document.getElementById('healthChart').getContext('2d');
+        
+        // Define Time Range
+        const startTime = new Date(startStr + 'T00:00:00').getTime();
+        const endTime = new Date(endStr + 'T23:59:59').getTime();
+        const currentTime = new Date().getTime();
+
+        // Bucket DB Data to 5-min intervals
+        const roundTo5 = (t) => {
+            const coeff = 1000 * 60 * 5;
+            return new Date(Math.round(new Date(t).getTime() / coeff) * coeff).getTime();
+        };
+
+        const dataMap = new Map();
+        rows.forEach(r => {
+            const t = roundTo5(r.timestamp_window);
+            const currentLvl = dataMap.get(t) || 0;
+            const newLvl = r.alert_level; // 0=Idle, 1=Normal, 2=Warn, 3=Crit
+            dataMap.set(t, Math.max(currentLvl, newLvl)); 
+        });
+
+        const chartData = [];
+
+        // Generate Timeline Points
+        for (let t = startTime; t <= endTime; t += 5 * 60 * 1000) {
+            if (t > currentTime) {
+                chartData.push({ x: t, y: null }); // Future is blank
+                continue;
+            }
+
+            let healthScore = 0; // Default 0 (Offline/Idle)
+            
+            if (dataMap.has(t)) {
+                const lvl = dataMap.get(t);
+                if (lvl === 1) healthScore = 100; // Normal
+                else if (lvl === 0) healthScore = 5; // Idle/Offline (Shows low bar instead of 0 for visibility)
+                else if (lvl === 2) healthScore = 50;  // Warning
+                else if (lvl >= 3) healthScore = 20;   // Critical (Low health)
+            } else {
+                // No Data hole in DB -> treat as Offline/Idle
+                healthScore = 5; 
+            }
+            
+            chartData.push({ x: t, y: healthScore });
+        }
+
+        if (healthChart) healthChart.destroy();
+
+        // Create Gradient (Battery drain look)
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.7)');   // High (Green)
+        gradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.7)'); // Mid (Orange)
+        gradient.addColorStop(0.8, 'rgba(239, 68, 68, 0.7)');   // Low (Red)
+        gradient.addColorStop(1, 'rgba(107, 114, 128, 0.3)');   // Bottom (Gray)
+
+        healthChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            datasets: [{
+              label: 'System Health',
+              data: chartData,
+              borderWidth: 2,
+              borderColor: '#374151',
+              fill: true,
+              backgroundColor: gradient,
+              tension: 0.3, // Curve
+              pointRadius: 0,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            scales: {
+              x: {
+                type: 'time',
+                time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                grid: { display: false },
+                min: startTime,
+                max: endTime
+              },
+              y: {
+                min: 0, max: 105,
+                grid: { color: '#f3f4f6' },
+                ticks: {
+                  callback: v => {
+                    if(v>=95) return 'Normal (100%)';
+                    if(v===50) return 'Warning';
+                    if(v===20) return 'Critical';
+                    if(v<=10) return 'Idle / Offline';
+                    return '';
+                  }
+                }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: c => {
+                    const v = c.parsed.y;
+                    if(v===null) return 'Future';
+                    if(v>=90) return 'Status: Normal (System Healthy)';
+                    if(v===50) return 'Status: Warning (Incidents Detected)';
+                    if(v===20) return 'Status: Critical (Confirmed Fire)';
+                    return 'Status: Idle / Offline';
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      } catch (e) { console.error("Chart Error:", e); }
+    }
+  </script>
+</body>
+</html>

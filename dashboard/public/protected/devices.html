@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Devices - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+</head>
+<body>
+  <!-- Toggle Button -->
+  <button id="toggleBtn"></button>
+
+  <!-- Sidebar container -->
+  <div id="sidebar-container"></div>
+
+  <!-- Main Content -->
+  <main id="main-content">
+    <h1 style="margin-left: 50px;">Device Management</h1>
+
+    <!-- Device List Panel -->
+    <div class="iframe-container">
+      <div class="iframe-box full-width">
+        <h3>Active Device List</h3>
+        <iframe
+          src="/grafana/d-solo/adqdj8b/alert-level-table?orgId=1&from=now-6h&to=now&timezone=browser&theme=light&panelId=1&__feature.dashboardSceneSolo=true"
+          width="100%"
+          height="1000"
+          frameborder="0">
+          </iframe>
+
+      </div>
+    </div>
+
+    <!-- Device Statistics -->
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-number" id="online-devices-stat">-</div>
+        <div class="stat-label">Online Devices</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-number" id="offline-devices-stat">-</div>
+        <div class="stat-label">Offline Devices</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-number" id="warning-status-stat">-</div>
+        <div class="stat-label">Devices w/ Confirmed Alerts</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-number" id="total-locations-devices-stat">-</div>
+        <div class="stat-label">Total Locations</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Load auth script -->
+  <script src="/protected/script.js"></script>
+
+  <!-- Page-specific functionality -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const toggleBtn = document.getElementById('toggleBtn');
+        const sidebar = document.getElementById('sidebar');
+        const main = document.getElementById('main-content');
+
+        if (toggleBtn && sidebar && main) {
+          let sidebarVisible = true;
+          toggleBtn.addEventListener('click', () => {
+            if (sidebarVisible) {
+              sidebar.style.transform = 'translateX(-260px)';
+              main.style.marginLeft = '0';
+            } else {
+              sidebar.style.transform = 'translateX(0)';
+              main.style.marginLeft = '260px';
+            }
+            sidebarVisible = !sidebarVisible;
+          });
+
+          // Highlight current page
+          const currentPage = window.location.pathname;
+          document.querySelectorAll('#sidebar a').forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+              link.classList.add('active');
+            }
+          });
+        }
+      }, 100);
+
+      // Load device statistics
+      async function loadDeviceStats() {
+        try {
+          const res = await fetch('/api/devices/stats', { credentials: 'include' });
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          const data = await res.json();
+          
+          document.getElementById('online-devices-stat').textContent = data.onlineDevices || 0;
+          document.getElementById('offline-devices-stat').textContent = data.offlineDevices || 0;
+          document.getElementById('warning-status-stat').textContent = data.warningStatus || 0;
+          document.getElementById('total-locations-devices-stat').textContent = data.totalLocations || 0;
+        } catch (err) {
+          console.error('Error loading device stats:', err);
+          // Show error state
+          document.getElementById('online-devices-stat').textContent = 'Error';
+          document.getElementById('offline-devices-stat').textContent = 'Error';
+          document.getElementById('warning-status-stat').textContent = 'Error';
+          document.getElementById('total-locations-devices-stat').textContent = 'Error';
+        }
+      }
+
+      // Initial load
+      loadDeviceStats();
+
+      // Auto-refresh every 5 minutes (300000ms)
+      setInterval(loadDeviceStats, 300000);
+    });
+  </script>
+</body>
+</html>

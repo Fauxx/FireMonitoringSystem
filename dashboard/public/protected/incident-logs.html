@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Incident Logs - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+    .device-select {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    .device-select label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--neutral-700);
+    }
+    .device-select select,
+    .device-select input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--neutral-200);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .device-select select:focus,
+    .device-select input:focus {
+      outline: none;
+      border-color: var(--primary-red);
+    }
+    .time-filters {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .time-filters button {
+      padding: 0.75rem 1.5rem;
+      border: 2px solid var(--neutral-200);
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .time-filters button.active {
+      background: var(--primary-red);
+      color: white;
+      border-color: var(--primary-red);
+    }
+    /* --- NEW BADGES FOR TABLE --- */
+    .badge-duration {
+      background-color: #f3f4f6;
+      color: #374151;
+      border: 1px solid #d1d5db;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .badge-stage {
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .badge-stage.resolved { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .badge-stage.ongoing { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+    .badge-stage.new { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  </style>
+</head>
+<body>
+  <button id="toggleBtn"></button>
+
+  <div id="sidebar-container"></div>
+
+  <main id="main-content">
+    <h1 style="margin-left: 50px;" >Incident Logs</h1>
+
+    <div class="device-select" style="margin-bottom: 2rem;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+        <div>
+          <label for="filterDevice">Filter by Device:</label>
+          <select id="filterDevice">
+            <option value="">All Devices</option>
+          </select>
+        </div>
+        <div>
+          <label for="filterStartDate">Start Date:</label>
+          <input type="date" id="filterStartDate">
+        </div>
+        <div>
+          <label for="filterEndDate">End Date:</label>
+          <input type="date" id="filterEndDate">
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="loadIncidents()">Apply Filters</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="time-filters" style="margin-bottom: 2rem;">
+      <button data-tab="pending" class="active" onclick="switchTab('pending')">Pending Verification</button>
+      <button data-tab="verified" onclick="switchTab('verified')">Verified Incidents</button>
+    </div>
+
+    <div id="pending-section">
+      <h2>⏳ Pending Verification</h2>
+      <div id="pending-incidents-container">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading incidents...</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="verified-section" style="display: none;">
+      <h2>✅ Verified Incidents</h2>
+      <div id="verified-incidents-container">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading incidents...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/protected/script.js"></script>
+
+  <script>
+    let currentUserRole = null;
+    let devices = [];
+    let isLoadingIncidents = false;
+
+    function normalizeDeviceId(raw) {
+      if (!raw) return "";
+      if (typeof raw === "string") return raw;
+      if (typeof raw === "object") {
+        return raw.m || raw.device_id || raw.deviceId || raw.id || raw.name || "";
+      }
+      return "";
+    }
+
+    async function getCurrentUser() {
+      try {
+        const res = await fetch('/auth/session');
+        if (res.ok) {
+          const data = await res.json();
+          currentUserRole = data.role;
+        }
+      } catch (err) { console.error(err); }
+    }
+
+    async function fetchDevices() {
+      try {
+        const res = await fetch('/api/analytics/devices');
+        const data = await res.json();
+        devices = Array.isArray(data) ? data : (data.devices || []);
+        
+        const select = document.getElementById('filterDevice');
+        select.innerHTML = '<option value="">All Devices</option>';
+        devices.forEach(d => {
+          const deviceId = normalizeDeviceId(d);
+          if (!deviceId) return;
+          const opt = document.createElement('option');
+          opt.value = deviceId;
+          opt.textContent = deviceId;
+          select.appendChild(opt);
+        });
+      } catch (err) { console.error(err); }
+    }
+
+    function setIncidentsLoadingState() {
+      if (isLoadingIncidents) return;
+      isLoadingIncidents = true;
+      const markup = `
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Refreshing incident data...</div>
+        </div>`;
+      document.getElementById('pending-incidents-container').innerHTML = markup;
+      document.getElementById('verified-incidents-container').innerHTML = markup;
+    }
+
+    async function loadIncidents() {
+      const device = document.getElementById('filterDevice').value;
+      const startDate = document.getElementById('filterStartDate').value;
+      const endDate = document.getElementById('filterEndDate').value;
+
+      const params = new URLSearchParams();
+      if (device) params.append('device', device);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      try {
+        setIncidentsLoadingState();
+        const res = await fetch(`/api/incidents?${params.toString()}`);
+        if (!res.ok) throw new Error("API Error");
+        const data = await res.json();
+
+        renderPendingIncidents(data.pending || []);
+        renderVerifiedIncidents(data.verified || []);
+      } catch (err) {
+        console.error('Error loading incidents:', err);
+        document.getElementById('pending-incidents-container').innerHTML = '<div class="error-message">Failed to load incidents.</div>';
+      } finally {
+        isLoadingIncidents = false;
+      }
+    }
+
+    // --- RENDER PENDING INCIDENTS (FIXED) ---
+    function renderPendingIncidents(incidents) {
+      const container = document.getElementById('pending-incidents-container');
+      
+      if (incidents.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">No Pending Incidents</div></div>';
+        return;
+      }
+
+      const isAdmin = currentUserRole === 'admin';
+      
+      container.innerHTML = `
+        <div class="activity-box">
+          <div class="activity-content" style="padding: 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: var(--neutral-50); border-bottom: 2px solid var(--neutral-200);">
+                  <th style="padding: 1rem; text-align: left;">Device ID</th>
+                  <th style="padding: 1rem; text-align: left;">Start Time (PH)</th>
+                  <th style="padding: 1rem; text-align: left;">Duration</th>
+                  <th style="padding: 1rem; text-align: left;">Status</th>
+                  <th style="padding: 1rem; text-align: left;">Alert Level</th>
+                  ${isAdmin ? '<th style="padding: 1rem; text-align: left;">Action</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${incidents.map(incident => {
+                  const deviceId = incident.device_id || incident.m || 'N/A';
+                  // API returns start_time already in PH timezone logic, or fallback to timestamp
+                  const startTime = incident.start_time ? new Date(incident.start_time).toLocaleString() : new Date(incident.timestamp).toLocaleString();
+                  const duration = incident.duration || '00:00:00';
+                  const stage = incident.event_stage || 'new';
+
+                  return `
+                  <tr style="border-bottom: 1px solid var(--neutral-200);">
+                    <td style="padding: 1rem;"><strong>${deviceId}</strong></td>
+                    <td style="padding: 1rem;">${startTime}</td>
+                    <td style="padding: 1rem;">
+                      <span class="badge-duration">⏱ ${duration}</span>
+                    </td>
+                    <td style="padding: 1rem;">
+                      <span class="badge-stage ${stage}">${stage}</span>
+                    </td>
+                    <td style="padding: 1rem;">
+                      <span class="status-badge ${incident.alert_level >= 3 ? 'critical' : 'warning'}">
+                        Level ${incident.alert_level}
+                      </span>
+                    </td>
+                    ${isAdmin ? `
+                      <td style="padding: 1rem;">
+                        <button 
+                          class="btn btn-primary btn-compact" 
+                          data-device="${deviceId}"
+                          data-timestamp="${incident.start_time || incident.timestamp}" 
+                          data-alert="${incident.alert_level}"
+                          data-flame="${incident.flame_value}"
+                          data-smoke="${incident.smoke_value}"
+                          data-temp="${incident.temp_value}"
+                          onclick="handleVerifyClick(this)">
+                          Verify
+                        </button>
+                      </td>
+                    ` : ''}
+                  </tr>
+                `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- RENDER VERIFIED INCIDENTS (FIXED) ---
+    function renderVerifiedIncidents(incidents) {
+      const container = document.getElementById('verified-incidents-container');
+      
+      if (incidents.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">No Verified Incidents</div></div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="activity-box">
+          <div class="activity-content" style="padding: 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: var(--neutral-50); border-bottom: 2px solid var(--neutral-200);">
+                  <th style="padding: 1rem; text-align: left;">Device ID</th>
+                  <th style="padding: 1rem; text-align: left;">Incident Time</th>
+                  <th style="padding: 1rem; text-align: left;">Alert Level</th>
+                  <th style="padding: 1rem; text-align: left;">Verified By</th>
+                  <th style="padding: 1rem; text-align: left;">Verified At</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${incidents.map(incident => {
+                  const deviceId = incident.device_id || 'N/A';
+                  return `
+                  <tr style="border-bottom: 1px solid var(--neutral-200);">
+                    <td style="padding: 1rem;">${deviceId}</td>
+                    <td style="padding: 1rem;">${new Date(incident.timestamp).toLocaleString()}</td>
+                    <td style="padding: 1rem;">
+                      <span class="status-badge ${incident.alert_level >= 3 ? 'critical' : 'warning'}">
+                        Level ${incident.alert_level}
+                      </span>
+                    </td>
+                    <td style="padding: 1rem;">${incident.verified_by_username || 'N/A'}</td>
+                    <td style="padding: 1rem;">${new Date(incident.verified_at).toLocaleString()}</td>
+                  </tr>
+                `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function handleVerifyClick(button) {
+      const { device, timestamp, alert, flame, smoke, temp } = button.dataset;
+      verifyIncident(
+        device,
+        timestamp,
+        Number(alert || 0),
+        flame ? Number(flame) : null,
+        smoke ? Number(smoke) : null,
+        temp ? Number(temp) : null,
+        button
+      );
+    }
+
+    async function verifyIncident(deviceId, timestamp, alertLevel, flameValue, smokeValue, tempValue, buttonElement) {
+      if (!confirm('Verify this incident?')) return;
+
+      const verifyBtn = buttonElement;
+      if (verifyBtn) { verifyBtn.disabled = true; verifyBtn.textContent = 'Verifying...'; }
+
+      try {
+        const res = await fetch('/api/incidents/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            device_id: deviceId,
+            timestamp: timestamp, 
+            alert_level: alertLevel,
+            flame_value: flameValue,
+            smoke_value: smokeValue,
+            temp_value: tempValue,
+            notes: ''
+          })
+        });
+
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+          showNotification('✅ Verified successfully!', 'success');
+          setTimeout(loadIncidents, 500);
+        } else {
+          showNotification('❌ Error: ' + (data.error || 'Failed'), 'error');
+        }
+      } catch (err) {
+        showNotification('❌ Failed to verify.', 'error');
+      } finally {
+        if (verifyBtn) { verifyBtn.disabled = false; verifyBtn.textContent = 'Verify'; }
+      }
+    }
+
+    function showNotification(message, type = 'info') {
+      const n = document.createElement('div');
+      n.className = `notification notification-${type}`;
+      n.style.cssText = `position: fixed; top: 20px; right: 20px; padding: 1rem; background: ${type==='success'?'#22c55e':'#ef4444'}; color: white; border-radius: 8px; z-index: 10000;`;
+      n.textContent = message;
+      document.body.appendChild(n);
+      setTimeout(() => n.remove(), 3000);
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.time-filters button').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.time-filters button[data-tab="${tab}"]`).classList.add('active');
+      document.getElementById('pending-section').style.display = tab === 'pending' ? 'block' : 'none';
+      document.getElementById('verified-section').style.display = tab === 'verified' ? 'block' : 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Sidebar Toggle
+      setTimeout(() => {
+        const toggleBtn = document.getElementById('toggleBtn');
+        const sidebar = document.getElementById('sidebar-container');
+        const main = document.getElementById('main-content');
+        if (sidebar && main && toggleBtn) {
+          let sidebarVisible = true;
+          toggleBtn.addEventListener('click', () => {
+            if (sidebarVisible) {
+              sidebar.style.transform = 'translateX(-260px)';
+              main.style.marginLeft = '0';
+            } else {
+              sidebar.style.transform = 'translateX(0)';
+              main.style.marginLeft = '260px';
+            }
+            sidebarVisible = !sidebarVisible;
+          });
+        }
+      }, 100);
+
+      await getCurrentUser();
+      await fetchDevices();
+      document.getElementById('filterDevice').addEventListener('change', loadIncidents);
+      await loadIncidents();
+      setInterval(loadIncidents, 60000); 
+    });
+  </script>
+</body>
+</html>

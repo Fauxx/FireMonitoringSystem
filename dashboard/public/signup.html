@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FireAlarm Pro - Sign Up</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-header">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">
+        </div>
+        <h2>Create Account</h2>
+        <p>Join FireAlarm Pro System</p>
+      </div>
+
+      <form action="/auth/signup" method="POST" class="login-form">
+        <div class="form-group">
+          <label for="username" class="form-label">Username</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            required
+            class="form-input"
+            placeholder="Enter your username"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="email" class="form-label">Email</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            class="form-input"
+            placeholder="Enter your email"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            class="form-input"
+            placeholder="Create a password"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="role" class="form-label">User Type</label>
+          <select
+            id="role"
+            name="role"
+            required
+            class="form-input"
+          >
+            <option value="responder">🚒 Emergency Responder</option>
+            <option value="admin">👑 Administrator</option>
+          </select>
+        </div>
+        
+        <button type="submit" class="login-btn">
+          🚀 Create Account
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <p>
+          <a href="/login.html" style="color: #dc2626; text-decoration: none;">Already have an account? Sign In</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Signup Alert Scripts -->
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+
+    if (message === 'taken') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Account Exists',
+        text: 'Username or email is already taken. Please try different credentials.',
+        iconColor: '#dc2626',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'server') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Server Error',
+        text: 'There was an error creating your account. Please try again.',
+        iconColor: '#dc2626',
+        confirmButtonColor: '#dc2626'
+      });
+    } else if (message === 'signedup') {
+      Swal.fire({
+        icon: 'success',
+        title: 'Account Created!',
+        text: 'Your account has been created successfully. You can now log in.',
+        iconColor: '#10b981',
+        confirmButtonColor: '#dc2626'
+      });
+    }
+
+    // Clean the URL so alerts don't repeat on refresh
+    if (message) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Add some interactive effects
+    document.addEventListener('DOMContentLoaded', function() {
+      const inputs = document.querySelectorAll('.form-input');
+      
+      inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+          this.parentElement.style.transform = 'translateY(-2px)';
+        });
+        
+        input.addEventListener('blur', function() {
+          this.parentElement.style.transform = 'translateY(0)';
+        });
+      });
+    });
+  </script>
+</body>
+</html>

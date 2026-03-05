@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analytics - Fire Alarm System</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <style>
+    /* ... existing global styles ... */
+    
+    .heatmaps-container {
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+      margin-bottom: 3rem;
+    }
+    
+    .heatmap-section {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    /* CALENDAR GRID STYLES */
+    .calendar-wrapper {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .calendar-month {
+      border: 1px solid #f3f4f6;
+      border-radius: 8px;
+      padding: 0.75rem;
+      background: #fff;
+    }
+
+    .calendar-month h4 {
+      text-align: center;
+      margin: 0 0 0.75rem 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #374151;
+    }
+
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 3px;
+    }
+
+    .day-label {
+      text-align: center;
+      font-size: 0.65rem;
+      color: #9ca3af;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .calendar-day {
+      aspect-ratio: 1;
+      border-radius: 3px;
+      background-color: #f9fafb; /* Default Empty */
+      font-size: 0.65rem;
+      color: #d1d5db;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    
+    .calendar-day.empty {
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .calendar-day:hover {
+      transform: scale(1.2);
+      z-index: 10;
+      border: 1px solid #6b7280;
+      color: #111;
+    }
+
+    /* --- CLEAN COLOR SCALES (MONOCHROMATIC) --- */
+    
+    /* 1. CRITICAL FILTER (RED SCALE) */
+    .calendar-day[data-mode="critical"][data-intensity="1"] { background-color: #fee2e2; color: #991b1b; } /* Low Intensity */
+    .calendar-day[data-mode="critical"][data-intensity="2"] { background-color: #f87171; color: white; }   /* Med Intensity */
+    .calendar-day[data-mode="critical"][data-intensity="3"] { background-color: #b91c1c; color: white; }   /* High Intensity */
+
+    /* 2. WARNING FILTER (ORANGE SCALE) */
+    .calendar-day[data-mode="warning"][data-intensity="1"] { background-color: #ffedd5; color: #9a3412; } /* Low Intensity */
+    .calendar-day[data-mode="warning"][data-intensity="2"] { background-color: #fdba74; color: #9a3412; } /* Med Intensity */
+    .calendar-day[data-mode="warning"][data-intensity="3"] { background-color: #ea580c; color: white; }   /* High Intensity */
+
+    /* Tooltip & Badges */
+    .heatmap-header-badge {
+      font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.75rem;
+      border-radius: 999px; text-transform: uppercase;
+    }
+    .heatmap-header-badge.system { color: #1e40af; background: #dbeafe; border: 1px solid #93c5fd; }
+    .heatmap-header-badge.verified { color: #065f46; background: #d1fae5; border: 1px solid #6ee7b7; }
+
+    .heatmap-tooltip {
+      position: fixed; background: rgba(17, 24, 39, 0.95); color: white;
+      padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.75rem;
+      pointer-events: none; display: none; z-index: 100;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Chart Block */
+    .chart-block {
+      background: white; padding: 1.5rem; border-radius: 12px;
+      border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <button id="toggleBtn"></button>
+  <div id="sidebar-container"></div>
+
+  <main id="main-content">
+    <h1 style="margin-left: 50px;">Sensor Analytics Dashboard</h1>
+
+    <div class="metrics-section">
+      <h2>Incident Metrics (Last 30 Days)</h2>
+      <div class="metrics-grid">
+        <div class="stat-card">
+          <div class="stat-label">System Generated</div>
+          <div class="stat-number" id="system-generated-total">0</div>
+          <div class="stat-details">
+            <span class="stat-detail-item critical">Critical: <strong id="system-generated-critical">0</strong></span>
+            <span class="stat-detail-item warning">Warning: <strong id="system-generated-warning">0</strong></span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Verified Incidents</div>
+          <div class="stat-number" id="verified-total">0</div>
+          <div class="stat-details">
+            <span class="stat-detail-item critical">Critical: <strong id="verified-critical">0</strong></span>
+            <span class="stat-detail-item warning">Warning: <strong id="verified-warning">0</strong></span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Verification Rate</div>
+          <div class="stat-number" id="verification-rate">0%</div>
+          <div class="stat-details">
+            <span class="stat-detail-item">vs Auto-detected</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 2rem; margin-bottom: 1rem;">
+      <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem; color: #374151;">Incident Calendar</h3>
+      <div style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: 1rem; background: #fff; border-radius: 8px; border: 1px solid #e5e7eb;">
+        
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <label for="heatmapYearFilter" style="font-weight: 600; font-size: 0.875rem;">Year:</label>
+          <select id="heatmapYearFilter" style="padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc;"></select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <label for="heatmapDeviceFilter" style="font-weight: 600; font-size: 0.875rem;">Device:</label>
+          <select id="heatmapDeviceFilter" style="padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc;">
+            <option value="">All Devices</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; border-left: 1px solid #e5e7eb; padding-left: 1rem;">
+          <label for="heatmapLevelFilter" style="font-weight: 600; font-size: 0.875rem; color: #4b5563;">Show Only:</label>
+          <select id="heatmapLevelFilter" style="padding: 0.4rem; border-radius: 4px; border: 1px solid #ccc; font-weight: 600;">
+            <option value="critical" selected style="color:#b91c1c;">Critical (Red)</option>
+            <option value="warning" style="color:#c2410c;">Warnings (Orange)</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="heatmaps-container">
+      
+      <div class="heatmap-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h2 style="margin:0;">System Incidents</h2>
+            <p style="font-size: 0.8rem; color: #666; margin: 0.2rem 0 0 0;">Auto-detected via IoT Sensors</p>
+          </div>
+          <span class="heatmap-header-badge system">Auto</span>
+        </div>
+        <div id="calendar-system" class="calendar-wrapper"></div>
+      </div>
+
+      <div class="heatmap-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h2 style="margin:0;">Verified Incidents</h2>
+            <p style="font-size: 0.8rem; color: #666; margin: 0.2rem 0 0 0;">Confirmed by Admin</p>
+          </div>
+          <span class="heatmap-header-badge verified">Verified</span>
+        </div>
+        <div id="calendar-verified" class="calendar-wrapper"></div>
+      </div>
+    </div>
+    
+    <div id="heatmap-tooltip" class="heatmap-tooltip"></div>
+
+    <div style="margin-top: 3rem;">
+      <h3 style="margin-bottom: 0.5rem; font-size: 1.25rem; font-weight: 700; color: #1f2937;">Sensor Readings Analytics</h3>
+      <div class="filters-group compact" style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+          <div class="filter-item">
+            <label for="deviceId">Device Filter:</label>
+            <select id="deviceId" style="min-width: 200px;"><option value="">All Devices</option></select>
+          </div>
+          <div class="filter-item">
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate">
+          </div>
+          <div class="filter-item">
+            <label for="endDate">End Date:</label>
+            <input type="date" id="endDate">
+          </div>
+          <div class="filter-item action" style="align-self: flex-end;">
+            <button id="applyFilters" class="btn btn-primary btn-compact">Update Chart</button>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #e5e7eb; padding-top: 1rem; display: flex; align-items: center; gap: 1rem;">
+          <label for="sensorType" style="font-weight: 600; color: #374151;">Select Sensor Type:</label>
+          <select id="sensorType" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; min-width: 150px;">
+            <option value="fa">Flame A</option>
+            <option value="fb">Flame B</option>
+            <option value="sa">Smoke A</option>
+            <option value="sb">Smoke B</option>
+            <option value="ta" selected>Temp A</option>
+            <option value="tb">Temp B</option>
+            <option value="ga">Gas A</option>
+            <option value="gb">Gas B</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-block">
+        <div style="position: relative; height: 600px; width: 100%;">
+          <canvas id="sensorChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/protected/script.js"></script>
+  <script>
+    // --- VARIABLES ---
+    const deviceSelect = document.getElementById('deviceId');
+    const startDateEl = document.getElementById('startDate');
+    const endDateEl = document.getElementById('endDate');
+    const applyBtn = document.getElementById('applyFilters');
+    const sensorTypeSelect = document.getElementById('sensorType');
+    
+    const heatmapYearFilterEl = document.getElementById('heatmapYearFilter');
+    const heatmapDeviceFilterEl = document.getElementById('heatmapDeviceFilter');
+    const heatmapLevelFilterEl = document.getElementById('heatmapLevelFilter');
+
+    let sensorChart = null;
+
+    // --- INIT ---
+    function initYears() {
+      const currentYear = new Date().getFullYear();
+      heatmapYearFilterEl.innerHTML = ''; 
+      for (let i = 0; i <= 3; i++) {
+        const year = currentYear - i;
+        const opt = document.createElement('option');
+        opt.value = year; opt.textContent = year;
+        if (i === 0) opt.selected = true;
+        heatmapYearFilterEl.appendChild(opt);
+      }
+    }
+
+    async function initDevices(){
+      try {
+        const res = await fetch('/api/analytics/devices');
+        const data = await res.json();
+        const devices = Array.isArray(data) ? data : (data.devices || []);
+
+        deviceSelect.innerHTML='<option value="">All Devices</option>';
+        heatmapDeviceFilterEl.innerHTML='<option value="">All Devices</option>';
+
+        devices.forEach(d => {
+          const id = typeof d==='string' ? d : d.m || d.device_id || d;
+          const opt1 = document.createElement('option');
+          opt1.value = id; opt1.textContent = id;
+          deviceSelect.appendChild(opt1);
+          const opt2 = document.createElement('option');
+          opt2.value = id; opt2.textContent = id;
+          heatmapDeviceFilterEl.appendChild(opt2);
+        });
+      } catch(e){ console.error(e); }
+    }
+
+    // --- HEATMAP LOGIC ---
+    function getHeatmapDateRange() {
+      const year = heatmapYearFilterEl.value || new Date().getFullYear();
+      return { start: `${year}-01-01`, end: `${year}-12-31` };
+    }
+
+    async function loadHeatmaps() {
+      const device = heatmapDeviceFilterEl.value;
+      const { start, end } = getHeatmapDateRange();
+      const selectedYear = parseInt(heatmapYearFilterEl.value);
+      
+      // Get System Filter (Red vs Orange)
+      const systemLevel = heatmapLevelFilterEl.value; 
+
+      // 1. SYSTEM INCIDENTS
+      // Dynamic Red or Orange based on dropdown
+      let sysUrl = `/api/analytics/heatmap?type=system&start=${start}&end=${end}&level=${systemLevel}`;
+      if(device) sysUrl += `&device=${encodeURIComponent(device)}`;
+      
+      try {
+        const res = await fetch(sysUrl, { credentials: 'include' });
+        const data = await res.json();
+        renderCalendar(data.heatmap || {}, 'system', selectedYear, systemLevel);
+      } catch(e) { console.error(e); }
+
+      // 2. VERIFIED INCIDENTS
+      // Always 'critical' (Red), but now scales intensity based on frequency
+      let verUrl = `/api/analytics/heatmap?type=verified&start=${start}&end=${end}`; 
+      if(device) verUrl += `&device=${encodeURIComponent(device)}`;
+      
+      try {
+        const res = await fetch(verUrl, { credentials: 'include' });
+        const data = await res.json();
+        renderCalendar(data.heatmap || {}, 'verified', selectedYear, 'critical');
+      } catch(e) { console.error(e); }
+    }
+
+    function renderCalendar(rawHeatmapData, type, year, mode) {
+      const containerId = type === 'system' ? 'calendar-system' : 'calendar-verified';
+      const container = document.getElementById(containerId);
+      const tooltip = document.getElementById('heatmap-tooltip');
+      
+      container.innerHTML = ''; 
+
+      // 1. Normalize Data & Find Maximum Frequency (Relative Scaling)
+      const normalizedData = {};
+      let maxFrequency = 0; 
+
+      if (rawHeatmapData) {
+        Object.keys(rawHeatmapData).forEach(key => {
+          try {
+            const d = new Date(key);
+            if (!isNaN(d)) {
+              const offset = d.getTimezoneOffset() * 60000;
+              const localISODate = new Date(d.getTime() - offset).toISOString().split('T')[0];
+              normalizedData[localISODate] = rawHeatmapData[key];
+              
+              // Track highest daily count
+              if (rawHeatmapData[key].count > maxFrequency) {
+                maxFrequency = rawHeatmapData[key].count;
+              }
+            }
+          } catch(e) {}
+        });
+      }
+
+      if (maxFrequency === 0) maxFrequency = 1;
+
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const dayHeaders = ['S','M','T','W','T','F','S'];
+
+      for (let m = 0; m < 12; m++) {
+        const monthCard = document.createElement('div');
+        monthCard.className = 'calendar-month';
+
+        const h4 = document.createElement('h4');
+        h4.textContent = monthNames[m];
+        monthCard.appendChild(h4);
+
+        const grid = document.createElement('div');
+        grid.className = 'month-grid';
+
+        dayHeaders.forEach(d => {
+          const dh = document.createElement('div');
+          dh.className = 'day-label';
+          dh.textContent = d;
+          grid.appendChild(dh);
+        });
+
+        const firstDayOfMonth = new Date(year, m, 1).getDay();
+        const daysInMonth = new Date(year, m + 1, 0).getDate();
+
+        for(let i=0; i<firstDayOfMonth; i++){
+          const empty = document.createElement('div');
+          empty.className = 'calendar-day empty';
+          grid.appendChild(empty);
+        }
+
+        for(let d=1; d<=daysInMonth; d++){
+          const monthStr = String(m+1).padStart(2,'0');
+          const dayStr = String(d).padStart(2,'0');
+          const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+          const dayData = normalizedData[dateKey];
+          const count = dayData ? dayData.count : 0;
+          
+          let intensity = 0;
+
+          // --- DYNAMIC INTENSITY CALCULATION ---
+          if (count > 0) {
+            const ratio = count / maxFrequency; // 0.0 - 1.0
+
+            if (ratio <= 0.33) intensity = 1;       // Light
+            else if (ratio <= 0.66) intensity = 2;  // Medium
+            else intensity = 3;                     // Dark
+            
+            // Ensure visibility if count > 0
+            if (intensity === 0) intensity = 1;
+          }
+
+          const cell = document.createElement('div');
+          cell.className = 'calendar-day';
+          cell.textContent = d;
+          
+          cell.dataset.mode = mode; 
+          cell.dataset.intensity = intensity;
+
+          if(count > 0) {
+            cell.addEventListener('mouseenter', (e) => {
+              const rect = e.target.getBoundingClientRect();
+              tooltip.style.display = 'block';
+              tooltip.style.left = (rect.left - 20) + 'px';
+              tooltip.style.top = (rect.top - 45) + 'px';
+              
+              const statusText = mode === 'critical' ? 'Critical Incidents' : 'Warnings';
+              
+              tooltip.innerHTML = `
+                <strong>${dateKey}</strong><br/>
+                ${statusText}<br/>
+                Count: ${count}
+              `;
+            });
+            cell.addEventListener('mouseleave', () => {
+               tooltip.style.display = 'none';
+            });
+          }
+
+          grid.appendChild(cell);
+        }
+
+        monthCard.appendChild(grid);
+        container.appendChild(monthCard);
+      }
+    }
+
+    // --- CHART LOGIC ---
+    async function loadChartData() {
+       const device = deviceSelect.value;
+       const start = startDateEl.value;
+       const end = endDateEl.value;
+       
+       try {
+         let url = `/api/analytics/hourly?`;
+         if(device) url += `device=${encodeURIComponent(device)}&`;
+         if(start) url += `startDate=${start}&`;
+         if(end) url += `endDate=${end}&`;
+         
+         const res = await fetch(url);
+         const json = await res.json();
+         renderChart(json.rows || []);
+       } catch(e) { console.error(e); }
+    }
+
+    function renderChart(data){
+      const ctx = document.getElementById('sensorChart').getContext('2d');
+      const selectedType = sensorTypeSelect.value;
+      
+      const labels = data.map(r => new Date(r.timestamp_window).toLocaleString());
+      const values = data.map(r => parseFloat(r[selectedType]) || 0);
+
+      const meta = {
+        'fa': { label: 'Flame Sensor A', color: '#ef4444' },
+        'fb': { label: 'Flame Sensor B', color: '#b91c1c' },
+        'sa': { label: 'Smoke Sensor A', color: '#f59e0b' },
+        'sb': { label: 'Smoke Sensor B', color: '#b45309' },
+        'ta': { label: 'Temp Sensor A', color: '#3b82f6' },
+        'tb': { label: 'Temp Sensor B', color: '#1e40af' },
+        'ga': { label: 'Gas Sensor A', color: '#10b981' },
+        'gb': { label: 'Gas Sensor B', color: '#047857' },
+      }[selectedType];
+
+      if(sensorChart) sensorChart.destroy();
+
+      sensorChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: meta.label,
+            data: values,
+            borderColor: meta.color,
+            backgroundColor: meta.color + '20',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top' },
+            zoom: {
+              zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+              pan: { enabled: true, mode: 'x' }
+            }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Time' }, ticks: { maxTicksLimit: 10 } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // --- LISTENERS ---
+    heatmapYearFilterEl.addEventListener('change', loadHeatmaps);
+    heatmapDeviceFilterEl.addEventListener('change', loadHeatmaps);
+    heatmapLevelFilterEl.addEventListener('change', loadHeatmaps);
+
+    applyBtn.addEventListener('click', loadChartData);
+    sensorTypeSelect.addEventListener('change', loadChartData);
+
+    // --- STARTUP ---
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Sidebar Toggle
+      setTimeout(() => {
+        const toggleBtn = document.getElementById('toggleBtn');
+        const sidebar = document.getElementById('sidebar-container');
+        const main = document.getElementById('main-content');
+        if (sidebar && main && toggleBtn) {
+          let sidebarVisible = true;
+          toggleBtn.addEventListener('click', () => {
+            if (sidebarVisible) {
+              sidebar.style.transform = 'translateX(-260px)';
+              main.style.marginLeft = '0';
+            } else {
+              sidebar.style.transform = 'translateX(0)';
+              main.style.marginLeft = '260px';
+            }
+            sidebarVisible = !sidebarVisible;
+          });
+        }
+      }, 100);
+
+      initYears();
+      await initDevices();
+      await loadHeatmaps();
+      await loadChartData();
+      
+      try {
+        const res = await fetch('/api/analytics/incident-metrics?days=30');
+        const m = await res.json();
+        document.getElementById('system-generated-total').textContent = m.systemGenerated?.total || 0;
+        document.getElementById('system-generated-critical').textContent = m.systemGenerated?.critical || 0;
+        document.getElementById('system-generated-warning').textContent = m.systemGenerated?.warning || 0;
+        document.getElementById('verified-total').textContent = m.verified?.total || 0;
+        document.getElementById('verified-critical').textContent = m.verified?.critical || 0;
+        document.getElementById('verified-warning').textContent = m.verified?.warning || 0;
+        document.getElementById('verification-rate').textContent = (m.verificationRate || 0) + '%';
+      } catch(e) {}
+    });
+  </script>
+</body>
+</html>

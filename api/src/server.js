@@ -19,7 +19,8 @@ const analyticsRoutes = require('./routes/analytics');
 
 const { ensureAuthenticated } = require('./middleware/auth');
 
-const DASHBOARD_DIR = process.env.DASHBOARD_DIR || path.join(__dirname, '..', 'dashboard');
+const DASHBOARD_DIR = process.env.DASHBOARD_DIR || path.join(__dirname, '..', '..', 'dashboard', 'public');
+const DASHBOARD_STYLES_DIR = process.env.DASHBOARD_STYLES_DIR || path.join(__dirname, '..', '..', 'dashboard', 'styles');
 
 // -------------------------------
 // Initialize Express App
@@ -70,6 +71,7 @@ app.use((req, res, next) => {
 
 // Serve static files
 app.use(express.static(DASHBOARD_DIR));
+app.use('/styles', express.static(DASHBOARD_STYLES_DIR));
 
 // -------------------------------
 // Grafana Proxy (Authenticated)

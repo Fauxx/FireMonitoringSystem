@@ -55,4 +55,4 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 - Wire the ETL container into Telegraf/MQTT once real sensor feeds are available.
 - Extend Terraform with firewalls, managed databases, and monitoring as infrastructure requirements solidify.
 - Add automated test coverage under `api/tests` and a frontend build pipeline when the dashboard grows.
-
+- [Practice safe secrets management]

@@ -45,8 +45,8 @@ services:
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-influx-token}
     volumes:
-      - influxdb_data:/var/lib/influxdb2
-      - ./infrastructure/influxdb:/etc/influxdb2:ro
+      - ./infrastructure/influxdb/data:/var/lib/influxdb2
+      - ./infrastructure/influxdb/config:/etc/influxdb2
     networks:
       - fire-net
     healthcheck:

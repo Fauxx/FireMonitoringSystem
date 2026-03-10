@@ -36,7 +36,7 @@ This repository centralizes every component of the IoT fire-monitoring stack int
    cd C:\Users\zet\Documents\GitHub\fire-monitoring-webapp
    Copy-Item .env.example .env
    ```
-   Set secure values for database, JWT, and Influx tokens before running anything.
+   Set secure values for database, JWT, and Influx tokens before running anything. Ensure `INFLUXDB_URL` points to `http://influxdb:8086` for local Docker networking (or your managed Influx endpoint in prod).
 
 2. **Bootstrap the stack**
    ```powershell
@@ -46,7 +46,17 @@ This repository centralizes every component of the IoT fire-monitoring stack int
    ```
    Services join the `fire-net` network automatically. The API listens on `:8000`, dashboard preview on `:8080`, and Nginx entrypoint exposes `:80/:443`.
 
-3. **CI/CD**
+3. **Network sanity checks**
+   ```bash
+   docker compose ps
+   docker compose exec api getent hosts postgres influxdb mqtt-broker
+   docker compose exec api curl -f http://postgres:5432 || true
+   curl -f http://localhost:8000/health
+   curl -f http://localhost/health
+   ```
+   Verifies container DNS inside the bridge network and host reachability for API/Nginx.
+
+4. **CI/CD**
    - `.github/workflows/build-push.yml` builds and publishes container images to GHCR.
    - `.github/workflows/deploy.yml` expects DigitalOcean SSH secrets to pull + restart the stack remotely.
 
@@ -56,4 +66,4 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 - Extend Terraform with firewalls, managed databases, and monitoring as infrastructure requirements solidify.
 - Add automated test coverage under `api/tests` and a frontend build pipeline when the dashboard grows.
 - [Practice safe secrets management]
-- another practice  
+- another practice

@@ -74,7 +74,12 @@ app.use(express.static(DASHBOARD_DIR));
 // -------------------------------
 // Grafana Proxy (Authenticated)
 // -------------------------------
+const protectGrafana = process.env.GRAFANA_PROXY_PROTECT
+  ? process.env.GRAFANA_PROXY_PROTECT !== 'false'
+  : NODE_ENV === 'production';
+
 function grafanaAuth(req, res, next) {
+  if (!protectGrafana) return next();
   if (!req.session || !req.session.user) {
     return res.status(401).send('Unauthorized');
   }

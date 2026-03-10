@@ -72,6 +72,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
       - fire-net
     depends_on:

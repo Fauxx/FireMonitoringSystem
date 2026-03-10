@@ -137,3 +137,9 @@ dist
 
 # JetBrains IDE settings
 .idea/
+# Docker Data Volumes
+infrastructure/mqtt/data/
+infrastructure/mqtt/log/
+infrastructure/influxdb/data/
+infrastructure/influxdb/config/
+postgres_data/

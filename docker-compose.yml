@@ -98,6 +98,7 @@ services:
       - PORT=8000
       - DATABASE_URL=${DATABASE_URL:-postgresql://fireuser:changeme@postgres:5432/fire_monitoring}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key}
+      - GRAFANA_PROXY_PROTECT=${GRAFANA_PROXY_PROTECT:-false}
     ports:
       - "8000:8000"
     volumes:

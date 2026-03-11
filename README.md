@@ -67,3 +67,15 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 - Add automated test coverage under `api/tests` and a frontend build pipeline when the dashboard grows.
 - [Practice safe secrets management]
 - another practice
+
+## Grafana dashboards (versioned)
+- Dashboards are provisioned from `infrastructure/grafana/dashboards` via `infrastructure/grafana/provisioning/dashboards/fire-dashboards.yaml`. Any JSON you commit there is auto-loaded on container start.
+- Export updates from a running Grafana with an API token:
+  ```bash
+  GRAFANA_URL=http://localhost:3000 \
+  GRAFANA_TOKEN=<admin-or-editor-token> \
+  ./infrastructure/grafana/export_dashboards.sh <dashboard_uid>
+  ```
+  Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
+- The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
+

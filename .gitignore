@@ -143,3 +143,4 @@ infrastructure/mqtt/log/
 infrastructure/influxdb/data/
 infrastructure/influxdb/config/
 postgres_data/
+venv/

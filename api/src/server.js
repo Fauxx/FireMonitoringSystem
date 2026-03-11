@@ -57,7 +57,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use(session({
-  secret: 'super-secret-key',  // ⚠️ replace with strong secret in prod
+  secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,
   saveUninitialized: false
 }));

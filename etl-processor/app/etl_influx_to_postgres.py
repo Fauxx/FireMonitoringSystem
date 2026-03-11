@@ -13,11 +13,12 @@ from dotenv import load_dotenv
 # -----------------------------
 load_dotenv()
 
-INFLUXDB_URL = os.getenv("INFLUXDB_URL")
+# Prefer Docker network hostnames when running in containers
+INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://influxdb:8086")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
-INFLUXDB_ORG = os.getenv("INFLUXDB_ORG")
-INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET")
-DATABASE_URL = os.getenv("DATABASE_URL")
+INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "fire-monitoring")
+INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "sensor-data")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fireuser:changeme@postgres:5432/fire_monitoring")
 
 AGG_WINDOW_MINUTES = 5
 RETRY_COUNT = 3

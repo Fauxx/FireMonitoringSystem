@@ -11,5 +11,8 @@ COPY . .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+# Switch to application directory containing the ETL script
+WORKDIR /app/app
+
 # Default command: run the ETL script
 CMD ["python3", "etl_influx_to_postgres.py"]

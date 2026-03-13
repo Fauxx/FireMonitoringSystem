@@ -32,6 +32,18 @@ ALERT_THRESHOLDS = {
     "flame": {"orange": 1027, "red": 1050}
 }
 
+# Columns allowed for generic upsert
+ALLOWED_COLS = [
+    "time", "m", "host", "alert_level", "event_stage",
+    "fa", "fb", "ga", "gb", "sa", "sb", "ta", "tb",
+    "ks", "ls", "k", "l", "la", "lo", "a", "o",
+    "timestamp_window", "readings_count", "created_at",
+    "active_devices", "alerts_today", "system_uptime", "total_locations", "timestamp",
+    "status_level",
+    # final schema columns
+    "h_id", "d_id", "pos", "temp_c", "smoke_ppm", "status", "lat", "lon", "raw_payload", "received_at"
+]
+
 # -----------------------------
 # 2. Database Helpers
 # -----------------------------
@@ -64,16 +76,7 @@ def upsert_table(df, table_name, conflict_cols):
     if df is None or df.empty: return
 
     df.columns = [c.lower() for c in df.columns]
-    
-    allowed_cols = [
-        "time", "m", "host", "alert_level", "event_stage",
-        "fa", "fb", "ga", "gb", "sa", "sb", "ta", "tb",
-        "ks", "ls", "k", "l", "la", "lo", "a", "o",
-        "timestamp_window", "readings_count", "created_at",
-        "active_devices", "alerts_today", "system_uptime", "total_locations", "timestamp",
-        "status_level" 
-    ]
-    valid_cols = [col for col in df.columns if col in allowed_cols]
+    valid_cols = [col for col in df.columns if col in ALLOWED_COLS]
     df_filtered = df[valid_cols]
     
     columns = list(df_filtered.columns)
@@ -148,6 +151,18 @@ def fetch_influx_data(last_ts=None):
             result.rename(columns={"_time": "time"}, inplace=True)
             result.columns = [col.lower() for col in result.columns]
 
+            # Map new schema fields if present
+            rename_map = {
+                "env.t": "t",
+                "env.s": "s",
+                "log.st": "st",
+                "loc.0": "lat",
+                "loc.1": "lon",
+                "loc_0": "lat",
+                "loc_1": "lon"
+            }
+            result = result.rename(columns={k: v for k, v in rename_map.items() if k in result.columns})
+
             if "m" in result.columns:
                 result = result.dropna(subset=["m"])
                 result["m"] = result["m"].astype(str)
@@ -155,6 +170,7 @@ def fetch_influx_data(last_ts=None):
                 logger.warning("No 'm' column found in Influx Data. Skipping batch.")
                 return None
 
+            # Default missing sensor columns to 0 for legacy logic
             for col in ["sa", "sb", "ta", "tb", "fa", "fb", "ks", "ls"]:
                 if col not in result.columns: result[col] = 0.0
                 else: result[col] = pd.to_numeric(result[col], errors='coerce').fillna(0)
@@ -340,7 +356,10 @@ def main():
         # B. Aggregation
         df_agg = aggregate_data(df_raw)
         upsert_table(df_agg, "sensor_data_aggregated", conflict_cols=["m", "timestamp_window"])
-        
+
+        # C. Final schema events
+        final_events = prepare_final_events(df_raw)
+        insert_final_events(final_events)
         # C. Real Metrics
         active_devices_count = df_agg["m"].nunique()
         if "a" in df_agg.columns:

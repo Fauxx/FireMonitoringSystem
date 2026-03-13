@@ -16,6 +16,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
       - "5432:5432"
+    # Added command to print link
+    command: >
+      sh -c "echo 'DATABASE ACCESS: postgres://localhost:5432' && docker-entrypoint.sh postgres"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/sql/database_migration.sql:/docker-entrypoint-initdb.d/01-migration.sql
@@ -37,6 +40,9 @@ services:
     env_file: *default-env
     ports:
       - "8086:8086"
+    # Added command to print link
+    command: >
+      sh -c "echo 'INFLUXDB UI: http://localhost:8086' && /entrypoint.sh influxd"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
       - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-fireops}
@@ -62,6 +68,10 @@ services:
     container_name: fire-monitoring-grafana
     restart: unless-stopped
     env_file: *default-env
+    # Added entrypoint to log accessible URL before starting Grafana
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      echo 'GRAFANA DASHBOARD: http://localhost:3000' && exec /run.sh
     environment:
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
@@ -91,8 +101,12 @@ services:
       context: ./api
       dockerfile: Dockerfile
     container_name: fire-monitoring-api
+    entrypoint: >
     restart: unless-stopped
     env_file: *default-env
+    # Added command to print link
+    command: >
+      sh -c "echo 'API SERVER: http://localhost:8000' && npm start"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=8000
@@ -124,11 +138,43 @@ services:
     container_name: fire-monitoring-dashboard
     restart: unless-stopped
     env_file: *default-env
+    # Added command to print link
+    command: >
+      sh -c "echo 'FRONTEND DASHBOARD: http://localhost:8080' && nginx -g 'daemon off;'"
     ports:
       - "8080:80"
     networks:
       - fire-net
 
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: fire-monitoring-nginx
+    restart: unless-stopped
+    env_file: *default-env
+    # Added command to print link
+    command: >
+      sh -c "echo 'MAIN ENTRY POINT: http://localhost' && nginx -g 'daemon off;'"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./dashboard/public:/usr/share/nginx/html:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - fire-net
+    depends_on:
+      - api
+      - dashboard
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ... (Other services like etl-processor, telegraf, mqtt-broker stay the same)
   # ETL processor service
   etl-processor:
     build:
@@ -166,6 +212,8 @@ services:
     container_name: fire-monitoring-mqtt
     restart: unless-stopped
     env_file: *default-env
+    command: >
+      sh -c "echo 'MQTT BROKER: localhost:1883' && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -175,48 +223,6 @@ services:
       - ./infrastructure/mqtt/log:/mosquitto/log
     networks:
       - fire-net
-
-  # External RDS placeholder (replace with cloud DB connection)
-  rds-placeholder:
-    image: alpine:3.19
-    container_name: fire-monitoring-rds-placeholder
-    command: ["/bin/sh", "-c", "sleep infinity"]
-    env_file: *default-env
-    environment:
-      - RDS_HOST=${RDS_HOST:-rds.example.com}
-      - RDS_PORT=${RDS_PORT:-5432}
-      - RDS_DB=${RDS_DB:-fire_monitoring}
-      - RDS_USER=${RDS_USER:-fireuser}
-      - RDS_PASSWORD=${RDS_PASSWORD:-changeme}
-    networks:
-      - fire-net
-    profiles:
-      - rds
-
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: fire-monitoring-nginx
-    restart: unless-stopped
-    env_file: *default-env
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./dashboard/public:/usr/share/nginx/html:ro
-      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
-    networks:
-      - fire-net
-    depends_on:
-      - api
-      - dashboard
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 volumes:
   postgres_data:
@@ -228,4 +234,3 @@ volumes:
 networks:
   fire-net:
     driver: bridge
-

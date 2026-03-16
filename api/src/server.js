@@ -33,12 +33,13 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // PostgreSQL Connection
 // -------------------------------
 const isProduction = NODE_ENV === 'production';
+const sslMode = process.env.PGSSLMODE;
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction
-    ? { rejectUnauthorized: false } // For cloud DBs (RDS, etc.)
-    : false // Disable SSL for local or Docker internal network
+  ssl: (isProduction && sslMode !== 'disable')
+    ? { rejectUnauthorized: false }
+    : false
 });
 
 // Test DB connection
@@ -68,6 +69,18 @@ app.use((req, res, next) => {
   req.pool = pool;
   next();
 });
+
+// Debug: log signup paths
+app.use((req, res, next) => {
+  if (req.method === 'POST' && (req.originalUrl.includes('signup') || req.originalUrl.includes('login'))) {
+    console.log(`[auth-debug] ${req.method} ${req.originalUrl}`);
+  }
+  next();
+});
+
+// Compatibility: if proxy strips /auth, redirect POSTs
+app.post('/signup', (req, res) => res.redirect(307, '/auth/signup'));
+app.post('/login', (req, res) => res.redirect(307, '/auth/login'));
 
 // Serve static files
 app.use(express.static(DASHBOARD_DIR));

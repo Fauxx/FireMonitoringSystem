@@ -32,29 +32,31 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 ## Getting Started
 
 1. **Copy the environment template**
-   ```powershell
-   cd C:\Users\zet\Documents\GitHub\fire-monitoring-webapp
-   Copy-Item .env.example .env
+   ```bash
+   cp .env.example .env
    ```
    Set secure values for database, JWT, and Influx tokens before running anything. Ensure `INFLUXDB_URL` points to `http://influxdb:8086` for local Docker networking (or your managed Influx endpoint in prod).
 
-2. **Bootstrap the stack**
-   ```powershell
-   docker compose pull
-   docker compose build
-   docker compose up -d
+2. **Choose a compose stack**
+   ```bash
+   # Development: reopens internal ports for easy access
+   docker compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+
+   # Production-like: only Nginx is exposed; all other services stay on the bridge network
+   docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
    ```
-   Services join the `fire-net` network automatically. The API listens on `:8000`, dashboard preview on `:8080`, and Nginx entrypoint exposes `:80/:443`.
+   - Base/prod: exposes only Nginx on 80/443; everything else remains internal.
+   - Dev override: adds Postgres 5432, InfluxDB 8086, Grafana 3000, API 8000, MQTT 1883/9001, plus Nginx 80/443. Hot-reloads API by mounting `./api` into the container.
 
 3. **Network sanity checks**
    ```bash
    docker compose ps
    docker compose exec api getent hosts postgres influxdb mqtt-broker
    docker compose exec api curl -f http://postgres:5432 || true
-   curl -f http://localhost:8000/health
+   # If running dev overrides: curl -f http://localhost:8000/health
    curl -f http://localhost/health
    ```
-   Verifies container DNS inside the bridge network and host reachability for API/Nginx.
+   Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
 
 4. **CI/CD**
    - `.github/workflows/build-push.yml` builds and publishes container images to GHCR.

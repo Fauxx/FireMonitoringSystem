@@ -45,38 +45,27 @@ def connect_client(args: argparse.Namespace) -> mqtt.Client:
     return client
 
 
-def generate_payload() -> dict:
+def generate_payload(args: argparse.Namespace) -> dict:
     return {
-        "device_id": "sim-esp32",
+        "h_id": args.h_id,
+        "d_id": args.d_id,
+        "pos": args.pos,
+        "env": {
+            "t": round(random.uniform(25, 60), 1),
+            "s": round(random.uniform(50, 200), 1),
+        },
+        "log": {"st": random.choice([0, 1])},
+        "loc": [round(args.lat, 6), round(args.lon, 6)],
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "temperature": round(random.uniform(20, 80), 2),
-        "smoke": round(random.uniform(0, 1), 3),
-        "flame": round(random.uniform(0, 1), 3),
     }
 
 
-def main():
-    parser = build_parser()
-    args = parser.parse_args()
-
+def publish_loop(args: argparse.Namespace) -> None:
     client = connect_client(args)
     print(f"Connected to MQTT broker at {args.host}:{args.port}, publishing to topic '{args.topic}'")
-
     try:
         while True:
-            payload = {
-                "h_id": args.h_id,
-                "d_id": args.d_id,
-                "pos": args.pos,
-                "env": {
-                    "t": round(random.uniform(25, 60), 1),
-                    "s": round(random.uniform(50, 200), 1)
-                },
-                "log": {
-                    "st": random.choice([0, 1])
-                },
-                "loc": [round(args.lat, 6), round(args.lon, 6)]
-            }
+            payload = generate_payload(args)
             client.publish(args.topic, json.dumps(payload), qos=0, retain=False)
             print(f"Published: {payload}")
             time.sleep(args.interval)
@@ -84,6 +73,12 @@ def main():
         print("Stopping simulator...")
     finally:
         client.disconnect()
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+    publish_loop(args)
 
 
 if __name__ == "__main__":

@@ -19,7 +19,8 @@ const analyticsRoutes = require('./routes/analytics');
 
 const { ensureAuthenticated } = require('./middleware/auth');
 
-const DASHBOARD_DIR = process.env.DASHBOARD_DIR || path.join(__dirname, '..', 'dashboard');
+const DASHBOARD_DIR = process.env.DASHBOARD_DIR || path.join(__dirname, '..', '..', 'dashboard', 'public');
+const DASHBOARD_STYLES_DIR = process.env.DASHBOARD_STYLES_DIR || path.join(__dirname, '..', '..', 'dashboard', 'styles');
 
 // -------------------------------
 // Initialize Express App
@@ -32,12 +33,13 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // PostgreSQL Connection
 // -------------------------------
 const isProduction = NODE_ENV === 'production';
+const sslMode = process.env.PGSSLMODE;
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction
-    ? { rejectUnauthorized: false } // For cloud DBs (RDS, etc.)
-    : false // Disable SSL for local or Docker internal network
+  ssl: (isProduction && sslMode !== 'disable')
+    ? { rejectUnauthorized: false }
+    : false
 });
 
 // Test DB connection
@@ -57,7 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use(session({
-  secret: 'super-secret-key',  // ⚠️ replace with strong secret in prod
+  secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,
   saveUninitialized: false
 }));
@@ -68,13 +70,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// Debug: log signup paths
+app.use((req, res, next) => {
+  if (req.method === 'POST' && (req.originalUrl.includes('signup') || req.originalUrl.includes('login'))) {
+    console.log(`[auth-debug] ${req.method} ${req.originalUrl}`);
+  }
+  next();
+});
+
+// Compatibility: if proxy strips /auth, redirect POSTs
+app.post('/signup', (req, res) => res.redirect(307, '/auth/signup'));
+app.post('/login', (req, res) => res.redirect(307, '/auth/login'));
+
 // Serve static files
 app.use(express.static(DASHBOARD_DIR));
+app.use('/styles', express.static(DASHBOARD_STYLES_DIR));
 
 // -------------------------------
 // Grafana Proxy (Authenticated)
 // -------------------------------
+const protectGrafana = process.env.GRAFANA_PROXY_PROTECT
+  ? process.env.GRAFANA_PROXY_PROTECT !== 'false'
+  : NODE_ENV === 'production';
+
 function grafanaAuth(req, res, next) {
+  if (!protectGrafana) return next();
   if (!req.session || !req.session.user) {
     return res.status(401).send('Unauthorized');
   }

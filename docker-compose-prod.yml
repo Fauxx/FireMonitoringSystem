@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    restart: always
+
+  influx:
+    restart: always
+
+  grafana:
+    restart: always
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: false
+
+  api:
+    restart: always
+
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+
+  mqtt:
+    restart: always
+
+  flyway:
+    restart: always

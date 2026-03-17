@@ -32,21 +32,33 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 ## Getting Started
 
 1. **Copy the environment template**
-   ```powershell
-   cd C:\Users\zet\Documents\GitHub\fire-monitoring-webapp
-   Copy-Item .env.example .env
+   ```bash
+   cp .env.example .env
    ```
-   Set secure values for database, JWT, and Influx tokens before running anything.
+   Set secure values for database, JWT, and Influx tokens before running anything. Ensure `INFLUXDB_URL` points to `http://influxdb:8086` for local Docker networking (or your managed Influx endpoint in prod).
 
-2. **Bootstrap the stack**
-   ```powershell
-   docker compose pull
-   docker compose build
-   docker compose up -d
+2. **Choose a compose stack**
+   ```bash
+   # Development: reopens internal ports for easy access
+   docker compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+
+   # Production-like: only Nginx is exposed; all other services stay on the bridge network
+   docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
    ```
-   Services join the `fire-net` network automatically. The API listens on `:8000`, dashboard preview on `:8080`, and Nginx entrypoint exposes `:80/:443`.
+   - Base/prod: exposes only Nginx on 80/443; everything else remains internal.
+   - Dev override: adds Postgres 5432, InfluxDB 8086, Grafana 3000, API 8000, MQTT 1883/9001, plus Nginx 80/443. Hot-reloads API by mounting `./api` into the container.
 
-3. **CI/CD**
+3. **Network sanity checks**
+   ```bash
+   docker compose ps
+   docker compose exec api getent hosts postgres influxdb mqtt-broker
+   docker compose exec api curl -f http://postgres:5432 || true
+   # If running dev overrides: curl -f http://localhost:8000/health
+   curl -f http://localhost/health
+   ```
+   Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
+
+4. **CI/CD**
    - `.github/workflows/build-push.yml` builds and publishes container images to GHCR.
    - `.github/workflows/deploy.yml` expects DigitalOcean SSH secrets to pull + restart the stack remotely.
 
@@ -56,4 +68,16 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 - Extend Terraform with firewalls, managed databases, and monitoring as infrastructure requirements solidify.
 - Add automated test coverage under `api/tests` and a frontend build pipeline when the dashboard grows.
 - [Practice safe secrets management]
-- another practice  
+- another practice
+
+## Grafana dashboards (versioned)
+- Dashboards are provisioned from `infrastructure/grafana/dashboards` via `infrastructure/grafana/provisioning/dashboards/fire-dashboards.yaml`. Any JSON you commit there is auto-loaded on container start.
+- Export updates from a running Grafana with an API token:
+  ```bash
+  GRAFANA_URL=http://localhost:3000 \
+  GRAFANA_TOKEN=<admin-or-editor-token> \
+  ./infrastructure/grafana/export_dashboards.sh <dashboard_uid>
+  ```
+  Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
+- The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
+

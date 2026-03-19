@@ -1,0 +1,49 @@
+services:
+  db:
+    ports:
+      - "15432:5432"  # avoid clashing with prod/local Postgres
+    volumes:
+      - db_dev_data:/var/lib/postgresql/data
+
+  influx:
+    ports:
+      - "18086:8086"  # avoid clashing with prod Influx
+    environment:
+      INFLUXDB_CLI_CONFIG_NAME: firedev
+    volumes:
+      - influx_dev_data:/var/lib/influxdb2
+
+  grafana:
+    ports:
+      - "13000:3000"  # avoid clashing with prod Grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+
+  api:
+    ports:
+      - "18000:8000"  # avoid clashing with prod API
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./api:/usr/src/app
+      - /usr/src/app/node_modules
+
+  nginx:
+    ports:
+      - "18080:80"    # avoid clashing with prod nginx
+      - "18443:443"
+
+  mqtt:
+    ports:
+      - "18830:1883"  # avoid clashing with prod MQTT
+      - "19001:9001"
+
+volumes:
+  db_dev_data:
+  influx_dev_data:
+  grafana_dev_data:

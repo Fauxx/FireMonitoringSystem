@@ -1,43 +1,38 @@
-x-env-file: &default-env
-  - ./.env
+networks:
+  fire-net:
+    driver: bridge
+
+volumes:
+  db_data:
+  grafana_data:
+  influx_data:
+  nginx_logs:
+  api_logs:
 
 services:
   # PostgreSQL Database
-  postgres:
+  db:
     image: postgres:14-alpine
-    container_name: fire-monitoring-db
     restart: unless-stopped
-    env_file: *default-env
+    env_file: .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
       POSTGRES_USER: ${POSTGRES_USER:-fireuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-    ports:
-      - "5432:5432"
-    # Prints DB URL then starts postgres with the normal entrypoint
-    command: >
-      sh -c "echo 'DATABASE ACCESS: postgres://localhost:5432' && docker-entrypoint.sh postgres"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      
     networks:
       - fire-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # InfluxDB (time-series storage)
-  influxdb:
+  influx:
     image: influxdb:2.7-alpine
-    container_name: fire-monitoring-influxdb
     restart: unless-stopped
-    env_file: *default-env
-    ports:
-      - "8086:8086"
-    # Prints UI link then runs the normal entrypoint
-    command: >
-      sh -c "echo 'INFLUXDB UI: http://localhost:8086' && /entrypoint.sh influxd"
+    env_file: .env
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
       - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-fireops}
@@ -45,10 +40,9 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-fire-monitoring}
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-influx-token}
-      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=fire-config
+      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=${INFLUXDB_CLI_CONFIG_NAME:-firelocal}
     volumes:
-      - ./infrastructure/influxdb/data:/var/lib/influxdb2
-      - ./infrastructure/influxdb/config:/etc/influxdb2
+      - influx_data:/var/lib/influxdb2
     networks:
       - fire-net
     healthcheck:
@@ -60,20 +54,14 @@ services:
   # Grafana
   grafana:
     image: grafana/grafana:latest
-    container_name: fire-monitoring-grafana
     restart: unless-stopped
-    env_file: *default-env
-    # NOTE: keep the default entrypoint; just echo URL via command
-    command: >
-      sh -c "echo 'GRAFANA DASHBOARD: http://localhost:3000' && /run.sh"
+    env_file: .env
     environment:
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_SECURITY_ALLOW_EMBEDDING=true
-    ports:
-      - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -81,178 +69,68 @@ services:
     networks:
       - fire-net
     depends_on:
-      - postgres
-      - influxdb
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - db
+      - influx
 
   # Node.js Web Application
   api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: fire-monitoring-api
+    build: ./api
     restart: unless-stopped
-    env_file: *default-env
-    # Prints API URL then starts app
-    command: >
-      sh -c "echo 'API SERVER: http://localhost:8000' && npm start"
+    env_file: .env
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=8000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://fireuser:changeme@postgres:5432/fire_monitoring}
-      - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key}
-      - GRAFANA_PROXY_PROTECT=${GRAFANA_PROXY_PROTECT:-false}
-      - PGSSLMODE=disable
-    ports:
-      - "8000:8000"
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fireuser}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-fire_monitoring}
     volumes:
       - api_logs:/usr/src/app/logs
     networks:
       - fire-net
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
       flyway:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # Dashboard service (serves static HTML on 8080)
-  dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    container_name: fire-monitoring-dashboard
-    restart: unless-stopped
-    env_file: *default-env
-    # Added command to print link
-    command: >
-      sh -c "echo 'FRONTEND DASHBOARD: http://localhost:8080' && nginx -g 'daemon off;'"
-    ports:
-      - "8080:80"
-    volumes:
-      # Allow styles subdir mount under html
-      - ./dashboard/public:/usr/share/nginx/html
-      - ./dashboard/styles:/usr/share/nginx/html/styles:ro
-      # Use our custom config as default site
-      - ./infrastructure/nginx/conf.d/fire-monitoring.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - fire-net
-
-  # Nginx Reverse Proxy (port 80/443 entrypoint)
+  # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
-    container_name: fire-monitoring-nginx
     restart: unless-stopped
-    env_file: *default-env
-    # Prints main entrypoint URL then runs nginx
-    command: >
-      sh -c "echo 'MAIN ENTRY POINT: http://localhost' && nginx -g 'daemon off;'"
+    env_file: .env
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./dashboard/public:/usr/share/nginx/html
-      - ./dashboard/styles:/usr/share/nginx/html/styles:ro
       - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
     networks:
       - fire-net
     depends_on:
       - api
-      - dashboard
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # ETL processor service
-  etl-processor:
-    build:
-      context: ./etl-processor
-      dockerfile: Dockerfile
-    container_name: fire-monitoring-etl
-    restart: unless-stopped
-    env_file: *default-env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      influxdb:
-        condition: service_healthy
-      flyway:
-        condition: service_completed_successfully
-    networks:
-      - fire-net
-
-  # Telegraf metrics agent
-  telegraf:
-    image: telegraf:1.29-alpine
-    container_name: fire-monitoring-telegraf
-    restart: unless-stopped
-    env_file: *default-env
-    environment:
-      - INFLUX_TOKEN=${INFLUXDB_TOKEN:-influx-token}
-    volumes:
-      - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-    depends_on:
-      - postgres
-      - influxdb
-      - mqtt-broker
-    networks:
-      - fire-net
 
   # MQTT broker
-  mqtt-broker:
+  mqtt:
     image: eclipse-mosquitto:2.0
-    container_name: fire-monitoring-mqtt
     restart: unless-stopped
-    env_file: *default-env
-    command: >
-      sh -c "echo 'MQTT BROKER: localhost:1883' && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
-    ports:
-      - "1883:1883"
-      - "9001:9001"
+    env_file: .env
     volumes:
       - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./infrastructure/mqtt/data:/mosquitto/data
-      - ./infrastructure/mqtt/log:/mosquitto/log
     networks:
       - fire-net
 
   # Flyway migrations
   flyway:
     image: flyway/flyway:10-alpine
-    container_name: fire-monitoring-migrations
     volumes:
       - ./infrastructure/sql:/flyway/sql
+    env_file: .env
     environment:
-      - FLYWAY_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-fire_monitoring}
+      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
       - FLYWAY_USER=${POSTGRES_USER:-fireuser}
       - FLYWAY_PASSWORD=${POSTGRES_PASSWORD:-changeme}
-      - FLYWAY_CONNECT_RETRIES=60
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     command: -connectRetries=60 migrate
     networks:
       - fire-net
-
-volumes:
-  postgres_data:
-  grafana_data:
-  influxdb_data:
-  nginx_logs:
-  api_logs:
-
-networks:
-  fire-net:
-    driver: bridge

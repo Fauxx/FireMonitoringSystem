@@ -5,7 +5,6 @@ FROM nginx:alpine
 COPY public /usr/share/nginx/html
 
 # Copy CSS bundle
-COPY styles /usr/share/nginx/html/styles
-
+COPY ./public /usr/share/nginx/html
 EXPOSE 80
 

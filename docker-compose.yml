@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   fire-net:
     driver: bridge
@@ -15,19 +13,17 @@ services:
   # PostgreSQL Database
   db:
     image: postgres:14-alpine
-    container_name: fire-db
     restart: unless-stopped
     env_file: .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
       POSTGRES_USER: ${POSTGRES_USER:-fireuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-    volumes:
-      - db_data:/var/lib/postgresql/data
+      
     networks:
       - fire-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,7 +31,6 @@ services:
   # InfluxDB (time-series storage)
   influx:
     image: influxdb:2.7-alpine
-    container_name: fire-influx
     restart: unless-stopped
     env_file: .env
     environment:
@@ -45,9 +40,9 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-fire-monitoring}
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-influx-token}
+      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=${INFLUXDB_CLI_CONFIG_NAME:-firelocal}
     volumes:
       - influx_data:/var/lib/influxdb2
-      - ./infrastructure/influxdb/config:/etc/influxdb2
     networks:
       - fire-net
     healthcheck:
@@ -59,7 +54,6 @@ services:
   # Grafana
   grafana:
     image: grafana/grafana:latest
-    container_name: fire-grafana
     restart: unless-stopped
     env_file: .env
     environment:
@@ -81,7 +75,6 @@ services:
   # Node.js Web Application
   api:
     build: ./api
-    container_name: fire-api
     restart: unless-stopped
     env_file: .env
     environment:
@@ -101,7 +94,6 @@ services:
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
-    container_name: fire-nginx
     restart: unless-stopped
     env_file: .env
     ports:
@@ -118,7 +110,6 @@ services:
   # MQTT broker
   mqtt:
     image: eclipse-mosquitto:2.0
-    container_name: fire-mqtt
     restart: unless-stopped
     env_file: .env
     volumes:
@@ -130,7 +121,6 @@ services:
   # Flyway migrations
   flyway:
     image: flyway/flyway:10-alpine
-    container_name: fire-migrations
     volumes:
       - ./infrastructure/sql:/flyway/sql
     env_file: .env

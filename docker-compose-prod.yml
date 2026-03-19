@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   db:
     restart: always
+    volumes:
+      - db_prod_data:/var/lib/postgresql/data
 
   influx:
     restart: always
@@ -14,6 +14,8 @@ services:
 
   api:
     restart: always
+    environment:
+      NODE_ENV: production
 
   nginx:
     ports:
@@ -24,5 +26,5 @@ services:
   mqtt:
     restart: always
 
-  flyway:
-    restart: always
+volumes:
+  db_prod_data:

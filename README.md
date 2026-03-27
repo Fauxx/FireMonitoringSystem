@@ -81,3 +81,58 @@ This repository centralizes every component of the IoT fire-monitoring stack int
   Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
 - The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
 
+# 🔥 Fire Monitoring System
+
+A robust IoT monitoring solution integrating real-time sensor data, automated ETL processes, and a secure web dashboard.
+
+---
+
+## 🏗️ Technical Architecture
+The system is built using a micro-services approach to ensure scalability and ease of deployment:
+
+* **Ingestion:** `Mosquitto (MQTT)` -> `Telegraf` -> `InfluxDB (Time-series)`
+* **Processing:** `ETL-Processor (Python)` (Syncs InfluxDB to Postgres for long-term reporting)
+* **API:** `Node.js (Express)` (Serves data from Postgres/InfluxDB)
+* **Gateway:** `Nginx` (Reverse proxy handling Dashboard and API routing)
+* **Orchestration:** `Docker Compose` with automated `Flyway` migrations.
+
+---
+
+## 🚀 Implementation Roadmap (The "Tight" Build)
+
+This roadmap outlines the path to a production-ready CI/CD deployment on DigitalOcean.
+
+### Phase 1: Configuration & Environment Standards
+- [ ] **Unified Variable Mapping:** Create a master `.env.example` in the root.
+- [ ] **Network Hardening:** Ensure `fire-net` isolates internal databases from public ports.
+- [ ] **Dockerignore Optimization:** Strip `node_modules`, `venv`, and `.git` from build contexts.
+
+### Phase 2: Optimized Containerization (Efficiency & Cost)
+- [ ] **Multi-Stage Builds (Node/Python):** Implement multi-stage Dockerfiles to keep production images under 200MB.
+- [ ] **Pip/Npm Cache Mounts:** Use `--mount=type=cache` in Dockerfiles to speed up cloud builds and save bandwidth costs.
+- [ ] **Startup Logic:** Refine `healthcheck` dependencies (DB ➔ Flyway ➔ API) to prevent "Race Condition" crashes.
+
+### Phase 3: Infrastructure & Data Integrity
+- [ ] **Flyway Schema Management:** Finalize versioned SQL migrations (`V1`, `V2`, etc.) for zero-downtime updates.
+- [ ] **Telegraf Bridging:** Configure Telegraf to automatically map MQTT topics to InfluxDB buckets.
+- [ ] **Nginx Reverse Proxy:** Setup path-based routing (`/api` for Node, `/grafana` for dashboards).
+
+### Phase 4: CI/CD & Cloud Deployment (DigitalOcean)
+- [ ] **GitHub Actions Workflow:**
+   - **Linter/Test:** Automated code quality checks on every push.
+   - **Build & Push:** Push images to DigitalOcean Container Registry (DOCR).
+- [ ] **Automated CD:** SSH-based "Pull and Restart" on the DO Droplet.
+- [ ] **SSL Security:** Automate Let's Encrypt certificates using a Certbot container.
+
+### Phase 5: Monitoring & Maintenance
+- [ ] **Resource Cleanup:** Implement `docker system prune` in the CI/CD pipeline to save disk space.
+- [ ] **Log Rotation:** Configure Docker log limits to prevent the Droplet from running out of storage.
+
+---
+
+## 🛠️ Local Development
+
+1. **Setup Environment:** `cp .env.example .env`
+2. **Build Stack:** `docker-compose build`
+3. **Launch:** `docker-compose up -d`
+4. **Simulate Data:** `python simulators/mcu_sim.py`

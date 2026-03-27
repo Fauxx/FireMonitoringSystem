@@ -15,14 +15,20 @@ services:
 
   grafana:
     ports:
-      - "13000:3000"  # avoid clashing with prod Grafana
+      - "13000:3000"
     environment:
-      GF_AUTH_ANONYMOUS_ENABLED: true
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_REPLACEMENT_ENTITY_VALUES_ENABLED=true
+      - INFLUXDB_ORG=${INFLUXDB_ORG:-fire-monitoring}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
+      - INFLUXDB_TOKEN=${INFLUX_TOKEN:-influx-token}
     volumes:
       - grafana_dev_data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - fire-net
 
   api:
     ports:
@@ -42,6 +48,19 @@ services:
     ports:
       - "18830:1883"  # avoid clashing with prod MQTT
       - "19001:9001"
+        
+  telegraf:
+    image: telegraf:alpine
+    container_name: fire-dev-telegraf-1
+    volumes:
+      - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN:-influx-token}
+    networks:
+      - fire-net
+    depends_on:
+      - influx
+      - mqtt
 
 volumes:
   db_dev_data:

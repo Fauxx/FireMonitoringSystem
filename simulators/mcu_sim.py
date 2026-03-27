@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """MQTT simulator for fire-monitoring devices.
-Publishes random sensor readings on an MQTT topic for local/dev testing.
+Optimized for TUP Capstone Dev/Prod Infrastructure.
 """
 import argparse
 import json
@@ -13,73 +13,65 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
-    # dotenv is optional; if missing we just skip it.
     pass
 
 import paho.mqtt.client as mqtt
 
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Publish simulated sensor data over MQTT")
+    # Defaulting to 18830 to match your docker-compose-dev.yml mapping
     parser.add_argument("--host", default=os.getenv("MQTT_HOST", "localhost"), help="MQTT broker host")
-    parser.add_argument("--port", type=int, default=int(os.getenv("MQTT_PORT", 1883)), help="MQTT broker port")
-    parser.add_argument("--topic", default=os.getenv("MQTT_TOPIC", "fire/sensors"), help="MQTT topic to publish to")
+    parser.add_argument("--port", type=int, default=int(os.getenv("MQTT_PORT", 18830)), help="MQTT broker port")
+    # Aligning topic with Telegraf's fire/sensors/# wildcard
+    parser.add_argument("--topic", default=os.getenv("MQTT_TOPIC", "fire/sensors/REYES_P"), help="MQTT topic")
     parser.add_argument("--interval", type=float, default=float(os.getenv("PUBLISH_INTERVAL", 5.0)), help="Seconds between publishes")
-    parser.add_argument("--client-id", default=os.getenv("MQTT_CLIENT_ID", "mcu-sim"), help="MQTT client ID")
-    parser.add_argument("--username", default=os.getenv("MQTT_USERNAME"), help="MQTT username (optional)")
-    parser.add_argument("--password", default=os.getenv("MQTT_PASSWORD"), help="MQTT password (optional)")
-    parser.add_argument("--h-id", default=os.getenv("H_ID", "REYES_P"), help="Household/host ID")
+    parser.add_argument("--client-id", default=os.getenv("MQTT_CLIENT_ID", "mcu-sim-k1"), help="MQTT client ID")
+    parser.add_argument("--h-id", default=os.getenv("H_ID", "REYES_P"), help="Household ID")
     parser.add_argument("--d-id", default=os.getenv("D_ID", "K1"), help="Device ID")
-    parser.add_argument("--pos", default=os.getenv("POS", "Kitchen"), help="Device position")
-    parser.add_argument("--lat", type=float, default=float(os.getenv("LAT", 14.5995)), help="Latitude")
-    parser.add_argument("--lon", type=float, default=float(os.getenv("LON", 121.0365)), help="Longitude")
+    parser.add_argument("--pos", default=os.getenv("POS", "Kitchen"), help="Position")
     return parser
 
-
-def connect_client(args: argparse.Namespace) -> mqtt.Client:
-    client = mqtt.Client(client_id=args.client_id, clean_session=True)
-    if args.username:
-        client.username_pw_set(args.username, args.password)
-
-    client.connect(args.host, args.port, keepalive=60)
-    return client
-
-
 def generate_payload(args: argparse.Namespace) -> dict:
+    """Generates the specific nested JSON structure required by Telegraf json_v2."""
     return {
         "h_id": args.h_id,
         "d_id": args.d_id,
         "pos": args.pos,
         "env": {
-            "t": round(random.uniform(25, 60), 1),
-            "s": round(random.uniform(50, 200), 1),
+            # Randomizing within 'Normal' and 'Alert' ranges for demo purposes
+            "t": round(random.uniform(24.0, 35.0), 1),
+            "s": round(random.uniform(20.0, 150.0), 1),
         },
-        "log": {"st": random.choice([0, 1])},
-        "loc": [round(args.lat, 6), round(args.lon, 6)],
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "log": {
+            "st": 1 # 1 = Active, 0 = Offline
+        },
+        # Fixed coordinates for the specific household
+        "loc": [14.5995, 121.0365]
     }
 
-
 def publish_loop(args: argparse.Namespace) -> None:
-    client = connect_client(args)
-    print(f"Connected to MQTT broker at {args.host}:{args.port}, publishing to topic '{args.topic}'")
+    # Use newer CallbackAPIVersion for compatibility with latest paho-mqtt
+    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2, client_id=args.client_id)
+
     try:
+        client.connect(args.host, args.port, keepalive=60)
+        print(f"🚀 Simulation Started!")
+        print(f"📡 Broker: {args.host}:{args.port} | Topic: {args.topic}")
+
         while True:
             payload = generate_payload(args)
-            client.publish(args.topic, json.dumps(payload), qos=0, retain=False)
-            print(f"Published: {payload}")
+            client.publish(args.topic, json.dumps(payload))
+            print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Sent: Temp {payload['env']['t']}°C, Smoke {payload['env']['s']}")
             time.sleep(args.interval)
+
+    except ConnectionRefusedError:
+        print(f"❌ Error: Could not connect to MQTT broker at {args.host}:{args.port}.")
+        print("💡 Tip: Ensure your Docker containers are running (docker compose up mqtt).")
     except KeyboardInterrupt:
-        print("Stopping simulator...")
+        print("\n🛑 Stopping simulator...")
     finally:
         client.disconnect()
 
-
-def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-    publish_loop(args)
-
-
 if __name__ == "__main__":
-    main()
+    args = build_parser().parse_args()
+    publish_loop(args)

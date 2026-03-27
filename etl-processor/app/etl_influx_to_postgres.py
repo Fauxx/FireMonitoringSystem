@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import psycopg2
-from psycopg2.extras import execute_values
+from psycopg2.extras import execute_values, Json
 from datetime import datetime, timedelta
 from loguru import logger
 from influxdb_client import InfluxDBClient
@@ -24,6 +24,7 @@ AGG_WINDOW_MINUTES = 5
 RETRY_COUNT = 3
 RETRY_DELAY = 5
 TIMEZONE = "Asia/Manila"
+DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-2d")  # widen to include recent history by default
 
 # Thresholds
 ALERT_THRESHOLDS = {
@@ -131,7 +132,7 @@ def fetch_influx_data(last_ts=None):
                 start_time = last_ts_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
                 logger.info(f"Fetching Influx data since: {start_time}")
             else:
-                start_time = '-10m' 
+                start_time = DEFAULT_RANGE
                 logger.info(f"Fetching Influx data (Start: {start_time})...")
             
             flux_query = f'''
@@ -159,16 +160,52 @@ def fetch_influx_data(last_ts=None):
                 "loc.0": "lat",
                 "loc.1": "lon",
                 "loc_0": "lat",
-                "loc_1": "lon"
+                "loc_1": "lon",
+                "temperature": "t",
+                "smoke_level": "s",
+                "status_code": "st",
+                "lng": "lon"
             }
             result = result.rename(columns={k: v for k, v in rename_map.items() if k in result.columns})
+
+            # Derive required identifiers and legacy-friendly columns
+            if "m" not in result.columns:
+                if "d_id" in result.columns:
+                    result["m"] = result["d_id"]
+                elif "h_id" in result.columns:
+                    result["m"] = result["h_id"]
 
             if "m" in result.columns:
                 result = result.dropna(subset=["m"])
                 result["m"] = result["m"].astype(str)
             else:
-                logger.warning("No 'm' column found in Influx Data. Skipping batch.")
+                logger.warning("No device identifier ('m' or 'd_id') found in Influx data. Skipping batch.")
                 return None
+
+            # Map position/owner to legacy columns used by downstream logic
+            if "pos" in result.columns and "a" not in result.columns:
+                result["a"] = result["pos"]
+            if "h_id" in result.columns and "o" not in result.columns:
+                result["o"] = result["h_id"]
+
+            # Normalize sensor readings for alert logic
+            if "t" in result.columns:
+                result["t"] = pd.to_numeric(result["t"], errors="coerce")
+                for col in ["ta", "tb"]:
+                    if col not in result.columns:
+                        result[col] = result["t"]
+            if "s" in result.columns:
+                result["s"] = pd.to_numeric(result["s"], errors="coerce")
+                for col in ["sa", "sb"]:
+                    if col not in result.columns:
+                        result[col] = result["s"]
+
+            # Ensure coordinates and status codes are numeric if present
+            for coord in ["lat", "lon"]:
+                if coord in result.columns:
+                    result[coord] = pd.to_numeric(result[coord], errors="coerce")
+            if "st" in result.columns:
+                result["st"] = pd.to_numeric(result["st"], errors="coerce")
 
             # Default missing sensor columns to 0 for legacy logic
             for col in ["sa", "sb", "ta", "tb", "fa", "fb", "ks", "ls"]:
@@ -192,8 +229,8 @@ def compute_alerts(df):
     event_stages = []
 
     for _, row in df.iterrows():
-        smoke = max(row.get("sa", 0), row.get("sb", 0))
-        temp = max(row.get("ta", 0), row.get("tb", 0))
+        smoke = max(row.get("sa", 0), row.get("sb", 0), row.get("s", 0))
+        temp = max(row.get("ta", 0), row.get("tb", 0), row.get("t", 0))
         flame = max(row.get("fa", 0), row.get("fb", 0))
         
         sensor_level = 1
@@ -220,6 +257,81 @@ def compute_alerts(df):
         else: event_stages.append("green")
 
     return pd.DataFrame({"alert_level": alert_levels, "event_stage": event_stages})
+
+# -----------------------------
+# 4b. Final Events Prep for New Schema
+# -----------------------------
+def prepare_final_events(df):
+    if df is None or df.empty: return None
+
+    events = []
+    for _, row in df.iterrows():
+        h_id = row.get("h_id") or row.get("o")
+        d_id = row.get("d_id") or row.get("m")
+        pos = row.get("pos") or row.get("a")
+
+        temp_c = row.get("t")
+        if pd.isna(temp_c):
+            temp_c = row.get("ta") if not pd.isna(row.get("ta")) else row.get("tb" )
+
+        smoke_ppm = row.get("s")
+        if pd.isna(smoke_ppm):
+            smoke_ppm = row.get("sa") if not pd.isna(row.get("sa")) else row.get("sb")
+
+        payload = {
+            "h_id": h_id,
+            "d_id": d_id,
+            "pos": pos,
+            "env": {"t": temp_c, "s": smoke_ppm},
+            "log": {"st": row.get("st")},
+            "loc": [row.get("lat"), row.get("lon")]
+        }
+
+        events.append({
+            "h_id": h_id,
+            "d_id": d_id,
+            "pos": pos,
+            "temp_c": temp_c,
+            "smoke_ppm": smoke_ppm,
+            "status": row.get("st"),
+            "lat": row.get("lat"),
+            "lon": row.get("lon"),
+            "raw_payload": payload,
+            "received_at": row.get("time")
+        })
+
+    return pd.DataFrame(events)
+
+
+def insert_final_events(df):
+    if df is None or df.empty: return
+
+    columns = ["h_id", "d_id", "pos", "temp_c", "smoke_ppm", "status", "lat", "lon", "raw_payload", "received_at"]
+    values = []
+    for _, row in df.iterrows():
+        values.append([
+            row.get("h_id"),
+            row.get("d_id"),
+            row.get("pos"),
+            row.get("temp_c"),
+            row.get("smoke_ppm"),
+            row.get("status"),
+            row.get("lat"),
+            row.get("lon"),
+            Json(row.get("raw_payload", {})),
+            row.get("received_at") or pd.Timestamp.now(tz=TIMEZONE)
+        ])
+
+    query = f"INSERT INTO final_sensor_events ({', '.join(columns)}) VALUES %s"
+
+    try:
+        with connect_db() as conn:
+            with conn.cursor() as cur:
+                execute_values(cur, query, values)
+            conn.commit()
+        logger.info(f"✅ Final events inserted: {len(values)} rows")
+    except Exception as e:
+        logger.error(f"Failed to insert final events: {e}")
 
 # -----------------------------
 # 5. Incident Logic (FIXED)

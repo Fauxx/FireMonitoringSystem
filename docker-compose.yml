@@ -8,6 +8,7 @@ volumes:
   influx_data:
   nginx_logs:
   api_logs:
+  telegraf_data:
 
 services:
   # PostgreSQL Database
@@ -19,7 +20,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
       POSTGRES_USER: ${POSTGRES_USER:-fireuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      
     networks:
       - fire-net
     healthcheck:
@@ -39,38 +39,59 @@ services:
       - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-changeme}
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-fire-monitoring}
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-influx-token}
-      - DOCKER_INFLUXDB_INIT_CLI_CONFIG_NAME=${INFLUXDB_CLI_CONFIG_NAME:-firelocal}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN:-influx-token}
     volumes:
       - influx_data:/var/lib/influxdb2
     networks:
       - fire-net
     healthcheck:
       test: ["CMD", "influx", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Grafana
-  grafana:
-    image: grafana/grafana:latest
+  # MQTT broker
+  mqtt:
+    image: eclipse-mosquitto:2.0
     restart: unless-stopped
     env_file: .env
-    environment:
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_SECURITY_ALLOW_EMBEDDING=true
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infrastructure/mqtt/data:/mosquitto/data
     networks:
       - fire-net
+
+  # Telegraf (The missing bridge between MQTT and InfluxDB)
+  telegraf:
+    image: telegraf:alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN:-influx-token}
     depends_on:
-      - db
-      - influx
+      influx:
+        condition: service_healthy
+    networks:
+      - fire-net
+
+  # Flyway migrations
+  flyway:
+    image: flyway/flyway:10-alpine
+    volumes:
+      - ./infrastructure/sql:/flyway/sql
+    env_file: .env
+    environment:
+      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
+      - FLYWAY_USER=${POSTGRES_USER:-fireuser}
+      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: -connectRetries=60 migrate
+    networks:
+      - fire-net
 
   # Node.js Web Application
   api:
@@ -91,6 +112,45 @@ services:
       flyway:
         condition: service_completed_successfully
 
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks:
+      - fire-net
+    depends_on: 
+      - influx
+  
+  etl-processor:
+    build:
+      context: ./etl-processor
+      dockerfile: Dockerfile
+    container_name: fire-monitoring-etl
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - INFLUXDB_URL=http://influx:8086
+      - POSTGRES_HOST=db
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      influx:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - fire-net
+
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
@@ -106,31 +166,3 @@ services:
       - fire-net
     depends_on:
       - api
-
-  # MQTT broker
-  mqtt:
-    image: eclipse-mosquitto:2.0
-    restart: unless-stopped
-    env_file: .env
-    volumes:
-      - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./infrastructure/mqtt/data:/mosquitto/data
-    networks:
-      - fire-net
-
-  # Flyway migrations
-  flyway:
-    image: flyway/flyway:10-alpine
-    volumes:
-      - ./infrastructure/sql:/flyway/sql
-    env_file: .env
-    environment:
-      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
-      - FLYWAY_USER=${POSTGRES_USER:-fireuser}
-      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD:-changeme}
-    depends_on:
-      db:
-        condition: service_healthy
-    command: -connectRetries=60 migrate
-    networks:
-      - fire-net

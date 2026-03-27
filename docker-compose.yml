@@ -161,8 +161,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./dashboard/public:/usr/share/nginx/html
+      - ./dashboard/public:/usr/share/nginx/html:ro
       - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - fire-net
     depends_on:

@@ -1,18 +1,25 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+FROM python:3.11-slim
 
-# Set working directory inside container
 WORKDIR /app
 
-# Copy all files from ETL repo into container
+# System deps for psycopg2 and basic tooling
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY . .
 
-# Install dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Security: Run as non-root user
+RUN useradd -m etluser && chown -R etluser /app
+USER etluser
 
-# Switch to application directory containing the ETL script
-WORKDIR /app/app
+# Healthcheck: Verify the python process is active
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD pgrep -f "python3 -m src.main" || exit 1
 
-# Default command: run the ETL script
-CMD ["python3", "etl_influx_to_postgres.py"]
+ENTRYPOINT ["python3", "-m", "src.main"]

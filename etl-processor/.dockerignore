@@ -1,0 +1,23 @@
+# Local Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Python Cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Sensitive Data
+.env
+
+# Git & IDE
+.git
+.gitignore
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log

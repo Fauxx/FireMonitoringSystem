@@ -1,12 +1,14 @@
 services:
   db:
     image: postgres:14-alpine
+    env_file: .env.dev
     ports:
       - "15432:5432"
     volumes:
       - db_dev_data:/var/lib/postgresql/data
 
   influx:
+    env_file: .env.dev
     ports:
       - "18086:8086"  # avoid clashing with prod Influx
     environment:
@@ -15,6 +17,7 @@ services:
       - influx_dev_data:/var/lib/influxdb2
 
   grafana:
+    env_file: .env.dev
     ports:
       - "13000:3000"
     environment:
@@ -32,6 +35,7 @@ services:
       - fire-net
 
   api:
+    env_file: .env.dev
     ports:
       - "18000:8000"  # avoid clashing with prod API
     environment:
@@ -41,11 +45,13 @@ services:
       - /usr/src/app/node_modules
 
   nginx:
+    env_file: .env.dev
     ports:
       - "18080:80"    # avoid clashing with prod nginx
       - "18443:443"
 
   mqtt:
+    env_file: .env.dev
     ports:
       - "18830:1883"  # avoid clashing with prod MQTT
       - "19001:9001"
@@ -53,6 +59,7 @@ services:
   telegraf:
     image: telegraf:alpine
     container_name: fire-dev-telegraf-1
+    env_file: .env.dev
     volumes:
       - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:

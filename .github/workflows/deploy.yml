@@ -2,6 +2,11 @@ name: Deploy to Droplet
 
 on:
   workflow_dispatch:
+    inputs:
+      healthcheck_url:
+        description: "Optional health check URL after deploy"
+        required: false
+        default: "http://localhost/health"
 
 jobs:
   deploy:
@@ -16,9 +21,15 @@ jobs:
           host: ${{ secrets.DO_SSH_HOST }}
           username: ${{ secrets.DO_SSH_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          script_stop: true
           script: |
+            set -euo pipefail
             cd /opt/fire-monitoring
-            git pull
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
             docker compose pull
             docker compose up -d --remove-orphans
-
+            if [ -n "${{ inputs.healthcheck_url }}" ]; then
+              curl -fsSL "${{ inputs.healthcheck_url }}" || (docker compose logs --tail=200; exit 1)
+            fi

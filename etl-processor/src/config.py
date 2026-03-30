@@ -8,13 +8,13 @@ from loguru import logger
 load_dotenv()
 
 # ---- InfluxDB Configuration --------
-INFLUXDB_URL = os.getenv("INFLUXDB_URL")
+INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://influx:8086")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
-INFLUXDB_ORG = os.getenv("INFLUXDB_ORG")
-INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET")
+INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "fire-monitoring")
+INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "sensor-data")
 
 # ---- PostgreSQL Configuration ----
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fireuser:changeme@db:5432/fire_monitoring")
 
 def test_influx_connection():
     """Check InfluxDB connection"""

@@ -16,6 +16,7 @@ const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
+const finalSensorRoutes = require('./routes/finalSensors');
 
 const { ensureAuthenticated } = require('./middleware/auth');
 
@@ -114,6 +115,7 @@ app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/messages', messageRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/final-sensors', finalSensorRoutes);
 
 // Root route - redirect based on session
 app.get('/', (req, res) => {

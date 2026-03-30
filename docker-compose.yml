@@ -137,11 +137,12 @@ services:
       context: ./etl-processor
       dockerfile: Dockerfile
     container_name: fire-monitoring-etl
+    command: python3 -m src.main
     restart: unless-stopped
     env_file: .env
     environment:
+      - PYTHONUNBUFFERED=1
       - INFLUXDB_URL=http://influx:8086
-      - POSTGRES_HOST=db
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       influx:
@@ -160,8 +161,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./dashboard/public:/usr/share/nginx/html
+      - ./dashboard/public:/usr/share/nginx/html:ro
       - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - fire-net
     depends_on:

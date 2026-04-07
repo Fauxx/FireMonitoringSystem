@@ -6,6 +6,7 @@ volumes:
   db_data:
   grafana_data:
   influx_data:
+  loki_data:
   nginx_logs:
   api_logs:
   telegraf_data:
@@ -16,13 +17,15 @@ services:
     image: postgres:14-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-fire_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_local_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
     networks:
       - fire-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fire_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -84,7 +87,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: -connectRetries=60 migrate
+    command: ["-connectRetries=60", "migrate"]
     networks:
       - fire-net
 
@@ -122,14 +125,38 @@ services:
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
       - fire-net
-    depends_on: 
+    depends_on:
       - influx
+      - loki
+
+  # Loki (centralized log storage)
+  loki:
+    image: grafana/loki:2.9.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./infrastructure/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - fire-net
+
+  # Grafana Alloy (collects Docker logs and pushes to Loki)
+  alloy:
+    image: grafana/alloy:v1.7.2
+    restart: unless-stopped
+    command: run /etc/alloy/config.alloy --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./infrastructure/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - fire-net
   
   etl-processor:
     build:
       context: ./etl-processor
       dockerfile: Dockerfile
-    container_name: fire-monitoring-etl
     command: python3 -m src.main
     restart: unless-stopped
     environment:

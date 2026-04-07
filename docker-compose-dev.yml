@@ -58,7 +58,6 @@ services:
         
   telegraf:
     image: telegraf:alpine
-    container_name: fire-dev-telegraf-1
     env_file: .env.dev
     volumes:
       - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro

@@ -1,29 +1,43 @@
 services:
   db:
+    env_file: .env.prod
     restart: always
     volumes:
       - db_prod_data:/var/lib/postgresql/data
 
   influx:
+    env_file: .env.prod
     restart: always
 
   grafana:
+    env_file: .env.prod
     restart: always
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: false
 
   api:
+    env_file: .env.prod
+    image: ${IMAGE_REGISTRY}/api:${IMAGE_TAG}
+    pull_policy: always
     restart: always
     environment:
       NODE_ENV: production
 
   nginx:
+    env_file: .env.prod
     ports:
       - "80:80"
       - "443:443"
     restart: always
 
   mqtt:
+    env_file: .env.prod
+    restart: always
+
+  etl-processor:
+    env_file: .env.prod
+    image: ${IMAGE_REGISTRY}/etl:${IMAGE_TAG}
+    pull_policy: always
     restart: always
 
 volumes:

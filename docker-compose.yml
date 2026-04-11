@@ -6,6 +6,7 @@ volumes:
   db_data:
   grafana_data:
   influx_data:
+  loki_data:
   nginx_logs:
   api_logs:
   telegraf_data:
@@ -15,15 +16,16 @@ services:
   db:
     image: postgres:14-alpine
     restart: unless-stopped
-    env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
-      POSTGRES_USER: ${POSTGRES_USER:-fireuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-fire_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_local_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
     networks:
       - fire-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER:-fireuser} -d ${POSTGRES_DB:-fire_monitoring}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fire_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,14 +34,13 @@ services:
   influx:
     image: influxdb:2.7-alpine
     restart: unless-stopped
-    env_file: .env
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME:-fireops}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-changeme}
-      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-fire-monitoring}
-      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN:-influx-token}
+      - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
     volumes:
       - influx_data:/var/lib/influxdb2
     networks:
@@ -54,7 +55,6 @@ services:
   mqtt:
     image: eclipse-mosquitto:2.0
     restart: unless-stopped
-    env_file: .env
     volumes:
       - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./infrastructure/mqtt/data:/mosquitto/data
@@ -65,11 +65,10 @@ services:
   telegraf:
     image: telegraf:alpine
     restart: unless-stopped
-    env_file: .env
     volumes:
       - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
-      - INFLUX_TOKEN=${INFLUX_TOKEN:-influx-token}
+      - INFLUX_TOKEN=${INFLUXDB_TOKEN}
     depends_on:
       influx:
         condition: service_healthy
@@ -81,15 +80,14 @@ services:
     image: flyway/flyway:10-alpine
     volumes:
       - ./infrastructure/sql:/flyway/sql
-    env_file: .env
     environment:
-      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
-      - FLYWAY_USER=${POSTGRES_USER:-fireuser}
-      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      - FLYWAY_USER=${POSTGRES_USER}
+      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
-    command: -connectRetries=60 migrate
+    command: ["-connectRetries=60", "migrate"]
     networks:
       - fire-net
 
@@ -97,11 +95,10 @@ services:
   api:
     build: ./api
     restart: unless-stopped
-    env_file: .env
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=8000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-fireuser}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-fire_monitoring}
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - api_logs:/usr/src/app/logs
     networks:
@@ -116,7 +113,6 @@ services:
   grafana:
     image: grafana/grafana:latest
     restart: unless-stopped
-    env_file: .env
     environment:
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
@@ -129,21 +125,44 @@ services:
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
       - fire-net
-    depends_on: 
+    depends_on:
       - influx
+      - loki
+
+  # Loki (centralized log storage)
+  loki:
+    image: grafana/loki:2.9.8
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./infrastructure/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - fire-net
+
+  # Grafana Alloy (collects Docker logs and pushes to Loki)
+  alloy:
+    image: grafana/alloy:v1.7.2
+    restart: unless-stopped
+    command: run /etc/alloy/config.alloy --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./infrastructure/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - fire-net
   
   etl-processor:
     build:
       context: ./etl-processor
       dockerfile: Dockerfile
-    container_name: fire-monitoring-etl
     command: python3 -m src.main
     restart: unless-stopped
-    env_file: .env
     environment:
       - PYTHONUNBUFFERED=1
-      - INFLUXDB_URL=http://influx:8086
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       influx:
         condition: service_healthy
@@ -156,7 +175,6 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
-    env_file: .env
     ports:
       - "80:80"
       - "443:443"

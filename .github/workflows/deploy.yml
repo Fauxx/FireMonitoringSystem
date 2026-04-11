@@ -3,6 +3,9 @@ name: Deploy to Droplet
 on:
   workflow_dispatch:
     inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g., sha-<commit>)"
+        required: true
       healthcheck_url:
         description: "Optional health check URL after deploy"
         required: false
@@ -21,15 +24,74 @@ jobs:
           host: ${{ secrets.DO_SSH_HOST }}
           username: ${{ secrets.DO_SSH_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          fingerprint: ${{ secrets.DO_SSH_FINGERPRINT }}
           script_stop: true
+          envs: IMAGE_TAG,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,POSTGRES_HOST,POSTGRES_PORT,PGSSLMODE,INFLUXDB_INIT_MODE,INFLUXDB_USERNAME,INFLUXDB_PASSWORD,INFLUXDB_ORG,INFLUXDB_BUCKET,INFLUXDB_TOKEN,INFLUXDB_URL,INFLUXDB_CLI_CONFIG_NAME,MQTT_BROKER_HOST,MQTT_BROKER_PORT,ETL_SYNC_INTERVAL,AGG_WINDOW_MINUTES,THRESHOLD_SMOKE_ORANGE,THRESHOLD_SMOKE_RED,THRESHOLD_TEMP_ORANGE,THRESHOLD_TEMP_RED,GITHUB_REPOSITORY,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -euo pipefail
             cd /opt/fire-monitoring
+            IMAGE_REGISTRY="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+            cat > .env.prod <<EOF
+            POSTGRES_USER=${POSTGRES_USER}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            POSTGRES_DB=${POSTGRES_DB}
+            POSTGRES_HOST=${POSTGRES_HOST:-db}
+            POSTGRES_PORT=${POSTGRES_PORT:-5432}
+            PGSSLMODE=${PGSSLMODE:-disable}
+            DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
+            INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
+            INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+            INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+            INFLUXDB_ORG=${INFLUXDB_ORG}
+            INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+            INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+            INFLUXDB_URL=${INFLUXDB_URL}
+            INFLUXDB_CLI_CONFIG_NAME=${INFLUXDB_CLI_CONFIG_NAME:-fireprod}
+            MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-mqtt}
+            MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+            ETL_SYNC_INTERVAL=${ETL_SYNC_INTERVAL:-30}
+            AGG_WINDOW_MINUTES=${AGG_WINDOW_MINUTES:-5}
+            THRESHOLD_SMOKE_ORANGE=${THRESHOLD_SMOKE_ORANGE:-100}
+            THRESHOLD_SMOKE_RED=${THRESHOLD_SMOKE_RED:-250}
+            THRESHOLD_TEMP_ORANGE=${THRESHOLD_TEMP_ORANGE:-38.0}
+            THRESHOLD_TEMP_RED=${THRESHOLD_TEMP_RED:-45.0}
+            IMAGE_REGISTRY=${IMAGE_REGISTRY}
+            IMAGE_TAG=${IMAGE_TAG}
+            EOF
+
             git fetch origin main
             git checkout main
             git reset --hard origin/main
-            docker compose pull
-            docker compose up -d --remove-orphans
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml pull
+            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans
             if [ -n "${{ inputs.healthcheck_url }}" ]; then
-              curl -fsSL "${{ inputs.healthcheck_url }}" || (docker compose logs --tail=200; exit 1)
+              curl -fsSL "${{ inputs.healthcheck_url }}" || (docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml logs --tail=200; exit 1)
             fi
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST || 'db' }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT || '5432' }}
+          PGSSLMODE: ${{ secrets.PGSSLMODE || 'disable' }}
+          INFLUXDB_INIT_MODE: ${{ secrets.INFLUXDB_INIT_MODE || 'setup' }}
+          INFLUXDB_USERNAME: ${{ secrets.INFLUXDB_USERNAME }}
+          INFLUXDB_PASSWORD: ${{ secrets.INFLUXDB_PASSWORD }}
+          INFLUXDB_ORG: ${{ secrets.INFLUXDB_ORG }}
+          INFLUXDB_BUCKET: ${{ secrets.INFLUXDB_BUCKET }}
+          INFLUXDB_TOKEN: ${{ secrets.INFLUXDB_TOKEN }}
+          INFLUXDB_URL: ${{ secrets.INFLUXDB_URL }}
+          INFLUXDB_CLI_CONFIG_NAME: ${{ secrets.INFLUXDB_CLI_CONFIG_NAME || 'fireprod' }}
+          MQTT_BROKER_HOST: ${{ secrets.MQTT_BROKER_HOST || 'mqtt' }}
+          MQTT_BROKER_PORT: ${{ secrets.MQTT_BROKER_PORT || '1883' }}
+          ETL_SYNC_INTERVAL: ${{ secrets.ETL_SYNC_INTERVAL || '30' }}
+          AGG_WINDOW_MINUTES: ${{ secrets.AGG_WINDOW_MINUTES || '5' }}
+          THRESHOLD_SMOKE_ORANGE: ${{ secrets.THRESHOLD_SMOKE_ORANGE || '100' }}
+          THRESHOLD_SMOKE_RED: ${{ secrets.THRESHOLD_SMOKE_RED || '250' }}
+          THRESHOLD_TEMP_ORANGE: ${{ secrets.THRESHOLD_TEMP_ORANGE || '38.0' }}
+          THRESHOLD_TEMP_RED: ${{ secrets.THRESHOLD_TEMP_RED || '45.0' }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}

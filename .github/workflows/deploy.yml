@@ -39,11 +39,25 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           fingerprint: ${{ secrets.DO_SSH_FINGERPRINT }}
           script_stop: true
-          envs: IMAGE_TAG,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,POSTGRES_HOST,POSTGRES_PORT,PGSSLMODE,INFLUXDB_INIT_MODE,INFLUXDB_USERNAME,INFLUXDB_PASSWORD,INFLUXDB_ORG,INFLUXDB_BUCKET,INFLUXDB_TOKEN,INFLUXDB_URL,INFLUXDB_CLI_CONFIG_NAME,MQTT_BROKER_HOST,MQTT_BROKER_PORT,ETL_SYNC_INTERVAL,AGG_WINDOW_MINUTES,THRESHOLD_SMOKE_ORANGE,THRESHOLD_SMOKE_RED,THRESHOLD_TEMP_ORANGE,THRESHOLD_TEMP_RED,GITHUB_REPOSITORY,GHCR_USERNAME,GHCR_TOKEN
+          envs: IMAGE_TAG,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,POSTGRES_HOST,POSTGRES_PORT,PGSSLMODE,INFLUXDB_INIT_MODE,INFLUXDB_USERNAME,INFLUXDB_PASSWORD,INFLUXDB_ORG,INFLUXDB_BUCKET,INFLUXDB_TOKEN,INFLUXDB_URL,INFLUXDB_CLI_CONFIG_NAME,MQTT_BROKER_HOST,MQTT_BROKER_PORT,ETL_SYNC_INTERVAL,AGG_WINDOW_MINUTES,THRESHOLD_SMOKE_ORANGE,THRESHOLD_SMOKE_RED,THRESHOLD_TEMP_ORANGE,THRESHOLD_TEMP_RED,GITHUB_REPOSITORY,GHCR_USERNAME,GHCR_TOKEN,REPO_ACCESS_TOKEN
           script: |
             set -euo pipefail
-            cd /opt/fire-monitoring
+            APP_DIR="/opt/fire-monitoring"
             IMAGE_REGISTRY="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+
+            mkdir -p "${APP_DIR}"
+            if [ ! -d "${APP_DIR}/.git" ]; then
+              if [ -z "${REPO_ACCESS_TOKEN:-}" ]; then
+                echo "REPO_ACCESS_TOKEN is required for first deploy bootstrap on private repos"
+                exit 1
+              fi
+              git clone "https://x-access-token:${REPO_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${APP_DIR}"
+            fi
+
+            cd "${APP_DIR}"
+            if [ -n "${REPO_ACCESS_TOKEN:-}" ]; then
+              git remote set-url origin "https://x-access-token:${REPO_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            fi
 
             cat > .env.prod <<EOF
             POSTGRES_USER=${POSTGRES_USER}
@@ -76,6 +90,10 @@ jobs:
             git fetch origin main
             git checkout main
             git reset --hard origin/main
+            if [ -n "${REPO_ACCESS_TOKEN:-}" ]; then
+              git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            fi
+
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
             docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml pull
             docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans
@@ -108,3 +126,4 @@ jobs:
           THRESHOLD_TEMP_RED: ${{ secrets.THRESHOLD_TEMP_RED || '45.0' }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          REPO_ACCESS_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN || secrets.GHCR_TOKEN }}

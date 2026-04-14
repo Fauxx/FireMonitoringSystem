@@ -60,3 +60,8 @@ variable "ssh_key_ids" {
   default     = []
 }
 
+variable "deploy_host_ip" {
+  description = "Canonical SSH host IP used by deployment automation"
+  type        = string
+  default     = "129.212.238.200"
+}

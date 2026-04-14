@@ -7,6 +7,7 @@ volumes:
   grafana_data:
   influx_data:
   loki_data:
+  prometheus_data:
   nginx_logs:
   api_logs:
   telegraf_data:
@@ -128,6 +129,7 @@ services:
     depends_on:
       - influx
       - loki
+      - prometheus
 
   # Loki (centralized log storage)
   loki:
@@ -137,6 +139,47 @@ services:
     volumes:
       - ./infrastructure/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
+    networks:
+      - fire-net
+
+  # Prometheus (metrics collection)
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - fire-net
+
+  # Node Exporter (host metrics)
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    networks:
+      - fire-net
+
+  # cAdvisor (container-level metrics)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - fire-net
 

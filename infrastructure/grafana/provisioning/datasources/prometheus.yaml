@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: Fire Monitoring Prometheus
+    type: prometheus
+    uid: prometheus-fire
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: false
+

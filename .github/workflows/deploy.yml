@@ -87,6 +87,9 @@ jobs:
             IMAGE_TAG=${IMAGE_TAG}
             EOF
 
+            # Some compose entries still reference .env explicitly; mirror prod env for compatibility.
+            cp .env.prod .env
+
             git fetch origin main
             git checkout main
             git reset --hard origin/main

@@ -7,6 +7,7 @@ const path = require('path');
 const pg = require('pg');
 const dotenv = require('dotenv');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const client = require('prom-client');
 
 // Load environment variables (.env file)
 dotenv.config();
@@ -29,6 +30,26 @@ const DASHBOARD_STYLES_DIR = process.env.DASHBOARD_STYLES_DIR || path.join(__dir
 const app = express();
 const PORT = process.env.PORT || 8000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Prometheus metrics registry for API/process and HTTP traffic.
+const metricsRegister = new client.Registry();
+metricsRegister.setDefaultLabels({ app: 'fire-api', env: NODE_ENV });
+client.collectDefaultMetrics({ register: metricsRegister });
+
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'HTTP request duration in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [metricsRegister]
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [metricsRegister]
+});
 
 // -------------------------------
 // PostgreSQL Connection
@@ -58,6 +79,25 @@ pool.connect()
 // -------------------------------
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    const routePath = req.route && req.route.path ? req.route.path : req.path;
+    const route = `${req.baseUrl || ''}${routePath || ''}` || 'unknown';
+    const labels = {
+      method: req.method,
+      route,
+      status_code: String(res.statusCode)
+    };
+
+    httpRequestDuration.observe(labels, durationSeconds);
+    httpRequestsTotal.inc(labels);
+  });
+
+  next();
+});
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'super-secret-key',
@@ -128,6 +168,16 @@ app.get('/', (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).send('healthy');
+});
+
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', metricsRegister.contentType);
+    res.end(await metricsRegister.metrics());
+  } catch (err) {
+    console.error('Metrics endpoint error:', err.message);
+    res.status(500).end('metrics_error');
+  }
 });
 
 // Protect /protected pages

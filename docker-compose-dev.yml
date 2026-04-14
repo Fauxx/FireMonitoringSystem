@@ -1,23 +1,23 @@
 services:
   db:
     image: postgres:14-alpine
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "15432:5432"
     volumes:
-      - db_dev_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
 
   influx:
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "18086:8086"  # avoid clashing with prod Influx
     environment:
       INFLUXDB_CLI_CONFIG_NAME: firedev
     volumes:
-      - influx_dev_data:/var/lib/influxdb2
+      - influx_data:/var/lib/influxdb2
 
   grafana:
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "13000:3000"
     environment:
@@ -26,16 +26,16 @@ services:
       - GF_REPLACEMENT_ENTITY_VALUES_ENABLED=true
       - INFLUXDB_ORG=${INFLUXDB_ORG:-fire-monitoring}
       - INFLUXDB_BUCKET=${INFLUXDB_BUCKET:-sensor-data}
-      - INFLUXDB_TOKEN=${INFLUX_TOKEN:-influx-token}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
     volumes:
-      - grafana_dev_data:/var/lib/grafana
+      - grafana_data:/var/lib/grafana
       - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
       - fire-net
 
   api:
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "18000:8000"  # avoid clashing with prod API
     environment:
@@ -45,31 +45,35 @@ services:
       - /usr/src/app/node_modules
 
   nginx:
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "18080:80"    # avoid clashing with prod nginx
       - "18443:443"
 
   mqtt:
-    env_file: .env.dev
+    env_file: .env
     ports:
       - "18830:1883"  # avoid clashing with prod MQTT
       - "19001:9001"
         
   telegraf:
     image: telegraf:alpine
-    env_file: .env.dev
+    env_file: .env
     volumes:
       - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     environment:
-      - INFLUX_TOKEN=${INFLUX_TOKEN:-influx-token}
+      - INFLUX_TOKEN=${INFLUXDB_TOKEN}
     networks:
       - fire-net
     depends_on:
       - influx
       - mqtt
 
+  prometheus:
+    ports:
+      - "19090:9090"
+
 volumes:
-  db_dev_data:
-  influx_dev_data:
-  grafana_dev_data:
+  db_data:
+  influx_data:
+  grafana_data:

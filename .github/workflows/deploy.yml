@@ -100,8 +100,29 @@ jobs:
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
             docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml pull
             docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans
+
             if [ -n "${{ inputs.healthcheck_url }}" ]; then
-              curl -fsSL "${{ inputs.healthcheck_url }}" || (docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml logs --tail=200; exit 1)
+              HEALTH_URL="${{ inputs.healthcheck_url }}"
+              MAX_RETRIES=30
+              SLEEP_SECONDS=2
+
+              echo "Waiting for healthcheck: ${HEALTH_URL}"
+              ok=0
+              for i in $(seq 1 "${MAX_RETRIES}"); do
+                if curl -fsSL "${HEALTH_URL}" >/dev/null; then
+                  ok=1
+                  echo "Healthcheck passed on attempt ${i}/${MAX_RETRIES}"
+                  break
+                fi
+                sleep "${SLEEP_SECONDS}"
+              done
+
+              if [ "${ok}" -ne 1 ]; then
+                echo "Healthcheck failed after ${MAX_RETRIES} attempts"
+                docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml ps
+                docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml logs --tail=120 api nginx
+                exit 1
+              fi
             fi
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}

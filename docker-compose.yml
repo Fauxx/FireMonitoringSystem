@@ -220,7 +220,6 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./dashboard/public:/usr/share/nginx/html:ro
       - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro

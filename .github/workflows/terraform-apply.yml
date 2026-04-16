@@ -1,0 +1,99 @@
+name: Terraform Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_apply:
+        description: "Run terraform apply (if false, run plan only)"
+        required: true
+        type: boolean
+        default: false
+      use_backend:
+        description: "Initialize configured backend (if false, use local backend)"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    concurrency:
+      group: terraform-production
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Verify required secrets
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+        run: |
+          set -euo pipefail
+          for v in \
+            TF_VAR_do_token \
+            TF_VAR_github_token \
+            TF_VAR_github_owner \
+            TF_VAR_github_repo \
+            TF_VAR_ssh_key_ids \
+            TF_VAR_do_ssh_host_fingerprint; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+
+      - name: Build runtime tfvars
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+        run: |
+          set -euo pipefail
+          rm -f terraform.tfvars
+          cat > runtime.auto.tfvars <<EOF
+          do_token     = "${TF_VAR_do_token}"
+          github_token = "${TF_VAR_github_token}"
+          github_owner = "${TF_VAR_github_owner}"
+          github_repo  = "${TF_VAR_github_repo}"
+          ssh_key_ids  = ${TF_VAR_ssh_key_ids}
+          do_ssh_host_fingerprint = "${TF_VAR_do_ssh_host_fingerprint}"
+          EOF
+
+      - name: Terraform init (no backend)
+        if: ${{ !inputs.use_backend }}
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform init (backend)
+        if: ${{ inputs.use_backend }}
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false -lock-timeout=5m
+
+      - name: Terraform apply
+        if: ${{ inputs.run_apply }}
+        run: terraform apply -auto-approve -input=false -lock-timeout=5m
+

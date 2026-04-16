@@ -1,11 +1,15 @@
 name: Deploy to Droplet
 
 on:
+  workflow_run:
+    workflows: ["Build and Push Images"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy (e.g., sha-<commit>)"
+        description: "Image tag to deploy (e.g., latest, dev-zet, or sha-<commit>)"
         required: true
+        default: "latest"
       healthcheck_url:
         description: "Optional health check URL after deploy"
         required: false
@@ -13,22 +17,79 @@ on:
 
 jobs:
   deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'latest' }}
+      HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || 'http://localhost/health' }}
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+      POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+      POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+      PGSSLMODE: ${{ secrets.PGSSLMODE }}
+      INFLUXDB_INIT_MODE: ${{ secrets.INFLUXDB_INIT_MODE }}
+      INFLUXDB_USERNAME: ${{ secrets.INFLUXDB_USERNAME }}
+      INFLUXDB_PASSWORD: ${{ secrets.INFLUXDB_PASSWORD }}
+      INFLUXDB_ORG: ${{ secrets.INFLUXDB_ORG }}
+      INFLUXDB_BUCKET: ${{ secrets.INFLUXDB_BUCKET }}
+      INFLUXDB_TOKEN: ${{ secrets.INFLUXDB_TOKEN }}
+      INFLUXDB_URL: ${{ secrets.INFLUXDB_URL }}
+      INFLUXDB_CLI_CONFIG_NAME: ${{ vars.INFLUXDB_CLI_CONFIG_NAME }}
+      MQTT_BROKER_HOST: ${{ vars.MQTT_BROKER_HOST }}
+      MQTT_BROKER_PORT: ${{ vars.MQTT_BROKER_PORT }}
+      ETL_SYNC_INTERVAL: ${{ vars.ETL_SYNC_INTERVAL }}
+      AGG_WINDOW_MINUTES: ${{ vars.AGG_WINDOW_MINUTES }}
+      THRESHOLD_SMOKE_ORANGE: ${{ vars.THRESHOLD_SMOKE_ORANGE }}
+      THRESHOLD_SMOKE_RED: ${{ vars.THRESHOLD_SMOKE_RED }}
+      THRESHOLD_TEMP_ORANGE: ${{ vars.THRESHOLD_TEMP_ORANGE }}
+      THRESHOLD_TEMP_RED: ${{ vars.THRESHOLD_TEMP_RED }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # --- NEW: Image Availability Check ---
+      # This prevents the "too fast" error by checking GHCR before starting SSH
+      - name: Verify Image Exists in GHCR
+        run: |
+          set -euo pipefail
+          REPO_LOWER="${GITHUB_REPOSITORY,,}"
+          TAG="${IMAGE_TAG}"
+          echo "Checking required images for tag '${TAG}' in ghcr.io/${REPO_LOWER}/..."
+          
+          # We use docker manifest to check if the image is actually there
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+          for image in api etl; do
+            if ! docker manifest inspect "ghcr.io/${REPO_LOWER}/${image}:${TAG}" > /dev/null 2>&1; then
+              echo "Error: Image tag '${TAG}' not found for ${image} in GHCR. Wait for Build CI to finish."
+              exit 1
+            fi
+          done
+
+          echo "Image tags verified. Proceeding to deploy."
 
       - name: SSH host key preflight
         run: |
           set -euo pipefail
           HOST="${{ secrets.DO_SSH_HOST }}"
           PORT="${{ secrets.DO_SSH_PORT || '22' }}"
-          echo "Checking SSH host keys for ${HOST}:${PORT}"
-          for t in ed25519 ecdsa rsa; do
-            echo "=== ${t} ==="
-            ssh-keyscan -p "$PORT" -t "$t" "$HOST" 2>/dev/null | ssh-keygen -lf - -E sha256 || true
-            echo
-          done
+          # Use ssh-keyscan to update known_hosts so appleboy doesn't trip on the new IP fingerprint
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -37,117 +98,70 @@ jobs:
           port: ${{ secrets.DO_SSH_PORT || '22' }}
           username: ${{ secrets.DO_SSH_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          # We automated this in Terraform! Ensure secrets.DO_SSH_FINGERPRINT is the HOST key fingerprint
           fingerprint: ${{ secrets.DO_SSH_FINGERPRINT }}
           script_stop: true
-          envs: IMAGE_TAG,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,POSTGRES_HOST,POSTGRES_PORT,PGSSLMODE,INFLUXDB_INIT_MODE,INFLUXDB_USERNAME,INFLUXDB_PASSWORD,INFLUXDB_ORG,INFLUXDB_BUCKET,INFLUXDB_TOKEN,INFLUXDB_URL,INFLUXDB_CLI_CONFIG_NAME,MQTT_BROKER_HOST,MQTT_BROKER_PORT,ETL_SYNC_INTERVAL,AGG_WINDOW_MINUTES,THRESHOLD_SMOKE_ORANGE,THRESHOLD_SMOKE_RED,THRESHOLD_TEMP_ORANGE,THRESHOLD_TEMP_RED,GITHUB_REPOSITORY,GHCR_USERNAME,GHCR_TOKEN,REPO_ACCESS_TOKEN
+          envs: IMAGE_TAG,HEALTHCHECK_URL,DEPLOY_BRANCH,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB,POSTGRES_HOST,POSTGRES_PORT,PGSSLMODE,INFLUXDB_INIT_MODE,INFLUXDB_USERNAME,INFLUXDB_PASSWORD,INFLUXDB_ORG,INFLUXDB_BUCKET,INFLUXDB_TOKEN,INFLUXDB_URL,INFLUXDB_CLI_CONFIG_NAME,MQTT_BROKER_HOST,MQTT_BROKER_PORT,ETL_SYNC_INTERVAL,AGG_WINDOW_MINUTES,THRESHOLD_SMOKE_ORANGE,THRESHOLD_SMOKE_RED,THRESHOLD_TEMP_ORANGE,THRESHOLD_TEMP_RED,GITHUB_REPOSITORY,GHCR_USERNAME,GHCR_TOKEN,REPO_ACCESS_TOKEN
           script: |
             set -euo pipefail
             APP_DIR="/opt/fire-monitoring"
             IMAGE_REGISTRY="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+            GHCR_USER="${GHCR_USERNAME:-${GITHUB_ACTOR:-}}"
 
-            mkdir -p "${APP_DIR}"
+            sudo mkdir -p "${APP_DIR}"
+            sudo chown -R $USER:$USER "${APP_DIR}"
+
             if [ ! -d "${APP_DIR}/.git" ]; then
-              if [ -z "${REPO_ACCESS_TOKEN:-}" ]; then
-                echo "REPO_ACCESS_TOKEN is required for first deploy bootstrap on private repos"
-                exit 1
-              fi
               git clone "https://x-access-token:${REPO_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${APP_DIR}"
             fi
 
             cd "${APP_DIR}"
-            if [ -n "${REPO_ACCESS_TOKEN:-}" ]; then
-              git remote set-url origin "https://x-access-token:${REPO_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-            fi
+            git remote set-url origin "https://x-access-token:${REPO_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            
+            # Use the branch that triggered the workflow (main or dev-zet)
+            git fetch origin "${DEPLOY_BRANCH}"
+            git checkout "${DEPLOY_BRANCH}"
+            git reset --hard "origin/${DEPLOY_BRANCH}"
 
+            # Create production env
             cat > .env.prod <<EOF
             POSTGRES_USER=${POSTGRES_USER}
             POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
             POSTGRES_DB=${POSTGRES_DB}
-            POSTGRES_HOST=${POSTGRES_HOST:-db}
-            POSTGRES_PORT=${POSTGRES_PORT:-5432}
-            PGSSLMODE=${PGSSLMODE:-disable}
             DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
-            INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE:-setup}
+            INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
             INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
             INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+            INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
             INFLUXDB_ORG=${INFLUXDB_ORG}
             INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
-            INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
             INFLUXDB_URL=${INFLUXDB_URL}
-            INFLUXDB_CLI_CONFIG_NAME=${INFLUXDB_CLI_CONFIG_NAME:-fireprod}
-            MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-mqtt}
-            MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
-            ETL_SYNC_INTERVAL=${ETL_SYNC_INTERVAL:-30}
-            AGG_WINDOW_MINUTES=${AGG_WINDOW_MINUTES:-5}
-            THRESHOLD_SMOKE_ORANGE=${THRESHOLD_SMOKE_ORANGE:-100}
-            THRESHOLD_SMOKE_RED=${THRESHOLD_SMOKE_RED:-250}
-            THRESHOLD_TEMP_ORANGE=${THRESHOLD_TEMP_ORANGE:-38.0}
-            THRESHOLD_TEMP_RED=${THRESHOLD_TEMP_RED:-45.0}
             IMAGE_REGISTRY=${IMAGE_REGISTRY}
             IMAGE_TAG=${IMAGE_TAG}
             EOF
-
-            # Some compose entries still reference .env explicitly; mirror prod env for compatibility.
             cp .env.prod .env
 
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
-            if [ -n "${REPO_ACCESS_TOKEN:-}" ]; then
-              git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            if [ -z "${GHCR_USER}" ] || [ -z "${GHCR_TOKEN}" ]; then
+              echo "Error: GHCR credentials are missing. Set GHCR_USERNAME and GHCR_TOKEN."
+              exit 1
             fi
 
-            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
-            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml pull
-            docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+            
+            # Pull and Restart
+            docker compose -f docker-compose.yml -f docker-compose-prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans --force-recreate
 
-            if [ -n "${{ inputs.healthcheck_url }}" ]; then
-              HEALTH_URL="${{ inputs.healthcheck_url }}"
-              MAX_RETRIES=30
-              SLEEP_SECONDS=2
-
-              echo "Waiting for healthcheck: ${HEALTH_URL}"
-              ok=0
-              for i in $(seq 1 "${MAX_RETRIES}"); do
-                if curl -fsSL "${HEALTH_URL}" >/dev/null; then
-                  ok=1
-                  echo "Healthcheck passed on attempt ${i}/${MAX_RETRIES}"
-                  break
+            if [ -n "${HEALTHCHECK_URL:-}" ]; then
+              echo "Running healthcheck against ${HEALTHCHECK_URL}"
+              for i in $(seq 1 30); do
+                if curl -fsS --max-time 5 "${HEALTHCHECK_URL}" > /dev/null; then
+                  echo "Healthcheck passed."
+                  exit 0
                 fi
-                sleep "${SLEEP_SECONDS}"
+                sleep 5
               done
 
-              if [ "${ok}" -ne 1 ]; then
-                echo "Healthcheck failed after ${MAX_RETRIES} attempts"
-                docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml ps
-                docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose-prod.yml logs --tail=120 api nginx
-                exit 1
-              fi
+              echo "Error: Healthcheck failed after retries."
+              exit 1
             fi
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST || 'db' }}
-          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT || '5432' }}
-          PGSSLMODE: ${{ secrets.PGSSLMODE || 'disable' }}
-          INFLUXDB_INIT_MODE: ${{ secrets.INFLUXDB_INIT_MODE || 'setup' }}
-          INFLUXDB_USERNAME: ${{ secrets.INFLUXDB_USERNAME }}
-          INFLUXDB_PASSWORD: ${{ secrets.INFLUXDB_PASSWORD }}
-          INFLUXDB_ORG: ${{ secrets.INFLUXDB_ORG }}
-          INFLUXDB_BUCKET: ${{ secrets.INFLUXDB_BUCKET }}
-          INFLUXDB_TOKEN: ${{ secrets.INFLUXDB_TOKEN }}
-          INFLUXDB_URL: ${{ secrets.INFLUXDB_URL }}
-          INFLUXDB_CLI_CONFIG_NAME: ${{ secrets.INFLUXDB_CLI_CONFIG_NAME || 'fireprod' }}
-          MQTT_BROKER_HOST: ${{ secrets.MQTT_BROKER_HOST || 'mqtt' }}
-          MQTT_BROKER_PORT: ${{ secrets.MQTT_BROKER_PORT || '1883' }}
-          ETL_SYNC_INTERVAL: ${{ secrets.ETL_SYNC_INTERVAL || '30' }}
-          AGG_WINDOW_MINUTES: ${{ secrets.AGG_WINDOW_MINUTES || '5' }}
-          THRESHOLD_SMOKE_ORANGE: ${{ secrets.THRESHOLD_SMOKE_ORANGE || '100' }}
-          THRESHOLD_SMOKE_RED: ${{ secrets.THRESHOLD_SMOKE_RED || '250' }}
-          THRESHOLD_TEMP_ORANGE: ${{ secrets.THRESHOLD_TEMP_ORANGE || '38.0' }}
-          THRESHOLD_TEMP_RED: ${{ secrets.THRESHOLD_TEMP_RED || '45.0' }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          REPO_ACCESS_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN || secrets.GHCR_TOKEN }}

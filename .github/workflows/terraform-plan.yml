@@ -1,0 +1,51 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+  workflow_dispatch:
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Prepare CI tfvars
+        run: |
+          set -euo pipefail
+          rm -f terraform.tfvars
+          cat > ci.auto.tfvars <<'EOF'
+          do_token     = "dummy-do-token"
+          github_token = "dummy-gh-token"
+          github_owner = "dummy-owner"
+          github_repo  = "FireMonitoringSystem"
+          ssh_key_ids  = ["dummy-ssh-key-id"]
+          do_ssh_host_fingerprint = "SHA256:dummy-host-key"
+          EOF
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan (no refresh)
+        run: terraform plan -input=false -refresh=false -lock=false -var-file=ci.auto.tfvars
+

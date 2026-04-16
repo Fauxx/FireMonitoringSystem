@@ -11,9 +11,9 @@ on:
         required: true
         default: "latest"
       healthcheck_url:
-        description: "Optional health check URL after deploy"
+        description: "Optional post-deploy URL check (use an API-backed endpoint, not /health)"
         required: false
-        default: "http://localhost/health"
+        default: ""
 
 jobs:
   deploy:
@@ -29,7 +29,7 @@ jobs:
       packages: read
     env:
       IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || 'latest' }}
-      HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || 'http://localhost/health' }}
+      HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || '' }}
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -129,6 +129,7 @@ jobs:
             POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
             POSTGRES_DB=${POSTGRES_DB}
             DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
+            PGSSLMODE=${PGSSLMODE}
             INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
             INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
             INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
@@ -152,7 +153,31 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose-prod.yml pull
             docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d --remove-orphans --force-recreate
 
+            # Verify API health inside the api container with retries to handle slow startup.
+            api_ok=0
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.yml -f docker-compose-prod.yml exec -T api \
+                node -e "require('http').get('http://localhost:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"; then
+                api_ok=1
+                echo "Internal API healthcheck passed."
+                break
+              fi
+              sleep 3
+            done
+
+            if [ "${api_ok}" -ne 1 ]; then
+              echo "Error: API healthcheck failed inside api container."
+              docker compose -f docker-compose.yml -f docker-compose-prod.yml ps
+              docker compose -f docker-compose.yml -f docker-compose-prod.yml logs --tail=80 api nginx || true
+              exit 1
+            fi
+
             if [ -n "${HEALTHCHECK_URL:-}" ]; then
+              if [ "${HEALTHCHECK_URL}" = "http://localhost/health" ] || [ "${HEALTHCHECK_URL}" = "https://localhost/health" ]; then
+                echo "Error: HEALTHCHECK_URL points to nginx /health which is not app-level. Use an API-backed URL or leave it empty."
+                exit 1
+              fi
+
               echo "Running healthcheck against ${HEALTHCHECK_URL}"
               for i in $(seq 1 30); do
                 if curl -fsS --max-time 5 "${HEALTHCHECK_URL}" > /dev/null; then

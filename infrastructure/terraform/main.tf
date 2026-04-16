@@ -62,9 +62,11 @@ variable "ssh_key_ids" {
   type = list(string)
 
   validation {
-    condition = length(var.ssh_key_ids) > 0 && alltrue([
-      for id in var.ssh_key_ids : length(trimspace(id)) > 0 && !startswith(id, "PASTE_")
-    ])
+    condition = (
+      length(var.ssh_key_ids) > 0 &&
+      length(compact(var.ssh_key_ids)) == length(var.ssh_key_ids) &&
+      length([for id in var.ssh_key_ids : id if startswith(id, "PASTE_")]) == 0
+    )
     error_message = "Set ssh_key_ids to real DigitalOcean SSH key IDs/fingerprints from your account."
   }
 }
@@ -73,7 +75,7 @@ variable "do_ssh_host_fingerprint" {
   type = string
 
   validation {
-    condition     = length(trimspace(var.do_ssh_host_fingerprint)) > 0 && startswith(var.do_ssh_host_fingerprint, "SHA256:") && !contains(var.do_ssh_host_fingerprint, "PASTE_")
+    condition     = length(trimspace(var.do_ssh_host_fingerprint)) > 0 && startswith(var.do_ssh_host_fingerprint, "SHA256:") && !strcontains(var.do_ssh_host_fingerprint, "PASTE_")
     error_message = "Set do_ssh_host_fingerprint to the real server host key fingerprint in SHA256 format (e.g., SHA256:...)."
   }
 }

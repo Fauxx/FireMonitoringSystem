@@ -60,7 +60,25 @@ This repository centralizes every component of the IoT fire-monitoring stack int
 
 4. **CI/CD**
    - `.github/workflows/build-push.yml` builds and publishes container images to GHCR.
-   - `.github/workflows/deploy.yml` expects DigitalOcean SSH secrets to pull + restart the stack remotely.
+    - `.github/workflows/deploy.yml` auto-deploys on successful `main` image builds (and supports manual dispatch), then pulls/restarts remotely over SSH.
+
+## Current CI/CD + Observability Flow (2026)
+
+This is the current production-oriented structure in this repo:
+
+- **Build pipeline:** `build-push.yml` runs on pushes and PRs, builds `api`, `dashboard`, and `etl` images, then publishes tags to GHCR (`latest` on `main`, sanitized branch tags, and `sha-*` tags).
+- **Deploy pipeline:** `deploy.yml` runs automatically after a successful `Build and Push Images` run on `main`, and can also be run manually for controlled rollbacks/testing.
+- **Production gate:** deploy job targets GitHub `production` environment for approval controls and secret scoping.
+- **Infra pipeline:** `terraform-plan.yml` validates Terraform on PRs (`fmt`, `validate`, `plan`), while `terraform-apply.yml` is manual and environment-gated for safe applies.
+- **Secret model:** runtime secrets are provided via GitHub Secrets/Environment Secrets. `infrastructure/terraform/terraform.tfvars` remains a local template only.
+
+### Observability stack in Compose
+
+- **Prometheus** scrapes service and host/container metrics.
+- **Loki** stores centralized logs.
+- **Grafana Alloy** collects Docker logs and forwards them to Loki.
+- **Grafana** provides dashboards with provisioned datasources/dashboards from `infrastructure/grafana/**`.
+- The stack is wired in `docker-compose.yml` with configs under `infrastructure/prometheus/`, `infrastructure/loki/`, and `infrastructure/alloy/`.
 
 ## Next Steps
 

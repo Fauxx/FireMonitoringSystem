@@ -85,16 +85,16 @@ jobs:
           cache-to: type=gha,mode=max
 
       # --- ETL Processor Build ---
-      - name: Build and push ETL
+      - name: Build and push ETL Processor
         uses: docker/build-push-action@v6
         with:
           context: ./etl-processor
           file: ./etl-processor/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.DOCKER_TAG }}
-            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.SHA_TAG_FULL }}
-            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.SHA_TAG_SHORT }}
+            ghcr.io/${{ env.REPO_LOWER }}/etl-processor:${{ env.DOCKER_TAG }}
+            ghcr.io/${{ env.REPO_LOWER }}/etl-processor:${{ env.SHA_TAG_FULL }}
+            ghcr.io/${{ env.REPO_LOWER }}/etl-processor:${{ env.SHA_TAG_SHORT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -112,8 +112,8 @@ jobs:
             echo "  - ghcr.io/${REPO_LOWER}/dashboard:${DOCKER_TAG}"
             echo "  - ghcr.io/${REPO_LOWER}/dashboard:${SHA_TAG_FULL}"
             echo "  - ghcr.io/${REPO_LOWER}/dashboard:${SHA_TAG_SHORT}"
-            echo "- etl"
-            echo "  - ghcr.io/${REPO_LOWER}/etl:${DOCKER_TAG}"
-            echo "  - ghcr.io/${REPO_LOWER}/etl:${SHA_TAG_FULL}"
-            echo "  - ghcr.io/${REPO_LOWER}/etl:${SHA_TAG_SHORT}"
+            echo "- etl-processor"
+            echo "  - ghcr.io/${REPO_LOWER}/etl-processor:${DOCKER_TAG}"
+            echo "  - ghcr.io/${REPO_LOWER}/etl-processor:${SHA_TAG_FULL}"
+            echo "  - ghcr.io/${REPO_LOWER}/etl-processor:${SHA_TAG_SHORT}"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -42,8 +42,9 @@ jobs:
             echo "DOCKER_TAG=${SAFE_TAG}" >> $GITHUB_ENV
           fi
           
-          # Always keep the SHA tag for specific deployments/rollbacks
-          echo "SHA_TAG=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          # Publish full SHA tags for deterministic deploys and keep short SHA tags for temporary compatibility.
+          echo "SHA_TAG_FULL=sha-${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "SHA_TAG_SHORT=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,7 +65,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.REPO_LOWER }}/api:${{ env.DOCKER_TAG }}
-            ghcr.io/${{ env.REPO_LOWER }}/api:${{ env.SHA_TAG }}
+            ghcr.io/${{ env.REPO_LOWER }}/api:${{ env.SHA_TAG_FULL }}
+            ghcr.io/${{ env.REPO_LOWER }}/api:${{ env.SHA_TAG_SHORT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -77,7 +79,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.REPO_LOWER }}/dashboard:${{ env.DOCKER_TAG }}
-            ghcr.io/${{ env.REPO_LOWER }}/dashboard:${{ env.SHA_TAG }}
+            ghcr.io/${{ env.REPO_LOWER }}/dashboard:${{ env.SHA_TAG_FULL }}
+            ghcr.io/${{ env.REPO_LOWER }}/dashboard:${{ env.SHA_TAG_SHORT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -90,6 +93,27 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.DOCKER_TAG }}
-            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.SHA_TAG }}
+            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.SHA_TAG_FULL }}
+            ghcr.io/${{ env.REPO_LOWER }}/etl:${{ env.SHA_TAG_SHORT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Summarize published image tags
+        run: |
+          set -euo pipefail
+          {
+            echo "## Published GHCR Tags"
+            echo
+            echo "- api"
+            echo "  - ghcr.io/${REPO_LOWER}/api:${DOCKER_TAG}"
+            echo "  - ghcr.io/${REPO_LOWER}/api:${SHA_TAG_FULL}"
+            echo "  - ghcr.io/${REPO_LOWER}/api:${SHA_TAG_SHORT}"
+            echo "- dashboard"
+            echo "  - ghcr.io/${REPO_LOWER}/dashboard:${DOCKER_TAG}"
+            echo "  - ghcr.io/${REPO_LOWER}/dashboard:${SHA_TAG_FULL}"
+            echo "  - ghcr.io/${REPO_LOWER}/dashboard:${SHA_TAG_SHORT}"
+            echo "- etl"
+            echo "  - ghcr.io/${REPO_LOWER}/etl:${DOCKER_TAG}"
+            echo "  - ghcr.io/${REPO_LOWER}/etl:${SHA_TAG_FULL}"
+            echo "  - ghcr.io/${REPO_LOWER}/etl:${SHA_TAG_SHORT}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -122,9 +122,10 @@ jobs:
 
           required_refs_for_tag() {
             local tag="$1"
+            local repo_lower="${GITHUB_REPOSITORY,,}"
             printf '%s\n' \
-              "ghcr.io/${OWNER_LOWER}/firemonitoringsystem-api:${tag}" \
-              "ghcr.io/${OWNER_LOWER}/firemonitoringsystem-etl-processor:${tag}"
+              "ghcr.io/${repo_lower}/api:${tag}" \
+              "ghcr.io/${repo_lower}/etl-processor:${tag}"
           }
 
           check_tag() {

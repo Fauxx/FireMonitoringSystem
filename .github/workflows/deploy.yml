@@ -33,16 +33,21 @@ jobs:
       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     environment: production
+    concurrency:
+      group: deploy-production-${{ github.repository }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: read
     env:
+      REQUESTED_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || format('sha-{0}', github.event.workflow_run.head_sha) }}
       IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || format('sha-{0}', github.event.workflow_run.head_sha) }}
-      ALLOW_FALLBACK_TO_LATEST: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_fallback_to_latest || false }}
-      FALLBACK_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.fallback_tag || 'latest' }}
+      FALLBACK_ALLOWED: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_fallback_to_latest || false }}
+      FALLBACK_TAG_VALUE: ${{ github.event_name == 'workflow_dispatch' && inputs.fallback_tag || 'latest' }}
       HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || '' }}
       UPSTREAM_RUN_URL: ${{ github.event_name == 'workflow_run' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.event.workflow_run.id) || 'manual-dispatch' }}
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      GHCR_OWNER: ${{ github.repository_owner }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -73,87 +78,134 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- NEW: Image Availability Check ---
-      # This prevents the "too fast" error by checking GHCR before starting SSH
-      - name: Verify Image Exists in GHCR
+      - name: Validate deploy credentials and fallback inputs
         run: |
           set -euo pipefail
-          REPO_LOWER="${GITHUB_REPOSITORY,,}"
-          REQUESTED_TAG="${IMAGE_TAG}"
-          FALLBACK_ALLOWED="${ALLOW_FALLBACK_TO_LATEST}"
-          FALLBACK_TAG_VALUE="${FALLBACK_TAG}"
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=15
+          missing=()
+          for key in GHCR_USERNAME GHCR_TOKEN REPO_ACCESS_TOKEN; do
+            if [ -z "${!key:-}" ]; then
+              missing+=("${key}")
+            fi
+          done
 
-          echo "Checking required images for tag '${REQUESTED_TAG}' in ghcr.io/${REPO_LOWER}/..."
-          echo "Context: upstream=${UPSTREAM_RUN_URL}, branch=${DEPLOY_BRANCH}"
-          
-          # We use docker manifest to check if the image is actually there
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Error: Missing required deploy credentials/secrets."
+            printf ' - %s\n' "${missing[@]}"
+            echo "Action: set repository/environment secrets for all missing keys before deploy."
+            exit 1
+          fi
+
+          if [ "${FALLBACK_ALLOWED}" != "true" ] && [ "${FALLBACK_ALLOWED}" != "false" ]; then
+            echo "Error: FALLBACK_ALLOWED must be 'true' or 'false'. Got '${FALLBACK_ALLOWED}'."
+            exit 1
+          fi
+
+          if [ "${FALLBACK_ALLOWED}" = "true" ] && [ -z "${FALLBACK_TAG_VALUE}" ]; then
+            echo "Error: FALLBACK_TAG_VALUE is required when FALLBACK_ALLOWED=true."
+            exit 1
+          fi
+
+          echo "Preflight inputs: requested_tag='${REQUESTED_IMAGE_TAG}', fallback_allowed='${FALLBACK_ALLOWED}', fallback_tag='${FALLBACK_TAG_VALUE}', upstream='${UPSTREAM_RUN_URL}'"
+
+      # Verify both required deploy images exist before SSH/deploy, with retries and optional fallback.
+      - name: Resolve deploy image tag from GHCR
+        run: |
+          set -euo pipefail
+          OWNER_LOWER="${GHCR_OWNER,,}"
+          REQUESTED_TAG="${REQUESTED_IMAGE_TAG}"
+          MAX_ATTEMPTS=12
+          INITIAL_SLEEP_SECONDS=10
+          MAX_SLEEP_SECONDS=60
+
+          echo "Authenticating to GHCR for image availability checks..."
+          echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+
+          required_refs_for_tag() {
+            local tag="$1"
+            printf '%s\n' \
+              "ghcr.io/${OWNER_LOWER}/firemonitoringsystem-api:${tag}" \
+              "ghcr.io/${OWNER_LOWER}/firemonitoringsystem-etl-processor:${tag}"
+          }
 
           check_tag() {
             local tag="$1"
-            local missing=""
+            local -n out_missing="$2"
+            out_missing=()
 
-            for image in api etl-processor; do
-              local ref="ghcr.io/${REPO_LOWER}/${image}:${tag}"
+            while IFS= read -r ref; do
               if ! docker manifest inspect "${ref}" > /dev/null 2>&1; then
-                if [ -z "${missing}" ]; then
-                  missing="${ref}"
-                else
-                  missing="${missing}, ${ref}"
-                fi
+                out_missing+=("${ref}")
               fi
-            done
+            done < <(required_refs_for_tag "${tag}")
 
-            if [ -n "${missing}" ]; then
-              echo "${missing}"
-              return 1
-            fi
-
-            return 0
+            [ "${#out_missing[@]}" -eq 0 ]
           }
 
           wait_for_tag() {
             local tag="$1"
-            local missing_refs=""
+            local -n out_last_missing="$2"
+            out_last_missing=()
+            local sleep_seconds="${INITIAL_SLEEP_SECONDS}"
 
             for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
-              if missing_refs="$(check_tag "${tag}")"; then
-                echo "Image tags verified for '${tag}'."
+              local missing_now=()
+              if check_tag "${tag}" missing_now; then
+                echo "Image refs available for tag '${tag}' on attempt ${attempt}/${MAX_ATTEMPTS}."
                 return 0
               fi
 
-              echo "Attempt ${attempt}/${MAX_ATTEMPTS}: Missing images for tag '${tag}': ${missing_refs}"
+              out_last_missing=("${missing_now[@]}")
+              echo "Attempt ${attempt}/${MAX_ATTEMPTS}: Missing image refs for tag '${tag}':"
+              printf ' - %s\n' "${out_last_missing[@]}"
+
               if [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; then
-                sleep "${SLEEP_SECONDS}"
+                echo "Retrying in ${sleep_seconds}s..."
+                sleep "${sleep_seconds}"
+                sleep_seconds=$((sleep_seconds * 2))
+                if [ "${sleep_seconds}" -gt "${MAX_SLEEP_SECONDS}" ]; then
+                  sleep_seconds="${MAX_SLEEP_SECONDS}"
+                fi
               fi
             done
 
-            echo "Final check failed for tag '${tag}'. Missing: ${missing_refs}"
             return 1
           }
 
-          if wait_for_tag "${REQUESTED_TAG}"; then
+          requested_missing_refs=()
+          fallback_missing_refs=()
+
+          if wait_for_tag "${REQUESTED_TAG}" requested_missing_refs; then
             echo "IMAGE_TAG=${REQUESTED_TAG}" >> "$GITHUB_ENV"
-            echo "Using image tag '${REQUESTED_TAG}' for deployment."
+            echo "Resolved deploy IMAGE_TAG='${REQUESTED_TAG}' (requested tag available)."
             exit 0
           fi
 
           if [ "${FALLBACK_ALLOWED}" = "true" ] && [ "${REQUESTED_TAG}" != "${FALLBACK_TAG_VALUE}" ]; then
-            echo "Requested tag '${REQUESTED_TAG}' is unavailable. Trying opt-in fallback tag '${FALLBACK_TAG_VALUE}'."
-            if wait_for_tag "${FALLBACK_TAG_VALUE}"; then
+            echo "Requested tag '${REQUESTED_TAG}' unavailable after retries. Trying fallback tag '${FALLBACK_TAG_VALUE}'."
+            if wait_for_tag "${FALLBACK_TAG_VALUE}" fallback_missing_refs; then
               echo "IMAGE_TAG=${FALLBACK_TAG_VALUE}" >> "$GITHUB_ENV"
-              echo "Using fallback image tag '${FALLBACK_TAG_VALUE}' for deployment."
+              echo "Resolved deploy IMAGE_TAG='${FALLBACK_TAG_VALUE}' (fallback tag available)."
               exit 0
             fi
           fi
 
-          echo "Error: Required GHCR images were not found."
-          echo "Expected api/etl-processor tag: '${REQUESTED_TAG}'"
-          echo "Fallback enabled: ${FALLBACK_ALLOWED} (tag='${FALLBACK_TAG_VALUE}')"
+          echo "::error title=GHCR image lookup failed::Unable to resolve deploy image tag after retries."
+          echo "Requested tag: '${REQUESTED_TAG}'"
+          echo "Fallback allowed: '${FALLBACK_ALLOWED}'"
+          echo "Fallback tag: '${FALLBACK_TAG_VALUE}'"
           echo "Upstream run: ${UPSTREAM_RUN_URL}"
-          echo "Action: Ensure 'Build and Push Images' published api/etl-processor for this commit SHA before deploy."
+
+          if [ "${#requested_missing_refs[@]}" -gt 0 ]; then
+            echo "Missing refs for requested tag '${REQUESTED_TAG}':"
+            printf ' - %s\n' "${requested_missing_refs[@]}"
+          fi
+
+          if [ "${#fallback_missing_refs[@]}" -gt 0 ]; then
+            echo "Missing refs for fallback tag '${FALLBACK_TAG_VALUE}':"
+            printf ' - %s\n' "${fallback_missing_refs[@]}"
+          fi
+
+          echo "Action: wait for GHCR publish/propagation or rerun deploy with a known-good tag/fallback configuration."
           exit 1
 
       - name: SSH host key preflight

@@ -69,8 +69,8 @@ This is the current production-oriented structure in this repo:
 - **Build pipeline:** `build-push.yml` runs on pushes and PRs, builds `api`, `dashboard`, and `etl` images, then publishes tags to GHCR (`latest` on `main`, sanitized branch tags, and `sha-*` tags).
 - **Deploy pipeline:** `deploy.yml` runs automatically after a successful `Build and Push Images` run on `main`, and can also be run manually for controlled rollbacks/testing.
 - **Production gate:** deploy job targets GitHub `production` environment for approval controls and secret scoping.
-- **Infra pipeline:** `terraform-plan.yml` validates Terraform on PRs (`fmt`, `validate`, `plan`), while `terraform-apply.yml` is manual and environment-gated for safe applies.
-- **Secret model:** runtime secrets are provided via GitHub Secrets/Environment Secrets. `infrastructure/terraform/terraform.tfvars` remains a local template only.
+- **Infra pipeline:** `terraform-plan.yml` runs PR-safe checks (`fmt`, `init -backend=false`, `validate`) without secrets; manual `workflow_dispatch` runs strict plan mode.
+- **Secret model:** Terraform uses `require_secrets=false` for PR checks and `require_secrets=true` for manual apply/plan runs. Production secrets come from GitHub Environment/Repository secrets.
 
 ### Observability stack in Compose
 

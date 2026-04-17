@@ -33,6 +33,13 @@ jobs:
       - name: Clean local tfvars
         run: rm -f terraform.tfvars runtime.auto.tfvars
 
+      - name: Build PR runtime tfvars
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          cat > runtime.auto.tfvars <<EOF
+          require_secrets = false
+          EOF
+
       - name: Verify required secrets
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
@@ -69,6 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           cat > runtime.auto.tfvars <<EOF
+          require_secrets = true
           do_token     = "${TF_VAR_do_token}"
           github_token = "${TF_VAR_github_token}"
           github_owner = "${TF_VAR_github_owner}"
@@ -89,14 +97,14 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform validate
-        run: terraform validate
+        run: terraform validate 2>&1 | tee terraform-validate.log
 
       - name: Terraform plan (no refresh)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           set -euo pipefail
           set +e
-          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode
+          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode 2>&1 | tee terraform-plan.log
           exit_code=$?
           set -e
 

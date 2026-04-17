@@ -30,17 +30,51 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Build runtime tfvars
+      - name: Clean local tfvars
+        run: rm -f terraform.tfvars runtime.auto.tfvars
+
+      - name: Verify required secrets
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
         run: |
           set -euo pipefail
-          rm -f terraform.tfvars
-          cat > runtime.auto.tfvars <<'EOF'
-          do_token     = "dummy-do-token"
-          github_token = "dummy-gh-token"
-          github_owner = "dummy-owner"
-          github_repo  = "FireMonitoringSystem"
-          ssh_key_ids  = ["dummy-ssh-key-id"]
-          do_ssh_host_fingerprint = "SHA256:dummy-host-key"
+          for v in \
+            TF_VAR_do_token \
+            TF_VAR_github_token \
+            TF_VAR_github_owner \
+            TF_VAR_github_repo \
+            TF_VAR_ssh_key_ids \
+            TF_VAR_do_ssh_host_fingerprint; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+
+      - name: Build runtime tfvars
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+        run: |
+          set -euo pipefail
+          cat > runtime.auto.tfvars <<EOF
+          do_token     = "${TF_VAR_do_token}"
+          github_token = "${TF_VAR_github_token}"
+          github_owner = "${TF_VAR_github_owner}"
+          github_repo  = "${TF_VAR_github_repo}"
+          ssh_key_ids  = ${TF_VAR_ssh_key_ids}
+          do_ssh_host_fingerprint = "${TF_VAR_do_ssh_host_fingerprint}"
           EOF
 
       - name: Terraform fmt
@@ -58,5 +92,6 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan (no refresh)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: terraform plan -input=false -refresh=false -lock=false
 

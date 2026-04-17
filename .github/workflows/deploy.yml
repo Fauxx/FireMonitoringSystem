@@ -95,7 +95,7 @@ jobs:
             local tag="$1"
             local missing=""
 
-            for image in api etl; do
+            for image in api etl-processor; do
               local ref="ghcr.io/${REPO_LOWER}/${image}:${tag}"
               if ! docker manifest inspect "${ref}" > /dev/null 2>&1; then
                 if [ -z "${missing}" ]; then
@@ -150,10 +150,10 @@ jobs:
           fi
 
           echo "Error: Required GHCR images were not found."
-          echo "Expected api/etl tag: '${REQUESTED_TAG}'"
+          echo "Expected api/etl-processor tag: '${REQUESTED_TAG}'"
           echo "Fallback enabled: ${FALLBACK_ALLOWED} (tag='${FALLBACK_TAG_VALUE}')"
           echo "Upstream run: ${UPSTREAM_RUN_URL}"
-          echo "Action: Ensure 'Build and Push Images' published api/etl for this commit SHA before deploy."
+          echo "Action: Ensure 'Build and Push Images' published api/etl-processor for this commit SHA before deploy."
           exit 1
 
       - name: SSH host key preflight

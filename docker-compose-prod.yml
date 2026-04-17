@@ -35,7 +35,7 @@ services:
 
   etl-processor:
     env_file: .env
-    image: ${IMAGE_REGISTRY}/etl:${IMAGE_TAG}
+    image: ${IMAGE_REGISTRY}/etl-processor:${IMAGE_TAG}
     pull_policy: always
     restart: always
 

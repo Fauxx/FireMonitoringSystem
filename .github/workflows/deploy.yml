@@ -10,6 +10,15 @@ on:
         description: "Image tag to deploy (e.g., latest, dev-zet, or sha-<commit>)"
         required: true
         default: "latest"
+      allow_fallback_to_latest:
+        description: "If true, fallback to fallback_tag when requested image tag is missing"
+        required: true
+        type: boolean
+        default: false
+      fallback_tag:
+        description: "Fallback image tag used only when allow_fallback_to_latest=true"
+        required: true
+        default: "latest"
       healthcheck_url:
         description: "Optional post-deploy URL check (use an API-backed endpoint, not /health)"
         required: false
@@ -29,7 +38,10 @@ jobs:
       packages: read
     env:
       IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || format('sha-{0}', github.event.workflow_run.head_sha) }}
+      ALLOW_FALLBACK_TO_LATEST: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_fallback_to_latest || false }}
+      FALLBACK_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.fallback_tag || 'latest' }}
       HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || '' }}
+      UPSTREAM_RUN_URL: ${{ github.event_name == 'workflow_run' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.event.workflow_run.id) || 'manual-dispatch' }}
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -67,20 +79,82 @@ jobs:
         run: |
           set -euo pipefail
           REPO_LOWER="${GITHUB_REPOSITORY,,}"
-          TAG="${IMAGE_TAG}"
-          echo "Checking required images for tag '${TAG}' in ghcr.io/${REPO_LOWER}/..."
+          REQUESTED_TAG="${IMAGE_TAG}"
+          FALLBACK_ALLOWED="${ALLOW_FALLBACK_TO_LATEST}"
+          FALLBACK_TAG_VALUE="${FALLBACK_TAG}"
+          MAX_ATTEMPTS=20
+          SLEEP_SECONDS=15
+
+          echo "Checking required images for tag '${REQUESTED_TAG}' in ghcr.io/${REPO_LOWER}/..."
+          echo "Context: upstream=${UPSTREAM_RUN_URL}, branch=${DEPLOY_BRANCH}"
           
           # We use docker manifest to check if the image is actually there
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-          for image in api etl; do
-            if ! docker manifest inspect "ghcr.io/${REPO_LOWER}/${image}:${TAG}" > /dev/null 2>&1; then
-              echo "Error: Image tag '${TAG}' not found for ${image} in GHCR. Wait for Build CI to finish."
-              exit 1
-            fi
-          done
+          check_tag() {
+            local tag="$1"
+            local missing=""
 
-          echo "Image tags verified. Proceeding to deploy."
+            for image in api etl; do
+              local ref="ghcr.io/${REPO_LOWER}/${image}:${tag}"
+              if ! docker manifest inspect "${ref}" > /dev/null 2>&1; then
+                if [ -z "${missing}" ]; then
+                  missing="${ref}"
+                else
+                  missing="${missing}, ${ref}"
+                fi
+              fi
+            done
+
+            if [ -n "${missing}" ]; then
+              echo "${missing}"
+              return 1
+            fi
+
+            return 0
+          }
+
+          wait_for_tag() {
+            local tag="$1"
+            local missing_refs=""
+
+            for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
+              if missing_refs="$(check_tag "${tag}")"; then
+                echo "Image tags verified for '${tag}'."
+                return 0
+              fi
+
+              echo "Attempt ${attempt}/${MAX_ATTEMPTS}: Missing images for tag '${tag}': ${missing_refs}"
+              if [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; then
+                sleep "${SLEEP_SECONDS}"
+              fi
+            done
+
+            echo "Final check failed for tag '${tag}'. Missing: ${missing_refs}"
+            return 1
+          }
+
+          if wait_for_tag "${REQUESTED_TAG}"; then
+            echo "IMAGE_TAG=${REQUESTED_TAG}" >> "$GITHUB_ENV"
+            echo "Using image tag '${REQUESTED_TAG}' for deployment."
+            exit 0
+          fi
+
+          if [ "${FALLBACK_ALLOWED}" = "true" ] && [ "${REQUESTED_TAG}" != "${FALLBACK_TAG_VALUE}" ]; then
+            echo "Requested tag '${REQUESTED_TAG}' is unavailable. Trying opt-in fallback tag '${FALLBACK_TAG_VALUE}'."
+            if wait_for_tag "${FALLBACK_TAG_VALUE}"; then
+              echo "IMAGE_TAG=${FALLBACK_TAG_VALUE}" >> "$GITHUB_ENV"
+              echo "Using fallback image tag '${FALLBACK_TAG_VALUE}' for deployment."
+              exit 0
+            fi
+          fi
+
+          echo "Error: Required GHCR images were not found."
+          echo "Expected api/etl tag: '${REQUESTED_TAG}'"
+          echo "Fallback enabled: ${FALLBACK_ALLOWED} (tag='${FALLBACK_TAG_VALUE}')"
+          echo "Upstream run: ${UPSTREAM_RUN_URL}"
+          echo "Action: Ensure 'Build and Push Images' published api/etl for this commit SHA before deploy."
+          exit 1
 
       - name: SSH host key preflight
         run: |

@@ -5,6 +5,12 @@ on:
     paths:
       - "infrastructure/terraform/**"
   workflow_dispatch:
+    inputs:
+      use_backend:
+        description: "Initialize configured backend (if false, use local backend)"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   plan:
@@ -24,11 +30,11 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Prepare CI tfvars
+      - name: Build runtime tfvars
         run: |
           set -euo pipefail
           rm -f terraform.tfvars
-          cat > ci.auto.tfvars <<'EOF'
+          cat > runtime.auto.tfvars <<'EOF'
           do_token     = "dummy-do-token"
           github_token = "dummy-gh-token"
           github_owner = "dummy-owner"
@@ -41,11 +47,16 @@ jobs:
         run: terraform fmt -check
 
       - name: Terraform init (no backend)
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.use_backend }}
         run: terraform init -backend=false -input=false
+
+      - name: Terraform init (backend)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend }}
+        run: terraform init -input=false
 
       - name: Terraform validate
         run: terraform validate
 
       - name: Terraform plan (no refresh)
-        run: terraform plan -input=false -refresh=false -lock=false -var-file=ci.auto.tfvars
+        run: terraform plan -input=false -refresh=false -lock=false
 

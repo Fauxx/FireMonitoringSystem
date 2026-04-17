@@ -1,0 +1,123 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+  workflow_dispatch:
+    inputs:
+      use_backend:
+        description: "Initialize configured backend (if false, use local backend)"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Clean local tfvars
+        run: rm -f terraform.tfvars runtime.auto.tfvars
+
+      - name: Build PR runtime tfvars
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          cat > runtime.auto.tfvars <<EOF
+          require_secrets = false
+          EOF
+
+      - name: Verify required secrets
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+        run: |
+          set -euo pipefail
+          for v in \
+            TF_VAR_do_token \
+            TF_VAR_github_token \
+            TF_VAR_github_owner \
+            TF_VAR_github_repo \
+            TF_VAR_ssh_key_ids \
+            TF_VAR_do_ssh_host_fingerprint; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
+
+      - name: Build runtime tfvars
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
+          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
+          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+        run: |
+          set -euo pipefail
+          cat > runtime.auto.tfvars <<EOF
+          require_secrets = true
+          do_token     = "${TF_VAR_do_token}"
+          github_token = "${TF_VAR_github_token}"
+          github_owner = "${TF_VAR_github_owner}"
+          github_repo  = "${TF_VAR_github_repo}"
+          ssh_key_ids  = ${TF_VAR_ssh_key_ids}
+          do_ssh_host_fingerprint = "${TF_VAR_do_ssh_host_fingerprint}"
+          EOF
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform init (no backend)
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.use_backend }}
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform init (backend)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend }}
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate 2>&1 | tee terraform-validate.log
+
+      - name: Terraform plan (no refresh)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode 2>&1 | tee terraform-plan.log
+          exit_code=$?
+          set -e
+
+          case "$exit_code" in
+            0)
+              echo "No infrastructure changes detected."
+              ;;
+            2)
+              echo "Infrastructure changes detected (plan-only success)."
+              ;;
+            *)
+              echo "Terraform plan failed with exit code $exit_code"
+              exit "$exit_code"
+              ;;
+          esac
+

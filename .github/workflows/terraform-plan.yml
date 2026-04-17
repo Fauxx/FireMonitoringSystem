@@ -93,5 +93,23 @@ jobs:
 
       - name: Terraform plan (no refresh)
         if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: terraform plan -input=false -refresh=false -lock=false
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode
+          exit_code=$?
+          set -e
+
+          case "$exit_code" in
+            0)
+              echo "No infrastructure changes detected."
+              ;;
+            2)
+              echo "Infrastructure changes detected (plan-only success)."
+              ;;
+            *)
+              echo "Terraform plan failed with exit code $exit_code"
+              exit "$exit_code"
+              ;;
+          esac
 

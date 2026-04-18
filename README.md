@@ -2,44 +2,6 @@
 
 This repository centralizes every component of the IoT fire-monitoring stack into a single, DevOps-friendly layout. Application code now lives under `api/`, `dashboard/`, and `etl-processor/` while infrastructure-as-code, broker configs, and SQL migrations sit under `infrastructure/`.
 
-## Repository Guide (Codebase Structure + Tech Stack)
-
-### 1) What this repository does
-This monorepo powers an IoT fire monitoring platform. Sensor readings flow through MQTT into time-series storage, are transformed by an ETL service, then exposed through an API and dashboard.
-
-### 2) High-level data flow
-`MCU/Sensor -> MQTT (Mosquitto) -> Telegraf -> InfluxDB -> ETL Processor -> PostgreSQL -> API -> Dashboard`
-
-### 3) Core directories
-- `.github/workflows/`: CI/CD pipelines (build, deploy, terraform checks)
-- `api/`: Node.js + Express backend (auth, sensor, analytics, metrics, sessions)
-- `dashboard/public/`: static frontend pages (login/signup/protected dashboard)
-- `etl-processor/`: Python ETL worker that syncs InfluxDB data into PostgreSQL
-- `simulators/`: sensor data simulator that publishes mock MQTT payloads
-- `infrastructure/`: deployment/runtime configs (Nginx, MQTT, Telegraf, SQL, Terraform, Prometheus/Loki/Grafana/Alloy)
-- `docker-compose*.yml`: local/dev/prod-style service orchestration
-
-### 4) Key technologies used
-- **Backend API:** Node.js, Express, `pg`, `express-session`, `prom-client`
-- **ETL/Data Processing:** Python, pandas, psycopg2, influxdb-client, loguru
-- **Messaging/Ingestion:** Mosquitto (MQTT), Telegraf
-- **Datastores:** InfluxDB (time-series), PostgreSQL (reporting/relational)
-- **Web/UI Delivery:** Nginx + static HTML/CSS/JS dashboard
-- **Observability:** Prometheus, Loki, Grafana, Grafana Alloy, cAdvisor, node-exporter
-- **Infrastructure/Automation:** Docker Compose, Flyway, Terraform, GitHub Actions
-
-### 5) How code is organized
-- **API app entrypoint:** `api/src/server.js`
-  - wires middleware, sessions, auth-gated routes, metrics endpoint (`/metrics`), and Grafana proxy (`/grafana`)
-- **API routes:** `api/src/routes/`
-  - `auth.js`, `api.js`, `analytics.js`, `messages.js`, `finalSensors.js`
-- **ETL entrypoint:** `etl-processor/src/main.py`
-  - fetches from Influx, transforms records, writes to `final_sensor_events`, `sensor_data_aggregated`, and `system_metrics`
-- **MQTT simulator:** `simulators/mcu_sim.py`
-  - publishes mock fire sensor payloads for local testing
-- **Infra config:** `infrastructure/**`
-  - service configs, SQL migrations, dashboards, monitoring, and IaC
-
 ## Directory Overview
 
 ```

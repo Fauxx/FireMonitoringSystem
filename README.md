@@ -101,6 +101,49 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
    - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
 
+## Terraform local first run (non-interactive backend init)
+
+Use this when initializing Terraform locally for the first time so `terraform init` never prompts for backend values.
+
+1. Create local backend env from template:
+   ```bash
+   cp infrastructure/terraform/backend.local.env.example infrastructure/terraform/backend.local.env
+   ```
+
+2. Fill required values in `infrastructure/terraform/backend.local.env`:
+   - `TF_STATE_BUCKET`
+   - `TF_STATE_REGION`
+   - `TF_STATE_ENDPOINT`
+   - `TF_STATE_ACCESS_KEY`
+   - `TF_STATE_SECRET_KEY`
+   - Optional: `TF_WORKSPACE` (default `prod`), `TF_STATE_KEY_PREFIX` (default `terraform/fire-monitoring`), `TF_BACKEND_KEY` override.
+
+3. Run first-time local bootstrap:
+   ```bash
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+   This runs:
+   - `terraform init -reconfigure -input=false` with backend config (same flags/shape as CI shared contract)
+   - `terraform workspace select <workspace> || terraform workspace new <workspace>`
+
+4. Validate and plan:
+   ```bash
+   cd infrastructure/terraform
+   terraform validate
+   terraform plan -input=false
+   ```
+
+5. Clean-state re-test (optional):
+   ```bash
+   rm -rf infrastructure/terraform/.terraform
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+
+Troubleshooting:
+- If bootstrap fails with `Missing required backend setting(s)`, update `infrastructure/terraform/backend.local.env`.
+- If authentication fails, verify `TF_STATE_ACCESS_KEY` / `TF_STATE_SECRET_KEY`.
+- If endpoint/region errors occur, verify `TF_STATE_ENDPOINT` and `TF_STATE_REGION` match your Spaces bucket region.
+
 ## Current CI/CD + Observability Flow (2026)
 
 This is the current CI/CD structure in this repo:

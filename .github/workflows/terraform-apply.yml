@@ -139,7 +139,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Terraform plan
-        if: ${{ inputs.plan_run_id == '' || inputs.plan_artifact_name == '' }}
+        if: ${{ inputs.plan_run_id == '' && inputs.plan_artifact_name == '' }}
         run: terraform plan -input=false -lock-timeout=5m -out=tfplan.binary
 
       - name: Verify plan file exists

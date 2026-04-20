@@ -33,7 +33,7 @@ jobs:
       - name: Build ETL image
         run: docker build -t local/etl-processor-ci:latest ./etl-processor
 
-      - name: Validate docker-compose configuration
+      - name: Validate docker-compose configuration (fails on invalid config)
         env:
           POSTGRES_DB: fire_db
           POSTGRES_USER: postgres

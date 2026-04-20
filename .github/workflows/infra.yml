@@ -115,7 +115,7 @@ jobs:
           terraform show -no-color "${PLAN_FILE}" > tfplan.txt
           echo "plan_exit_code=${exit_code}" >> "$GITHUB_OUTPUT"
 
-      - name: Optional destroy for restart simulation
+      - name: Destroy infrastructure for restart simulation
         if: ${{ env.TERRAFORM_MODE == 'destroy-recreate' }}
         run: |
           set -euo pipefail

@@ -158,7 +158,7 @@ runs:
           missing_backend=()
           [ -n "${BACKEND_BUCKET}" ] || missing_backend+=("TF_STATE_BUCKET")
           [ -n "${BACKEND_REGION}" ] || missing_backend+=("TF_STATE_REGION")
-          [ -n "${BACKEND_KEY}" ] || missing_backend+=("TF_STATE_KEY_PREFIX/workspace")
+          [ -n "${BACKEND_KEY}" ] || missing_backend+=("backend_key (derived from TF_STATE_KEY_PREFIX)")
           [ -n "${BACKEND_ENDPOINT}" ] || missing_backend+=("TF_STATE_ENDPOINT")
           [ -n "${BACKEND_ACCESS_KEY}" ] || missing_backend+=("TF_STATE_ACCESS_KEY")
           [ -n "${BACKEND_SECRET_KEY}" ] || missing_backend+=("TF_STATE_SECRET_KEY")

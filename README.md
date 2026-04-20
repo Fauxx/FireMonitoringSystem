@@ -149,7 +149,7 @@ Use this only when you already have an existing local workspace state and want t
    Expect no-op/minimal drift if remote state matches reality.
 
 Rollback check:
-- Before migration, keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
+- Before running step 3 (migration), keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
 - To return to local backend state:
   1. `cd <project_root>/infrastructure/terraform`
   2. `rm -rf .terraform`

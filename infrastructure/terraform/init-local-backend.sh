@@ -63,6 +63,7 @@ case "${TF_INIT_MODE}" in
     ;;
   migrate)
     # Force known source context for migration: local backend only.
+    # This assumes source state exists locally (terraform.tfstate / terraform.tfstate.d).
     terraform init -backend=false -input=false
     terraform workspace select "${TF_WORKSPACE}" || {
       echo "Workspace '${TF_WORKSPACE}' does not exist in current backend; use TF_INIT_MODE=bootstrap for new workspaces."

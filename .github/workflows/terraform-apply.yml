@@ -121,10 +121,7 @@ jobs:
           PLAN_ARTIFACT_NAME: ${{ inputs.plan_artifact_name }}
         run: |
           set -euo pipefail
-          if [ -z "${PLAN_RUN_ID}" ] && [ -z "${PLAN_ARTIFACT_NAME}" ]; then
-            echo "Error: plan_run_id and plan_artifact_name are both empty."
-            exit 1
-          elif [ -z "${PLAN_RUN_ID}" ]; then
+          if [ -z "${PLAN_RUN_ID}" ]; then
             echo "Error: plan_run_id is required when plan_artifact_name is provided."
             exit 1
           elif [ -z "${PLAN_ARTIFACT_NAME}" ]; then

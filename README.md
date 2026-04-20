@@ -97,7 +97,8 @@ This is the current production-oriented structure in this repo:
 ### Deployment incident checklist (SSH timeout / action_required)
 
 1. **If run shows `action_required` with no jobs:**
-   - Open the workflow run and approve the `production` environment gate, then re-run if needed.
+   - Open the workflow run and approve the `production` environment gate.
+   - Re-run only if the run remains non-started after approval or if it was previously cancelled/failed.
 2. **If deploy fails with SSH timeout (`dial tcp ... i/o timeout`):**
    - Verify `DO_SSH_HOST` points to the current droplet IP.
    - Verify `DO_SSH_PORT` (default `22`) matches host SSH configuration.

@@ -228,6 +228,10 @@ jobs:
             echo "Error: DO_SSH_HOST is empty."
             exit 1
           fi
+          if ! [[ "${SSH_CONNECT_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Error: SSH_CONNECT_TIMEOUT_SECONDS must be a positive integer. Got '${SSH_CONNECT_TIMEOUT_SECONDS}'."
+            exit 1
+          fi
 
           echo "Resolving ${HOST}..."
           getent hosts "${HOST}" || true

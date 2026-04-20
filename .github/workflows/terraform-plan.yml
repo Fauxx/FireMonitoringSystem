@@ -159,7 +159,7 @@ jobs:
         if: ${{ always() }}
         env:
           BACKEND_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend && 'backend' || 'local-no-backend' }}
-          WORKSPACE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_workspace || 'n/a-pr-check' }}
+          WORKSPACE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_workspace || 'pr-validation' }}
           PLAN_EXIT_CODE: ${{ env.TF_PLAN_EXIT_CODE || 'n/a' }}
         run: |
           {

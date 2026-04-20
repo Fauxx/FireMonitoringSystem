@@ -125,19 +125,17 @@ runs:
         rm -f terraform.tfvars runtime.auto.tfvars
 
         if [ "${REQUIRE_SECRETS}" = "true" ]; then
-          cat > runtime.auto.tfvars <<EOFVARS
-        require_secrets = true
-        do_token     = "${DO_TOKEN}"
-        github_token = "${GITHUB_TOKEN}"
-        github_owner = "${GITHUB_OWNER}"
-        github_repo  = "${GITHUB_REPO}"
-        ssh_key_ids  = ${SSH_KEY_IDS}
-        do_ssh_host_fingerprint = "${DO_SSH_HOST_FINGERPRINT}"
-        EOFVARS
+          {
+            printf 'require_secrets = true\n'
+            printf 'do_token     = "%s"\n' "${DO_TOKEN}"
+            printf 'github_token = "%s"\n' "${GITHUB_TOKEN}"
+            printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
+            printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
+            printf 'ssh_key_ids  = %s\n' "${SSH_KEY_IDS}"
+            printf 'do_ssh_host_fingerprint = "%s"\n' "${DO_SSH_HOST_FINGERPRINT}"
+          } > runtime.auto.tfvars
         else
-          cat > runtime.auto.tfvars <<EOFVARS
-        require_secrets = false
-        EOFVARS
+          printf 'require_secrets = false\n' > runtime.auto.tfvars
         fi
 
     - name: Terraform init

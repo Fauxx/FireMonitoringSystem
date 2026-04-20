@@ -170,6 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
+          # Intentionally keep refresh enabled so plan reflects real cloud/state delta.
           terraform plan -input=false -detailed-exitcode -out="${PLAN_FILE}"
           exit_code=$?
           set -e

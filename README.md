@@ -151,7 +151,7 @@ Use this only when you already have an existing local workspace state and want t
 Rollback check:
 - Before migration, keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
 - To return to local backend state:
-  1. `cd /home/runner/work/FireMonitoringSystem/FireMonitoringSystem/infrastructure/terraform`
+  1. `cd <project_root>/infrastructure/terraform`
   2. `rm -rf .terraform`
   3. Restore your backup `terraform.tfstate` / `terraform.tfstate.d/`
   4. `terraform init -backend=false -input=false`

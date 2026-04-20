@@ -13,6 +13,7 @@ on:
       - "docker-compose-dev.yml"
       - "docker-compose-prod.yml"
       - ".github/workflows/ci-pr.yml"
+      - ".github/workflows/terraform-execution.yml"
       - ".github/actions/terraform-contract/**"
 
 concurrency:
@@ -73,32 +74,16 @@ jobs:
 
   terraform-validation:
     if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        shell: bash
-        working-directory: infrastructure/terraform
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform fmt
-        run: terraform fmt -check
-
-      - name: Apply shared Terraform contract (backendless)
-        uses: ./.github/actions/terraform-contract
-        with:
-          working_directory: infrastructure/terraform
-          terraform_workspace: ci-pr
-          use_backend: "false"
-          require_secrets: "false"
-
-      - name: Terraform validate
-        run: terraform validate
+    uses: ./.github/workflows/terraform-execution.yml
+    with:
+      execution_mode: plan-only
+      terraform_workspace: ci-pr
+      use_backend: false
+      simulation_profile: blank-project
+      require_secrets: false
+      run_plan: false
+      artifact_prefix: ci-pr-terraform
+    secrets: inherit
 
   compose-validation:
     if: github.actor != 'github-actions[bot]'

@@ -38,6 +38,11 @@ on:
         required: false
         type: string
         default: terraform
+      tf_lock_timeout:
+        description: Terraform state lock timeout value (e.g., 300s)
+        required: false
+        type: string
+        default: 300s
     secrets:
       TF_VAR_do_token:
         required: false
@@ -88,6 +93,7 @@ jobs:
       USE_BACKEND: ${{ inputs.use_backend && 'true' || 'false' }}
       SIMULATION_PROFILE: ${{ inputs.simulation_profile }}
       REQUIRE_SECRETS: ${{ inputs.require_secrets && 'true' || 'false' }}
+      TF_LOCK_TIMEOUT: ${{ inputs.tf_lock_timeout }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -141,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          terraform plan -input=false -lock-timeout=300s -detailed-exitcode -out="${PLAN_FILE}"
+          terraform plan -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -detailed-exitcode -out="${PLAN_FILE}"
           exit_code=$?
           set -e
           if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
@@ -155,13 +161,13 @@ jobs:
         if: ${{ inputs.run_plan && env.TERRAFORM_MODE == 'destroy-recreate' }}
         run: |
           set -euo pipefail
-          terraform destroy -input=false -lock-timeout=300s -auto-approve
-          terraform plan -input=false -lock-timeout=300s -out=tfplan.binary
+          terraform destroy -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -auto-approve
+          terraform plan -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -out=tfplan.binary
           terraform show -no-color tfplan.binary > tfplan.txt
 
       - name: Terraform apply
         if: ${{ inputs.run_plan && (env.TERRAFORM_MODE == 'apply' || env.TERRAFORM_MODE == 'destroy-recreate') }}
-        run: terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
+        run: terraform apply -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -auto-approve tfplan.binary
 
       - name: Export terraform outputs
         if: ${{ inputs.run_plan }}

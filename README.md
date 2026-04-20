@@ -116,7 +116,7 @@ Use this when initializing Terraform locally for the first time so `terraform in
    - `TF_STATE_ENDPOINT`
    - `TF_STATE_ACCESS_KEY`
    - `TF_STATE_SECRET_KEY`
-   - Optional: `TF_WORKSPACE` (default `prod`), `TF_STATE_KEY_PREFIX` (default `terraform/fire-monitoring`), `TF_BACKEND_KEY` override.
+   - Optional: `TF_WORKSPACE` (default `local`), `TF_STATE_KEY_PREFIX` (default `terraform/fire-monitoring`), `TF_BACKEND_KEY` override.
 
 3. Run first-time local bootstrap:
    ```bash

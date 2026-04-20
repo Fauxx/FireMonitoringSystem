@@ -15,7 +15,7 @@ set -a
 source "${ENV_FILE}"
 set +a
 
-TF_WORKSPACE="${TF_WORKSPACE:-prod}"
+TF_WORKSPACE="${TF_WORKSPACE:-local}"
 TF_STATE_KEY_PREFIX="${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}"
 TF_BACKEND_KEY="${TF_BACKEND_KEY:-${TF_STATE_KEY_PREFIX}/${TF_WORKSPACE}.tfstate}"
 

@@ -15,6 +15,9 @@ concurrency:
   group: cd-main-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build-and-validate:
     if: github.actor != 'github-actions[bot]'
@@ -43,4 +46,23 @@ jobs:
           INFLUXDB_BUCKET: fire-bucket
           INFLUXDB_TOKEN: test-token
           INFLUXDB_URL: http://influx:8086
-        run: docker compose -f docker-compose.yml config -q
+          IMAGE_REGISTRY: ghcr.io/example/repo
+          IMAGE_TAG: latest
+        run: |
+          cat > .env <<EOF
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_URL=${DATABASE_URL}
+          INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
+          INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+          INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+          INFLUXDB_ORG=${INFLUXDB_ORG}
+          INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+          INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+          INFLUXDB_URL=${INFLUXDB_URL}
+          IMAGE_REGISTRY=${IMAGE_REGISTRY}
+          IMAGE_TAG=${IMAGE_TAG}
+          EOF
+          docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
+          rm -f .env

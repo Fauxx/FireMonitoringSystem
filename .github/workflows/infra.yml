@@ -15,8 +15,8 @@ on:
         default: "prod"
 
 concurrency:
-  group: infra-${{ github.ref }}
-  cancel-in-progress: true
+  group: infra-manual
+  cancel-in-progress: false
 
 jobs:
   terraform-plan:

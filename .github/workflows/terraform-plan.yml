@@ -11,12 +11,18 @@ on:
         required: true
         type: boolean
         default: false
+      terraform_workspace:
+        description: "Terraform workspace to use for manual plans"
+        required: true
+        type: string
+        default: "prod"
 
 jobs:
   plan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
 
     defaults:
       run:
@@ -96,17 +102,33 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend }}
         run: terraform init -input=false
 
+      - name: Select terraform workspace
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TF_WORKSPACE: ${{ inputs.terraform_workspace }}
+        run: |
+          set -euo pipefail
+          if terraform workspace select "${TF_WORKSPACE}"; then
+            echo "Using existing workspace '${TF_WORKSPACE}'."
+          else
+            terraform workspace new "${TF_WORKSPACE}"
+            echo "Created workspace '${TF_WORKSPACE}'."
+          fi
+
       - name: Terraform validate
         run: terraform validate 2>&1 | tee terraform-validate.log
 
       - name: Terraform plan (no refresh)
         if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          PLAN_FILE: tfplan.binary
         run: |
           set -euo pipefail
           set +e
-          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode 2>&1 | tee terraform-plan.log
+          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode -out="${PLAN_FILE}" 2>&1 | tee terraform-plan.log
           exit_code=$?
           set -e
+          echo "TF_PLAN_EXIT_CODE=${exit_code}" >> "$GITHUB_ENV"
 
           case "$exit_code" in
             0)
@@ -121,3 +143,35 @@ jobs:
               ;;
           esac
 
+      - name: Upload terraform plan artifact
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ github.run_id }}
+          path: |
+            infrastructure/terraform/tfplan.binary
+            infrastructure/terraform/terraform-plan.log
+            infrastructure/terraform/terraform-validate.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Summarize terraform plan run
+        if: ${{ always() }}
+        env:
+          BACKEND_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend && 'backend' || 'local-no-backend' }}
+          WORKSPACE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_workspace || 'pr-validation' }}
+          PLAN_EXIT_CODE: ${{ env.TF_PLAN_EXIT_CODE || 'n/a' }}
+        run: |
+          {
+            echo "## Terraform Plan Summary"
+            echo
+            echo "- Event: ${{ github.event_name }}"
+            echo "- Backend mode: ${BACKEND_MODE}"
+            echo "- Workspace: ${WORKSPACE_NAME}"
+            echo "- Plan exit code: ${PLAN_EXIT_CODE}"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "- Plan artifact: terraform-plan-${{ github.run_id }}"
+            else
+              echo "- Plan artifact: not generated for pull_request checks"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

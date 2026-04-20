@@ -149,8 +149,13 @@ Use this only when you already have an existing local workspace state and want t
    Expect no-op/minimal drift if remote state matches reality.
 
 Rollback check:
-- Before migration, keep a backup of local state files.
-- If needed, point init back to local backend and restore the backup files before retrying migration.
+- Before migration, keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
+- To return to local backend state:
+  1. `cd /home/runner/work/FireMonitoringSystem/FireMonitoringSystem/infrastructure/terraform`
+  2. `rm -rf .terraform`
+  3. Restore your backup `terraform.tfstate` / `terraform.tfstate.d/`
+  4. `terraform init -backend=false -input=false`
+  5. `terraform workspace select <workspace>`
 
 4. Validate and plan:
    ```bash

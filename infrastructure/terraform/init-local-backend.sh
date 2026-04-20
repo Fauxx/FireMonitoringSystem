@@ -62,7 +62,8 @@ case "${TF_INIT_MODE}" in
     echo "Terraform backend initialized (bootstrap mode) and workspace ready: ${TF_WORKSPACE}"
     ;;
   migrate)
-    terraform init -input=false
+    # Force known source context for migration: local backend only.
+    terraform init -backend=false -input=false
     terraform workspace select "${TF_WORKSPACE}" || {
       echo "Workspace '${TF_WORKSPACE}' does not exist in current backend; use TF_INIT_MODE=bootstrap for new workspaces."
       exit 1
@@ -81,7 +82,6 @@ case "${TF_INIT_MODE}" in
       -backend-config="skip_requesting_account_id=true" \
       -backend-config="use_path_style=true"
 
-    terraform workspace select "${TF_WORKSPACE}"
     echo "Terraform backend initialized (migrate mode) and state copied for workspace: ${TF_WORKSPACE}"
     ;;
   *)

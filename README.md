@@ -2,6 +2,44 @@
 
 This repository centralizes every component of the IoT fire-monitoring stack into a single, DevOps-friendly layout. Application code now lives under `api/`, `dashboard/`, and `etl-processor/` while infrastructure-as-code, broker configs, and SQL migrations sit under `infrastructure/`.
 
+## Repository Guide (Codebase Structure + Tech Stack)
+
+### 1) What this repository does
+This monorepo powers an IoT fire monitoring platform. Sensor readings flow through MQTT into time-series storage, are transformed by an ETL service, then exposed through an API and dashboard.
+
+### 2) High-level data flow
+`MCU/Sensor -> MQTT (Mosquitto) -> Telegraf -> InfluxDB -> ETL Processor -> PostgreSQL -> API -> Dashboard`
+
+### 3) Core directories
+- `.github/workflows/`: CI/CD pipelines (build, deploy, terraform checks)
+- `api/`: Node.js + Express backend (auth, sensor, analytics, metrics, sessions)
+- `dashboard/public/`: static frontend pages (login/signup/protected dashboard)
+- `etl-processor/`: Python ETL worker that syncs InfluxDB data into PostgreSQL
+- `simulators/`: sensor data simulator that publishes mock MQTT payloads
+- `infrastructure/`: deployment/runtime configs (Nginx, MQTT, Telegraf, SQL, Terraform, Prometheus/Loki/Grafana/Alloy)
+- `docker-compose*.yml`: local/dev/prod-style service orchestration
+
+### 4) Key technologies used
+- **Backend API:** Node.js, Express, `pg`, `express-session`, `prom-client`
+- **ETL/Data Processing:** Python, pandas, psycopg2, influxdb-client, loguru
+- **Messaging/Ingestion:** Mosquitto (MQTT), Telegraf
+- **Datastores:** InfluxDB (time-series), PostgreSQL (reporting/relational)
+- **Web/UI Delivery:** Nginx + static HTML/CSS/JS dashboard
+- **Observability:** Prometheus, Loki, Grafana, Grafana Alloy, cAdvisor, node-exporter
+- **Infrastructure/Automation:** Docker Compose, Flyway, Terraform, GitHub Actions
+
+### 5) How code is organized
+- **API app entrypoint:** `api/src/server.js`
+  - wires middleware, sessions, auth-gated routes, metrics endpoint (`/metrics`), and Grafana proxy (`/grafana`)
+- **API routes:** `api/src/routes/`
+  - `auth.js`, `api.js`, `analytics.js`, `messages.js`, `finalSensors.js`
+- **ETL entrypoint:** `etl-processor/src/main.py`
+  - fetches from Influx, transforms records, writes to `final_sensor_events`, `sensor_data_aggregated`, and `system_metrics`
+- **MQTT simulator:** `simulators/mcu_sim.py`
+  - publishes mock fire sensor payloads for local testing
+- **Infra config:** `infrastructure/**`
+  - service configs, SQL migrations, dashboards, monitoring, and IaC
+
 ## Directory Overview
 
 ```
@@ -135,59 +173,3 @@ This is the current production-oriented structure in this repo:
   ```
   Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
 - The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
-
-# 🔥 Fire Monitoring System
-
-A robust IoT monitoring solution integrating real-time sensor data, automated ETL processes, and a secure web dashboard.
-
----
-
-## 🏗️ Technical Architecture
-The system is built using a micro-services approach to ensure scalability and ease of deployment:
-
-* **Ingestion:** `Mosquitto (MQTT)` -> `Telegraf` -> `InfluxDB (Time-series)`
-* **Processing:** `ETL-Processor (Python)` (Syncs InfluxDB to Postgres for long-term reporting)
-* **API:** `Node.js (Express)` (Serves data from Postgres/InfluxDB)
-* **Gateway:** `Nginx` (Reverse proxy handling Dashboard and API routing)
-* **Orchestration:** `Docker Compose` with automated `Flyway` migrations.
-
----
-
-## 🚀 Implementation Roadmap (The "Tight" Build)
-
-This roadmap outlines the path to a production-ready CI/CD deployment on DigitalOcean.
-
-### Phase 1: Configuration & Environment Standards
-- [ ] **Unified Variable Mapping:** Create a master `.env.example` in the root.
-- [ ] **Network Hardening:** Ensure `fire-net` isolates internal databases from public ports.
-- [ ] **Dockerignore Optimization:** Strip `node_modules`, `venv`, and `.git` from build contexts.
-
-### Phase 2: Optimized Containerization (Efficiency & Cost)
-- [ ] **Multi-Stage Builds (Node/Python):** Implement multi-stage Dockerfiles to keep production images under 200MB.
-- [ ] **Pip/Npm Cache Mounts:** Use `--mount=type=cache` in Dockerfiles to speed up cloud builds and save bandwidth costs.
-- [ ] **Startup Logic:** Refine `healthcheck` dependencies (DB ➔ Flyway ➔ API) to prevent "Race Condition" crashes.
-
-### Phase 3: Infrastructure & Data Integrity
-- [ ] **Flyway Schema Management:** Finalize versioned SQL migrations (`V1`, `V2`, etc.) for zero-downtime updates.
-- [ ] **Telegraf Bridging:** Configure Telegraf to automatically map MQTT topics to InfluxDB buckets.
-- [ ] **Nginx Reverse Proxy:** Setup path-based routing (`/api` for Node, `/grafana` for dashboards).
-
-### Phase 4: CI/CD & Cloud Deployment (DigitalOcean)
-- [ ] **GitHub Actions Workflow:**
-   - **Linter/Test:** Automated code quality checks on every push.
-   - **Build & Push:** Push images to DigitalOcean Container Registry (DOCR).
-- [ ] **Automated CD:** SSH-based "Pull and Restart" on the DO Droplet.
-- [ ] **SSL Security:** Automate Let's Encrypt certificates using a Certbot container.
-
-### Phase 5: Monitoring & Maintenance
-- [ ] **Resource Cleanup:** Implement `docker system prune` in the CI/CD pipeline to save disk space.
-- [ ] **Log Rotation:** Configure Docker log limits to prevent the Droplet from running out of storage.
-
----
-
-## 🛠️ Local Development
-
-1. **Setup Environment:** `cp .env.example .env`
-2. **Build Stack:** `docker-compose build`
-3. **Launch:** `docker-compose up -d`
-4. **Simulate Data:** `python simulators/mcu_sim.py`

@@ -18,6 +18,7 @@ set +a
 TF_WORKSPACE="${TF_WORKSPACE:-local}"
 TF_STATE_KEY_PREFIX="${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}"
 TF_BACKEND_KEY="${TF_BACKEND_KEY:-${TF_STATE_KEY_PREFIX}/${TF_WORKSPACE}.tfstate}"
+TF_INIT_MODE="${TF_INIT_MODE:-bootstrap}"
 
 required_vars=(
   TF_STATE_BUCKET
@@ -42,19 +43,50 @@ fi
 
 cd "${WORKING_DIR}"
 
-terraform init -reconfigure -input=false \
-  -backend-config="bucket=${TF_STATE_BUCKET}" \
-  -backend-config="key=${TF_BACKEND_KEY}" \
-  -backend-config="region=${TF_STATE_REGION}" \
-  -backend-config="endpoint=${TF_STATE_ENDPOINT}" \
-  -backend-config="access_key=${TF_STATE_ACCESS_KEY}" \
-  -backend-config="secret_key=${TF_STATE_SECRET_KEY}" \
-  -backend-config="skip_credentials_validation=true" \
-  -backend-config="skip_metadata_api_check=true" \
-  -backend-config="skip_region_validation=true" \
-  -backend-config="skip_requesting_account_id=true" \
-  -backend-config="use_path_style=true"
+case "${TF_INIT_MODE}" in
+  bootstrap)
+    terraform init -reconfigure -input=false \
+      -backend-config="bucket=${TF_STATE_BUCKET}" \
+      -backend-config="key=${TF_BACKEND_KEY}" \
+      -backend-config="region=${TF_STATE_REGION}" \
+      -backend-config="endpoint=${TF_STATE_ENDPOINT}" \
+      -backend-config="access_key=${TF_STATE_ACCESS_KEY}" \
+      -backend-config="secret_key=${TF_STATE_SECRET_KEY}" \
+      -backend-config="skip_credentials_validation=true" \
+      -backend-config="skip_metadata_api_check=true" \
+      -backend-config="skip_region_validation=true" \
+      -backend-config="skip_requesting_account_id=true" \
+      -backend-config="use_path_style=true"
 
-terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"
+    terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"
+    echo "Terraform backend initialized (bootstrap mode) and workspace ready: ${TF_WORKSPACE}"
+    ;;
+  migrate)
+    # Force known source context for migration: local backend only.
+    # This assumes source state exists locally (terraform.tfstate / terraform.tfstate.d).
+    terraform init -backend=false -input=false
+    terraform workspace select "${TF_WORKSPACE}" || {
+      echo "Workspace '${TF_WORKSPACE}' does not exist in current backend; use TF_INIT_MODE=bootstrap for new workspaces."
+      exit 1
+    }
 
-echo "Terraform backend initialized (non-interactive) and workspace ready: ${TF_WORKSPACE}"
+    terraform init -migrate-state -force-copy -input=false \
+      -backend-config="bucket=${TF_STATE_BUCKET}" \
+      -backend-config="key=${TF_BACKEND_KEY}" \
+      -backend-config="region=${TF_STATE_REGION}" \
+      -backend-config="endpoint=${TF_STATE_ENDPOINT}" \
+      -backend-config="access_key=${TF_STATE_ACCESS_KEY}" \
+      -backend-config="secret_key=${TF_STATE_SECRET_KEY}" \
+      -backend-config="skip_credentials_validation=true" \
+      -backend-config="skip_metadata_api_check=true" \
+      -backend-config="skip_region_validation=true" \
+      -backend-config="skip_requesting_account_id=true" \
+      -backend-config="use_path_style=true"
+
+    echo "Terraform backend initialized (migrate mode) and state copied for workspace: ${TF_WORKSPACE}"
+    ;;
+  *)
+    echo "Invalid TF_INIT_MODE='${TF_INIT_MODE}'. Supported values: bootstrap, migrate."
+    exit 1
+    ;;
+esac

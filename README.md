@@ -126,6 +126,37 @@ Use this when initializing Terraform locally for the first time so `terraform in
    - `terraform init -reconfigure -input=false` with backend config (same flags/shape as CI shared contract)
    - `terraform workspace select <workspace> || terraform workspace new <workspace>`
 
+### One-time local state migration (local backend -> remote backend)
+
+Use this only when you already have an existing local workspace state and want to copy it to remote state.
+
+1. Ensure `infrastructure/terraform/backend.local.env` is filled.
+2. Set migration mode and target workspace:
+   ```bash
+   export TF_INIT_MODE=migrate
+   export TF_WORKSPACE=prod
+   ```
+3. Run migration:
+   ```bash
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+   This performs `terraform init -migrate-state -force-copy -input=false` with the same backend contract used in CI.
+4. Validate migration:
+   ```bash
+   cd infrastructure/terraform
+   terraform plan -input=false
+   ```
+   Expect no-op/minimal drift if remote state matches reality.
+
+Rollback check:
+- Before running step 3 (migration), keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
+- To return to local backend state:
+  1. `cd <project_root>/infrastructure/terraform`
+  2. `rm -rf .terraform`
+  3. Restore your backup `terraform.tfstate` / `terraform.tfstate.d/`
+  4. `terraform init -backend=false -input=false`
+  5. `terraform workspace select <workspace>`
+
 4. Validate and plan:
    ```bash
    cd infrastructure/terraform

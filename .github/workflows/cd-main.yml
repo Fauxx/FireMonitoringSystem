@@ -1,0 +1,68 @@
+name: Main Build Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "api/**"
+      - "etl-processor/**"
+      - "docker-compose.yml"
+      - "docker-compose-prod.yml"
+      - ".github/workflows/cd-main.yml"
+
+concurrency:
+  group: cd-main-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -t local/api-ci:latest ./api
+
+      - name: Build ETL image
+        run: docker build -t local/etl-processor-ci:latest ./etl-processor
+
+      - name: Validate docker-compose configuration (fails on invalid config)
+        env:
+          POSTGRES_DB: fire_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          DATABASE_URL: postgresql://postgres:password@db:5432/fire_db
+          INFLUXDB_INIT_MODE: setup
+          INFLUXDB_USERNAME: admin
+          INFLUXDB_PASSWORD: password
+          INFLUXDB_ORG: fire-org
+          INFLUXDB_BUCKET: fire-bucket
+          INFLUXDB_TOKEN: test-token
+          INFLUXDB_URL: http://influx:8086
+          IMAGE_REGISTRY: ghcr.io/example/repo
+          IMAGE_TAG: latest
+        run: |
+          cat > .env <<EOF
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_URL=${DATABASE_URL}
+          INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
+          INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+          INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+          INFLUXDB_ORG=${INFLUXDB_ORG}
+          INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+          INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+          INFLUXDB_URL=${INFLUXDB_URL}
+          IMAGE_REGISTRY=${IMAGE_REGISTRY}
+          IMAGE_TAG=${IMAGE_TAG}
+          EOF
+          docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
+          rm -f .env

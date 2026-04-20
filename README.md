@@ -97,55 +97,28 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
 
 4. **CI/CD**
-   - `.github/workflows/build-push.yml` builds and publishes container images to GHCR.
-    - `.github/workflows/deploy.yml` auto-deploys on successful `main` image builds (and supports manual dispatch), then pulls/restarts remotely over SSH.
+   - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
+   - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
+   - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
 
 ## Current CI/CD + Observability Flow (2026)
 
-This is the current production-oriented structure in this repo:
+This is the current CI/CD structure in this repo:
 
-- **Build pipeline:** `build-push.yml` runs on pushes and PRs, builds `api`, `dashboard`, and `etl` images, then publishes tags to GHCR (`latest` on `main`, sanitized branch tags, and `sha-*` tags).
-- **Deploy pipeline:** `deploy.yml` runs automatically after a successful `Build and Push Images` run on `main`, and can also be run manually for controlled rollbacks/testing.
-- **Production gate:** deploy job targets GitHub `production` environment for approval controls and secret scoping.
-- **Infra pipeline:** `terraform-plan.yml` runs PR-safe checks (`fmt`, `init -backend=false`, `validate`) without secrets; manual `workflow_dispatch` runs strict plan mode.
-- **Secret model:** Terraform uses `require_secrets=false` for PR checks and `require_secrets=true` for manual apply/plan runs. Production secrets come from GitHub Environment/Repository secrets.
-
-### Terraform lifecycle (GitHub Actions)
-
-- **PR validation (`terraform-plan.yml`, pull_request):**
-  - Runs `terraform fmt -check`, `terraform init -backend=false`, and `terraform validate`.
-  - Uses `require_secrets=false` and does not perform mutable cloud operations.
-- **Manual plan (`terraform-plan.yml`, workflow_dispatch):**
-  - Requires Terraform secrets, supports backend init via `use_backend`, and selects `terraform_workspace` (default: `prod`).
-  - Produces `tfplan.binary` and uploads artifact `terraform-plan-<run_id>` for reviewed handoff.
-- **Manual apply (`terraform-apply.yml`, workflow_dispatch):**
-  - Environment-gated (`production`) and concurrency-controlled (`terraform-production`).
-  - Can apply from a freshly generated local plan or from a reviewed plan artifact using `plan_run_id` + `plan_artifact_name`.
-  - Always validates workspace selection and plan file presence before apply.
-- **State/backend expectation:**
-  - Use backend mode (`use_backend=true`) for team/shared state and locking.
-  - Local backend mode is intended for controlled/manual use only.
-
-### Deployment approvals and trigger behavior
-
-- `deploy.yml` runs on successful `Build and Push Images` for `main` or manual dispatch.
-- Deploy targets the `production` environment, so pending approvals can leave runs in `action_required` with no jobs executed yet.
-- Deploy image checks must match GHCR publish names from `build-push.yml` (`api`, `etl-processor`).
-
-### Deployment incident checklist (SSH timeout / action_required)
-
-1. **If run shows `action_required` with no jobs:**
-   - Open the workflow run and approve the `production` environment gate.
-   - Re-run only if the run remains non-started after approval or if it was previously cancelled/failed.
-2. **If deploy fails with SSH timeout (`dial tcp ... i/o timeout`):**
-   - Verify `DO_SSH_HOST` points to the current droplet IP.
-   - Verify `DO_SSH_PORT` (default `22`) matches host SSH configuration.
-   - Verify droplet firewall allows inbound TCP/22 from runner source ranges or route via bastion/self-hosted runner.
-   - Verify `DO_SSH_FINGERPRINT` matches current host key after reprovisioning.
-3. **If image resolution fails before SSH:**
-   - Confirm image tags exist in GHCR for `ghcr.io/<repo>/api:<tag>` and `ghcr.io/<repo>/etl-processor:<tag>`.
-4. **After remediation:**
-   - Re-run deploy with an explicit known-good `image_tag` (and optional fallback settings).
+- **PR validation pipeline (`ci-pr.yml`)**
+  - Runs only on pull requests targeting `main`.
+  - Uses path filtering (`api/**`, `etl-processor/**`, `infrastructure/**`) to avoid unnecessary runs.
+  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and Terraform `fmt/init/validate`.
+  - Uses branch-scoped concurrency cancellation and 10-minute job timeouts.
+- **Main build pipeline (`cd-main.yml`)**
+  - Runs only on pushes to `main`.
+  - Builds Docker images for `api` and `etl-processor`.
+  - Validates Compose configuration using `docker compose config -q`.
+  - Uses concurrency cancellation and 10-minute timeout.
+- **Manual infrastructure pipeline (`infra.yml`)**
+  - Runs only by `workflow_dispatch`.
+  - Executes Terraform `fmt`, `init`, `workspace`, `validate`, and `plan` with required secrets.
+  - Uploads plan artifact; does not run `terraform apply`.
 
 ### Observability stack in Compose
 

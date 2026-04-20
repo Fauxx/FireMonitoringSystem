@@ -1,50 +1,35 @@
-name: Terraform Apply
+name: Manual Terraform Validation
 
 on:
   workflow_dispatch:
     inputs:
-      run_apply:
-        description: "Run terraform apply (if false, run plan only)"
-        required: true
-        type: boolean
-        default: false
       use_backend:
         description: "Initialize configured backend (if false, use local backend)"
         required: true
         type: boolean
         default: false
       terraform_workspace:
-        description: "Terraform workspace to use"
+        description: "Terraform workspace to use for manual plans"
         required: true
         type: string
         default: "prod"
-      plan_run_id:
-        description: "Optional workflow run ID to download a previously approved terraform plan artifact"
-        required: false
-        type: string
-        default: ""
-      plan_artifact_name:
-        description: "Artifact name from the plan run (for example: terraform-plan-<run_id>)"
-        required: false
-        type: string
-        default: ""
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  apply:
+  terraform-plan:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    environment: production
+    timeout-minutes: 10
     permissions:
       contents: read
       actions: read
-    concurrency:
-      group: terraform-production
-      cancel-in-progress: false
-
     defaults:
       run:
         shell: bash
         working-directory: infrastructure/terraform
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,6 +81,9 @@ jobs:
           do_ssh_host_fingerprint = "${TF_VAR_do_ssh_host_fingerprint}"
           EOF
 
+      - name: Terraform fmt
+        run: terraform fmt -check
+
       - name: Terraform init (no backend)
         if: ${{ !inputs.use_backend }}
         run: terraform init -backend=false -input=false
@@ -114,58 +102,24 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
-      - name: Validate artifact inputs
-        if: ${{ inputs.plan_run_id != '' || inputs.plan_artifact_name != '' }}
+      - name: Terraform plan
         env:
-          PLAN_RUN_ID: ${{ inputs.plan_run_id }}
-          PLAN_ARTIFACT_NAME: ${{ inputs.plan_artifact_name }}
+          PLAN_FILE: tfplan.binary
         run: |
           set -euo pipefail
-          if [ -z "${PLAN_RUN_ID}" ]; then
-            echo "Error: plan_run_id is required when plan_artifact_name is provided."
-            exit 1
-          elif [ -z "${PLAN_ARTIFACT_NAME}" ]; then
-            echo "Error: plan_artifact_name is required when plan_run_id is provided."
-            exit 1
+          set +e
+          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode -out="${PLAN_FILE}"
+          exit_code=$?
+          set -e
+          if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
+            echo "Terraform plan failed with exit code ${exit_code}"
+            exit "${exit_code}"
           fi
 
-      - name: Download approved terraform plan artifact
-        if: ${{ inputs.plan_run_id != '' && inputs.plan_artifact_name != '' }}
-        uses: actions/download-artifact@v4
+      - name: Upload terraform plan artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.plan_artifact_name }}
-          path: infrastructure/terraform
-          run-id: ${{ inputs.plan_run_id }}
-          github-token: ${{ github.token }}
-
-      - name: Terraform plan
-        if: ${{ inputs.plan_run_id == '' && inputs.plan_artifact_name == '' }}
-        run: terraform plan -input=false -lock-timeout=5m -out=tfplan.binary
-
-      - name: Verify plan file exists
-        run: |
-          set -euo pipefail
-          test -f tfplan.binary
-
-      - name: Terraform apply
-        if: ${{ inputs.run_apply }}
-        run: terraform apply -auto-approve -input=false -lock-timeout=5m tfplan.binary
-
-      - name: Summarize terraform apply run
-        if: ${{ always() }}
-        env:
-          BACKEND_MODE: ${{ inputs.use_backend && 'backend' || 'local-no-backend' }}
-          PLAN_SOURCE: ${{ inputs.plan_run_id != '' && inputs.plan_artifact_name != '' && 'approved-artifact' || 'local-plan' }}
-        run: |
-          {
-            echo "## Terraform Apply Summary"
-            echo
-            echo "- Backend mode: ${BACKEND_MODE}"
-            echo "- Workspace: ${{ inputs.terraform_workspace }}"
-            echo "- Run apply: ${{ inputs.run_apply }}"
-            echo "- Plan source: ${PLAN_SOURCE}"
-            if [ "${PLAN_SOURCE}" = "approved-artifact" ]; then
-              echo "- Plan run ID: ${{ inputs.plan_run_id }}"
-              echo "- Plan artifact: ${{ inputs.plan_artifact_name }}"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          name: terraform-plan-${{ github.run_id }}
+          path: infrastructure/terraform/tfplan.binary
+          if-no-files-found: error
+          retention-days: 7

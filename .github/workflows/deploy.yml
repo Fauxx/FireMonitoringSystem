@@ -47,6 +47,7 @@ jobs:
       HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || '' }}
       UPSTREAM_RUN_URL: ${{ github.event_name == 'workflow_run' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.event.workflow_run.id) || 'manual-dispatch' }}
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      SSH_CONNECT_TIMEOUT_SECONDS: "8"
       GHCR_OWNER: ${{ github.repository_owner }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -218,6 +219,38 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
 
+      - name: SSH connectivity preflight
+        env:
+          HOST: ${{ secrets.DO_SSH_HOST }}
+          PORT: ${{ secrets.DO_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOST}" ]; then
+            echo "Error: DO_SSH_HOST is empty."
+            exit 1
+          fi
+          if ! [[ "${SSH_CONNECT_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Error: SSH_CONNECT_TIMEOUT_SECONDS must be a positive integer. Got '${SSH_CONNECT_TIMEOUT_SECONDS}'."
+            exit 1
+          fi
+
+          echo "Resolving ${HOST}..."
+          getent hosts "${HOST}" || true
+
+          echo "Checking TCP connectivity to ${HOST}:${PORT}..."
+          if ! nc -zv -w "${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}"; then
+            echo "::error title=SSH connectivity preflight failed::Unable to reach ${HOST}:${PORT} from GitHub runner."
+            echo "Likely causes:"
+            echo " - DO_SSH_HOST is stale after droplet reprovision"
+            echo " - Firewall/security groups block runner source IPs on port ${PORT}"
+            echo " - SSH service is down or listening on a different port"
+            echo "Actions:"
+            echo " - Verify DO_SSH_HOST and DO_SSH_PORT secrets"
+            echo " - Verify droplet firewall inbound rules for TCP ${PORT}"
+            echo " - Consider self-hosted runner/bastion if runner egress is blocked"
+            exit 1
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -317,3 +350,34 @@ jobs:
               echo "Error: Healthcheck failed after retries."
               exit 1
             fi
+
+      - name: Deploy failure diagnostics
+        if: ${{ failure() }}
+        env:
+          HOST: ${{ secrets.DO_SSH_HOST }}
+          PORT: ${{ secrets.DO_SSH_PORT || '22' }}
+        run: |
+          set +e
+          echo "=== deploy diagnostics ==="
+          echo "Host: ${HOST}"
+          echo "Port: ${PORT}"
+          echo "--- DNS lookup ---"
+          getent hosts "${HOST}" || true
+          echo "--- route ---"
+          ip route || true
+          echo "--- TCP check ---"
+          nc -zv -w "${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}" || true
+
+      - name: Summarize deploy run
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## Deploy Summary"
+            echo
+            echo "- Requested image tag: ${REQUESTED_IMAGE_TAG}"
+            echo "- Resolved image tag: ${IMAGE_TAG}"
+            echo "- Branch: ${DEPLOY_BRANCH}"
+            echo "- Upstream run: ${UPSTREAM_RUN_URL}"
+            echo "- Fallback allowed: ${FALLBACK_ALLOWED}"
+            echo "- Fallback tag: ${FALLBACK_TAG_VALUE}"
+          } >> "$GITHUB_STEP_SUMMARY"

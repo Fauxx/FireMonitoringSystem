@@ -47,6 +47,7 @@ jobs:
       HEALTHCHECK_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.healthcheck_url || '' }}
       UPSTREAM_RUN_URL: ${{ github.event_name == 'workflow_run' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.event.workflow_run.id) || 'manual-dispatch' }}
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      SSH_CONNECT_TIMEOUT_SECONDS: "8"
       GHCR_OWNER: ${{ github.repository_owner }}
       GITHUB_REPOSITORY: ${{ github.repository }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -232,7 +233,7 @@ jobs:
           getent hosts "${HOST}" || true
 
           echo "Checking TCP connectivity to ${HOST}:${PORT}..."
-          if ! nc -zvw8 "${HOST}" "${PORT}"; then
+          if ! nc -zvw"${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}"; then
             echo "::error title=SSH connectivity preflight failed::Unable to reach ${HOST}:${PORT} from GitHub runner."
             echo "Likely causes:"
             echo " - DO_SSH_HOST is stale after droplet reprovision"
@@ -360,7 +361,7 @@ jobs:
           echo "--- route ---"
           ip route || true
           echo "--- TCP check ---"
-          nc -zvw8 "${HOST}" "${PORT}" || true
+          nc -zvw"${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}" || true
 
       - name: Summarize deploy run
         if: ${{ always() }}

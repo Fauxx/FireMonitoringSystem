@@ -118,7 +118,57 @@ This is the current CI/CD structure in this repo:
 - **Manual infrastructure pipeline (`infra.yml`)**
   - Runs only by `workflow_dispatch`.
   - Executes Terraform `fmt`, `init`, `workspace`, `validate`, and `plan` with required secrets.
-  - Uploads plan artifact; does not run `terraform apply`.
+  - Supports `plan-only`, `apply`, and `destroy-recreate` simulation execution modes.
+
+## Clean-slate Infrastructure Simulation (Restart Cloud)
+
+- A shared Terraform contract is used across `ci-pr.yml`, `cd-main.yml`, and `infra.yml` via:
+  - `.github/actions/terraform-contract/action.yml`
+- `ci-pr.yml` intentionally uses backendless Terraform init for static validation.
+- `cd-main.yml` and `infra.yml` support remote-state workflows with execution modes:
+  - `plan-only`
+  - `apply`
+  - `destroy-recreate` (simulation)
+- Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend \"s3\" {}` in Terraform, runtime backend config in workflows).
+
+### Required secrets by phase
+
+- **Bootstrap-required (hard fail if missing):**
+  - `TF_VAR_do_token`
+  - `TF_VAR_github_token`
+  - `TF_VAR_github_owner`
+  - `TF_VAR_github_repo`
+  - `TF_VAR_ssh_key_ids`
+  - `TF_VAR_do_ssh_host_fingerprint`
+  - `TF_STATE_BUCKET`
+  - `TF_STATE_REGION`
+  - `TF_STATE_ENDPOINT`
+  - `TF_STATE_ACCESS_KEY`
+  - `TF_STATE_SECRET_KEY`
+- **Post-provision/generated (warning-only if missing during clean-slate bootstrap):**
+  - `DO_SSH_HOST`
+  - `DO_SSH_PORT`
+  - `DO_SSH_USER`
+
+### Workspace and state key convention
+
+- Workspace is explicitly selected/created in all Terraform workflows.
+- State key format:
+  - `${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}/{workspace}.tfstate`
+
+### Service dependency map (single-host runtime)
+
+- **API**: requires PostgreSQL and internal bridge connectivity.
+- **Dashboard**: requires API routes and Grafana proxy path `/grafana`.
+- **ETL-Processor**: requires InfluxDB and PostgreSQL reachability.
+- **MQTT pipeline**: MQTT broker ingress + Telegraf -> InfluxDB chain.
+- **Terraform intent alignment**: current droplet/firewall model keeps service-to-service traffic internal on Docker network while exposing ingress through Nginx.
+
+### Restart simulation outcomes
+
+- **blank-project:** new workspace or empty state should show full-create plan.
+- **existing-state:** converged infra should plan to no-op/minimal delta.
+- **recovery:** partial drift should produce targeted reconciliation plan.
 
 ### Observability stack in Compose
 

@@ -3,26 +3,44 @@ name: Manual Terraform Validation
 on:
   workflow_dispatch:
     inputs:
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+          - destroy-recreate
+        default: plan-only
       use_backend:
-        description: "Initialize configured backend (if false, use local backend)"
+        description: "Initialize remote backend (DigitalOcean Spaces)"
         required: true
         type: boolean
-        default: false
+        default: true
       terraform_workspace:
-        description: "Terraform workspace to use for manual plans"
+        description: "Terraform workspace"
         required: true
         type: string
-        default: "prod"
+        default: prod
+      simulation_profile:
+        description: "Simulation profile"
+        required: true
+        type: choice
+        options:
+          - blank-project
+          - existing-state
+          - recovery
+        default: blank-project
 
 concurrency:
   group: infra-manual
   cancel-in-progress: false
 
 jobs:
-  terraform-plan:
+  terraform-run:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
@@ -30,6 +48,11 @@ jobs:
       run:
         shell: bash
         working-directory: infrastructure/terraform
+    env:
+      TF_WORKSPACE: ${{ inputs.terraform_workspace }}
+      TERRAFORM_MODE: ${{ inputs.execution_mode }}
+      USE_BACKEND: ${{ inputs.use_backend }}
+      SIMULATION_PROFILE: ${{ inputs.simulation_profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,89 +60,84 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Verify required secrets
+      - name: Resolve backend key
+        id: backend-key
         env:
-          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
-          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
-          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+          TF_STATE_KEY_PREFIX: ${{ secrets.TF_STATE_KEY_PREFIX }}
         run: |
           set -euo pipefail
-          for v in \
-            TF_VAR_do_token \
-            TF_VAR_github_token \
-            TF_VAR_github_owner \
-            TF_VAR_github_repo \
-            TF_VAR_ssh_key_ids \
-            TF_VAR_do_ssh_host_fingerprint; do
-            if [ -z "${!v}" ]; then
-              echo "Missing required secret: $v"
-              exit 1
-            fi
-          done
+          prefix="${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}"
+          echo "backend_key=${prefix}/${TF_WORKSPACE}.tfstate" >> "$GITHUB_OUTPUT"
 
-      - name: Build runtime tfvars
-        env:
-          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
-          TF_VAR_github_owner: ${{ secrets.TF_VAR_github_owner }}
-          TF_VAR_github_repo: ${{ secrets.TF_VAR_github_repo }}
-          TF_VAR_ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
-        run: |
-          set -euo pipefail
-          rm -f terraform.tfvars
-          cat > runtime.auto.tfvars <<EOF
-          require_secrets = true
-          do_token     = "${TF_VAR_do_token}"
-          github_token = "${TF_VAR_github_token}"
-          github_owner = "${TF_VAR_github_owner}"
-          github_repo  = "${TF_VAR_github_repo}"
-          ssh_key_ids  = ${TF_VAR_ssh_key_ids}
-          do_ssh_host_fingerprint = "${TF_VAR_do_ssh_host_fingerprint}"
-          EOF
+      - name: Apply shared Terraform contract
+        uses: ./.github/actions/terraform-contract
+        with:
+          working_directory: infrastructure/terraform
+          terraform_workspace: ${{ env.TF_WORKSPACE }}
+          use_backend: ${{ env.USE_BACKEND }}
+          require_secrets: "true"
+          do_token: ${{ secrets.TF_VAR_do_token }}
+          github_token: ${{ secrets.TF_VAR_github_token }}
+          github_owner: ${{ secrets.TF_VAR_github_owner }}
+          github_repo: ${{ secrets.TF_VAR_github_repo }}
+          ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+          do_ssh_host: ${{ secrets.DO_SSH_HOST }}
+          do_ssh_port: ${{ secrets.DO_SSH_PORT }}
+          do_ssh_user: ${{ secrets.DO_SSH_USER }}
+          backend_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          backend_region: ${{ secrets.TF_STATE_REGION }}
+          backend_key: ${{ steps.backend-key.outputs.backend_key }}
+          backend_endpoint: ${{ secrets.TF_STATE_ENDPOINT }}
+          backend_access_key: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          backend_secret_key: ${{ secrets.TF_STATE_SECRET_KEY }}
 
       - name: Terraform fmt
         run: terraform fmt -check
-
-      - name: Terraform init (no backend)
-        if: ${{ !inputs.use_backend }}
-        run: terraform init -backend=false -input=false
-
-      - name: Terraform init (backend)
-        if: ${{ inputs.use_backend }}
-        run: terraform init -input=false
-
-      - name: Select terraform workspace
-        env:
-          TF_WORKSPACE: ${{ inputs.terraform_workspace }}
-        run: |
-          set -euo pipefail
-          terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"
 
       - name: Terraform validate
         run: terraform validate
 
       - name: Terraform plan
+        id: tfplan
         env:
           PLAN_FILE: tfplan.binary
         run: |
           set -euo pipefail
           set +e
-          terraform plan -input=false -refresh=false -lock=false -detailed-exitcode -out="${PLAN_FILE}"
+          terraform plan -input=false -lock=false -detailed-exitcode -out="${PLAN_FILE}"
           exit_code=$?
           set -e
           if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
             echo "Terraform plan failed with exit code ${exit_code}"
             exit "${exit_code}"
           fi
+          terraform show -no-color "${PLAN_FILE}" > tfplan.txt
+          echo "plan_exit_code=${exit_code}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload terraform plan artifact
+      - name: Optional destroy for restart simulation
+        if: ${{ env.TERRAFORM_MODE == 'destroy-recreate' }}
+        run: |
+          set -euo pipefail
+          terraform destroy -input=false -auto-approve
+          terraform plan -input=false -lock=false -out=tfplan.binary
+          terraform show -no-color tfplan.binary > tfplan.txt
+
+      - name: Terraform apply
+        if: ${{ env.TERRAFORM_MODE == 'apply' || env.TERRAFORM_MODE == 'destroy-recreate' }}
+        run: terraform apply -input=false -auto-approve tfplan.binary
+
+      - name: Export terraform outputs
+        run: terraform output -json > terraform-outputs.json
+
+      - name: Upload terraform artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ github.run_id }}
-          path: infrastructure/terraform/tfplan.binary
+          name: terraform-${{ github.run_id }}-${{ env.TF_WORKSPACE }}-${{ env.SIMULATION_PROFILE }}
+          path: |
+            infrastructure/terraform/tfplan.binary
+            infrastructure/terraform/tfplan.txt
+            infrastructure/terraform/terraform-outputs.json
+            infrastructure/terraform/runtime.auto.tfvars
           if-no-files-found: error
           retention-days: 7

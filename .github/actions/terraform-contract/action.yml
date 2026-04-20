@@ -1,0 +1,194 @@
+name: terraform-contract
+description: Shared Terraform init/workspace/secrets contract for CI/CD workflows
+
+inputs:
+  working_directory:
+    description: Terraform working directory
+    required: false
+    default: infrastructure/terraform
+  terraform_workspace:
+    description: Terraform workspace to select/create
+    required: false
+    default: prod
+  use_backend:
+    description: Whether to initialize configured backend
+    required: false
+    default: "false"
+  require_secrets:
+    description: Whether bootstrap secrets are required
+    required: false
+    default: "false"
+
+  do_token:
+    required: false
+    default: ""
+  github_token:
+    required: false
+    default: ""
+  github_owner:
+    required: false
+    default: ""
+  github_repo:
+    required: false
+    default: ""
+  ssh_key_ids:
+    required: false
+    default: ""
+  do_ssh_host_fingerprint:
+    required: false
+    default: ""
+
+  do_ssh_host:
+    required: false
+    default: ""
+  do_ssh_port:
+    required: false
+    default: ""
+  do_ssh_user:
+    required: false
+    default: ""
+
+  backend_bucket:
+    required: false
+    default: ""
+  backend_region:
+    required: false
+    default: ""
+  backend_key:
+    required: false
+    default: ""
+  backend_endpoint:
+    required: false
+    default: ""
+  backend_access_key:
+    required: false
+    default: ""
+  backend_secret_key:
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Verify bootstrap vs post-provision secrets
+      if: ${{ inputs.require_secrets == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        DO_TOKEN: ${{ inputs.do_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_OWNER: ${{ inputs.github_owner }}
+        GITHUB_REPO: ${{ inputs.github_repo }}
+        SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
+        DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
+        DO_SSH_HOST: ${{ inputs.do_ssh_host }}
+        DO_SSH_PORT: ${{ inputs.do_ssh_port }}
+        DO_SSH_USER: ${{ inputs.do_ssh_user }}
+      run: |
+        set -euo pipefail
+
+        missing_bootstrap=()
+        [ -n "${DO_TOKEN}" ] || missing_bootstrap+=("TF_VAR_do_token")
+        [ -n "${GITHUB_TOKEN}" ] || missing_bootstrap+=("TF_VAR_github_token")
+        [ -n "${GITHUB_OWNER}" ] || missing_bootstrap+=("TF_VAR_github_owner")
+        [ -n "${GITHUB_REPO}" ] || missing_bootstrap+=("TF_VAR_github_repo")
+        [ -n "${SSH_KEY_IDS}" ] || missing_bootstrap+=("TF_VAR_ssh_key_ids")
+        [ -n "${DO_SSH_HOST_FINGERPRINT}" ] || missing_bootstrap+=("TF_VAR_do_ssh_host_fingerprint")
+
+        if [ "${#missing_bootstrap[@]}" -gt 0 ]; then
+          printf 'Missing bootstrap-required secret(s): %s\n' "${missing_bootstrap[*]}"
+          exit 1
+        fi
+
+        missing_post=()
+        [ -n "${DO_SSH_HOST}" ] || missing_post+=("DO_SSH_HOST")
+        [ -n "${DO_SSH_PORT}" ] || missing_post+=("DO_SSH_PORT")
+        [ -n "${DO_SSH_USER}" ] || missing_post+=("DO_SSH_USER")
+
+        if [ "${#missing_post[@]}" -gt 0 ]; then
+          printf 'Post-provision secret(s) not initialized yet (allowed for clean-slate simulation): %s\n' "${missing_post[*]}"
+        fi
+
+    - name: Build runtime tfvars
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        REQUIRE_SECRETS: ${{ inputs.require_secrets }}
+        DO_TOKEN: ${{ inputs.do_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GITHUB_OWNER: ${{ inputs.github_owner }}
+        GITHUB_REPO: ${{ inputs.github_repo }}
+        SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
+        DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
+      run: |
+        set -euo pipefail
+        rm -f terraform.tfvars runtime.auto.tfvars
+
+        if [ "${REQUIRE_SECRETS}" = "true" ]; then
+          cat > runtime.auto.tfvars <<EOFVARS
+        require_secrets = true
+        do_token     = "${DO_TOKEN}"
+        github_token = "${GITHUB_TOKEN}"
+        github_owner = "${GITHUB_OWNER}"
+        github_repo  = "${GITHUB_REPO}"
+        ssh_key_ids  = ${SSH_KEY_IDS}
+        do_ssh_host_fingerprint = "${DO_SSH_HOST_FINGERPRINT}"
+        EOFVARS
+        else
+          cat > runtime.auto.tfvars <<EOFVARS
+        require_secrets = false
+        EOFVARS
+        fi
+
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        USE_BACKEND: ${{ inputs.use_backend }}
+        BACKEND_BUCKET: ${{ inputs.backend_bucket }}
+        BACKEND_REGION: ${{ inputs.backend_region }}
+        BACKEND_KEY: ${{ inputs.backend_key }}
+        BACKEND_ENDPOINT: ${{ inputs.backend_endpoint }}
+        BACKEND_ACCESS_KEY: ${{ inputs.backend_access_key }}
+        BACKEND_SECRET_KEY: ${{ inputs.backend_secret_key }}
+      run: |
+        set -euo pipefail
+
+        if [ "${USE_BACKEND}" = "true" ]; then
+          missing_backend=()
+          [ -n "${BACKEND_BUCKET}" ] || missing_backend+=("TF_STATE_BUCKET")
+          [ -n "${BACKEND_REGION}" ] || missing_backend+=("TF_STATE_REGION")
+          [ -n "${BACKEND_KEY}" ] || missing_backend+=("TF_STATE_KEY_PREFIX/workspace")
+          [ -n "${BACKEND_ENDPOINT}" ] || missing_backend+=("TF_STATE_ENDPOINT")
+          [ -n "${BACKEND_ACCESS_KEY}" ] || missing_backend+=("TF_STATE_ACCESS_KEY")
+          [ -n "${BACKEND_SECRET_KEY}" ] || missing_backend+=("TF_STATE_SECRET_KEY")
+
+          if [ "${#missing_backend[@]}" -gt 0 ]; then
+            printf 'Missing backend config secret(s): %s\n' "${missing_backend[*]}"
+            exit 1
+          fi
+
+          terraform init -reconfigure -input=false \
+            -backend-config="bucket=${BACKEND_BUCKET}" \
+            -backend-config="key=${BACKEND_KEY}" \
+            -backend-config="region=${BACKEND_REGION}" \
+            -backend-config="endpoint=${BACKEND_ENDPOINT}" \
+            -backend-config="access_key=${BACKEND_ACCESS_KEY}" \
+            -backend-config="secret_key=${BACKEND_SECRET_KEY}" \
+            -backend-config="skip_credentials_validation=true" \
+            -backend-config="skip_metadata_api_check=true" \
+            -backend-config="skip_region_validation=true" \
+            -backend-config="skip_requesting_account_id=true" \
+            -backend-config="use_path_style=true"
+        else
+          terraform init -backend=false -input=false
+        fi
+
+    - name: Select or create workspace
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_WORKSPACE: ${{ inputs.terraform_workspace }}
+      run: |
+        set -euo pipefail
+        terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"

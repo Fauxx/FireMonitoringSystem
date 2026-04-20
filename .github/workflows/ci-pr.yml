@@ -6,8 +6,14 @@ on:
       - main
     paths:
       - "api/**"
+      - "dashboard/**"
       - "etl-processor/**"
       - "infrastructure/**"
+      - "docker-compose.yml"
+      - "docker-compose-dev.yml"
+      - "docker-compose-prod.yml"
+      - ".github/workflows/ci-pr.yml"
+      - ".github/actions/terraform-contract/**"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -83,8 +89,56 @@ jobs:
       - name: Terraform fmt
         run: terraform fmt -check
 
-      - name: Terraform init (no backend)
-        run: terraform init -backend=false -input=false
+      - name: Apply shared Terraform contract (backendless)
+        uses: ./.github/actions/terraform-contract
+        with:
+          working_directory: infrastructure/terraform
+          terraform_workspace: ci-pr
+          use_backend: "false"
+          require_secrets: "false"
 
       - name: Terraform validate
         run: terraform validate
+
+  compose-validation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose topology (API, Dashboard, ETL, MQTT)
+        env:
+          POSTGRES_DB: fire_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          DATABASE_URL: postgresql://postgres:password@db:5432/fire_db
+          INFLUXDB_INIT_MODE: setup
+          INFLUXDB_USERNAME: admin
+          INFLUXDB_PASSWORD: password
+          INFLUXDB_ORG: fire-org
+          INFLUXDB_BUCKET: fire-bucket
+          INFLUXDB_TOKEN: test-token
+          INFLUXDB_URL: http://influx:8086
+          IMAGE_REGISTRY: ghcr.io/example/repo
+          IMAGE_TAG: latest
+        run: |
+          cat > .env <<EOFENV
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_URL=${DATABASE_URL}
+          INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
+          INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+          INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+          INFLUXDB_ORG=${INFLUXDB_ORG}
+          INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+          INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+          INFLUXDB_URL=${INFLUXDB_URL}
+          IMAGE_REGISTRY=${IMAGE_REGISTRY}
+          IMAGE_TAG=${IMAGE_TAG}
+          EOFENV
+          docker compose -f docker-compose.yml -f docker-compose-dev.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
+          rm -f .env

@@ -106,7 +106,7 @@ runs:
         [ -n "${DO_SSH_USER}" ] || missing_post+=("DO_SSH_USER")
 
         if [ "${#missing_post[@]}" -gt 0 ]; then
-          printf 'Post-provision secret(s) not initialized yet (allowed for clean-slate simulation): %s\n' "${missing_post[*]}"
+          printf 'Post-provision secret(s) not initialized yet (allowed for clean-slate simulation): %s\n' "${missing_post[*]}" >&2
         fi
 
     - name: Build runtime tfvars

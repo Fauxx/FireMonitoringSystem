@@ -129,7 +129,7 @@ This is the current CI/CD structure in this repo:
   - `plan-only`
   - `apply`
   - `destroy-recreate` (simulation)
-- Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend \"s3\" {}` in Terraform, runtime backend config in workflows).
+- Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend "s3" {}` in Terraform, runtime backend config in workflows).
 
 ### Required secrets by phase
 

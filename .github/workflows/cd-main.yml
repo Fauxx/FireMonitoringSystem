@@ -170,7 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          terraform plan -input=false -lock=false -detailed-exitcode -out="${PLAN_FILE}"
+          terraform plan -input=false -detailed-exitcode -out="${PLAN_FILE}"
           exit_code=$?
           set -e
           if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
@@ -185,7 +185,7 @@ jobs:
         run: |
           set -euo pipefail
           terraform destroy -input=false -auto-approve
-          terraform plan -input=false -lock=false -out=tfplan.binary
+          terraform plan -input=false -out=tfplan.binary
           terraform show -no-color tfplan.binary > tfplan.txt
 
       - name: Terraform apply

@@ -108,7 +108,12 @@ jobs:
           TF_WORKSPACE: ${{ inputs.terraform_workspace }}
         run: |
           set -euo pipefail
-          terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"
+          if terraform workspace select "${TF_WORKSPACE}"; then
+            echo "Using existing workspace '${TF_WORKSPACE}'."
+          else
+            terraform workspace new "${TF_WORKSPACE}"
+            echo "Created workspace '${TF_WORKSPACE}'."
+          fi
 
       - name: Terraform validate
         run: terraform validate 2>&1 | tee terraform-validate.log

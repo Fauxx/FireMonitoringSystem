@@ -233,7 +233,7 @@ jobs:
           getent hosts "${HOST}" || true
 
           echo "Checking TCP connectivity to ${HOST}:${PORT}..."
-          if ! nc -zvw"${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}"; then
+          if ! nc -zv -w "${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}"; then
             echo "::error title=SSH connectivity preflight failed::Unable to reach ${HOST}:${PORT} from GitHub runner."
             echo "Likely causes:"
             echo " - DO_SSH_HOST is stale after droplet reprovision"
@@ -361,7 +361,7 @@ jobs:
           echo "--- route ---"
           ip route || true
           echo "--- TCP check ---"
-          nc -zvw"${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}" || true
+          nc -zv -w "${SSH_CONNECT_TIMEOUT_SECONDS}" "${HOST}" "${PORT}" || true
 
       - name: Summarize deploy run
         if: ${{ always() }}

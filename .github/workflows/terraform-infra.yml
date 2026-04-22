@@ -1,0 +1,173 @@
+name: Terraform Infra
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/terraform-infra.yml"
+      - ".github/actions/terraform-contract/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+          - destroy-recreate
+        default: plan-only
+      use_backend:
+        description: "Initialize remote backend"
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: terraform-infra-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  terraform-pr-validate:
+    if: github.actor != 'github-actions[bot]' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform/environments/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform -chdir=../../ fmt -recursive -check
+
+      - name: Apply shared Terraform contract
+        uses: ./.github/actions/terraform-contract
+        with:
+          working_directory: infrastructure/terraform/environments/dev
+          environment_name: dev
+          use_backend: "false"
+          require_secrets: "false"
+
+      - name: Terraform validate
+        run: terraform validate
+
+  terraform-run:
+    if: github.actor != 'github-actions[bot]' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform/environments/${{ inputs.environment }}
+    env:
+      TARGET_ENV: ${{ inputs.environment }}
+      TERRAFORM_MODE: ${{ inputs.execution_mode }}
+      USE_BACKEND: ${{ inputs.use_backend && 'true' || 'false' }}
+      TF_LOCK_TIMEOUT: 300s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Resolve backend key
+        id: backend-key
+        env:
+          TF_STATE_KEY_PREFIX: ${{ secrets.TF_STATE_KEY_PREFIX }}
+        run: |
+          set -euo pipefail
+          prefix="${TF_STATE_KEY_PREFIX:-state}"
+          echo "backend_key=${prefix}/${TARGET_ENV}/terraform.tfstate" >> "$GITHUB_OUTPUT"
+
+      - name: Apply shared Terraform contract
+        uses: ./.github/actions/terraform-contract
+        with:
+          working_directory: infrastructure/terraform/environments/${{ inputs.environment }}
+          environment_name: ${{ inputs.environment }}
+          use_backend: ${{ env.USE_BACKEND }}
+          require_secrets: "true"
+          do_token: ${{ secrets.TF_VAR_do_token }}
+          github_token: ${{ secrets.TF_VAR_github_token }}
+          github_owner: ${{ secrets.TF_VAR_github_owner }}
+          github_repo: ${{ secrets.TF_VAR_github_repo }}
+          ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
+          do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
+          do_ssh_host: ${{ secrets.DO_SSH_HOST }}
+          do_ssh_port: ${{ secrets.DO_SSH_PORT }}
+          do_ssh_user: ${{ secrets.DO_SSH_USER }}
+          backend_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          backend_region: ${{ secrets.TF_STATE_REGION }}
+          backend_key: ${{ steps.backend-key.outputs.backend_key }}
+          backend_endpoint: ${{ secrets.TF_STATE_ENDPOINT }}
+          backend_access_key: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          backend_secret_key: ${{ secrets.TF_STATE_SECRET_KEY }}
+
+      - name: Terraform fmt
+        run: terraform -chdir=../../ fmt -recursive -check
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        id: tfplan
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -detailed-exitcode -out=tfplan.binary
+          exit_code=$?
+          set -e
+          if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
+            echo "Terraform plan failed with exit code ${exit_code}"
+            exit "${exit_code}"
+          fi
+          terraform show -no-color tfplan.binary > tfplan.txt
+          echo "plan_exit_code=${exit_code}" >> "$GITHUB_OUTPUT"
+
+      - name: Destroy infrastructure for restart simulation
+        if: ${{ env.TERRAFORM_MODE == 'destroy-recreate' }}
+        run: |
+          set -euo pipefail
+          terraform destroy -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -auto-approve
+          terraform plan -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -out=tfplan.binary
+          terraform show -no-color tfplan.binary > tfplan.txt
+
+      - name: Terraform apply
+        if: ${{ env.TERRAFORM_MODE == 'apply' || env.TERRAFORM_MODE == 'destroy-recreate' }}
+        run: terraform apply -input=false -lock-timeout="${TF_LOCK_TIMEOUT}" -auto-approve tfplan.binary
+
+      - name: Export terraform outputs
+        run: terraform output -json > terraform-outputs.json
+
+      - name: Upload terraform artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-${{ github.run_id }}-${{ env.TARGET_ENV }}
+          path: |
+            infrastructure/terraform/environments/${{ inputs.environment }}/tfplan.binary
+            infrastructure/terraform/environments/${{ inputs.environment }}/tfplan.txt
+            infrastructure/terraform/environments/${{ inputs.environment }}/terraform-outputs.json
+            infrastructure/terraform/environments/${{ inputs.environment }}/runtime.auto.tfvars
+          if-no-files-found: error
+          retention-days: 7
+

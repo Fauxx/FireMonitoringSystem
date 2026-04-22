@@ -1,0 +1,15 @@
+require_secrets = true
+
+do_token                = "PASTE_DO_TOKEN"
+github_token            = "PASTE_GITHUB_TOKEN"
+github_owner            = "PASTE_GITHUB_OWNER"
+github_repo             = "FireMonitoringSystem"
+ssh_key_ids             = ["PASTE_DO_SSH_FINGERPRINT_OR_ID"]
+do_ssh_host_fingerprint = "SHA256:PASTE_HOST_FINGERPRINT"
+
+region        = "sgp1"
+droplet_size  = "s-1vcpu-2gb"
+droplet_image = "docker-20-04"
+
+allow_ssh_cidrs = ["0.0.0.0/0", "::/0"]
+

@@ -1,6 +1,7 @@
-name: Main Build Validation
+name: Deprecated Main Build Validation
 
 on:
+<<<<<<< Updated upstream
   push:
     branches:
       - main
@@ -17,11 +18,14 @@ concurrency:
 
 permissions:
   contents: read
+=======
+  workflow_dispatch:
+>>>>>>> Stashed changes
 
 jobs:
-  build-and-validate:
-    if: github.actor != 'github-actions[bot]'
+  deprecated:
     runs-on: ubuntu-latest
+<<<<<<< Updated upstream
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -66,3 +70,10 @@ jobs:
           EOF
           docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
           rm -f .env
+=======
+    steps:
+      - name: Notice
+        run: |
+          echo "This workflow is deprecated."
+          echo "Use .github/workflows/app-ci-build.yml, .github/workflows/terraform-infra.yml, and .github/workflows/app-cd-deploy.yml instead."
+>>>>>>> Stashed changes

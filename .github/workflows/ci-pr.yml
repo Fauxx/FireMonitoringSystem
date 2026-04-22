@@ -1,6 +1,7 @@
-name: PR Validation
+name: Deprecated PR Validation
 
 on:
+<<<<<<< Updated upstream
   pull_request:
     branches:
       - main
@@ -15,30 +16,17 @@ concurrency:
 
 permissions:
   contents: read
+=======
+  workflow_dispatch:
+>>>>>>> Stashed changes
 
 jobs:
-  api-validation:
-    if: github.actor != 'github-actions[bot]'
+  deprecated:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: api/package-lock.json
-
-      - name: Install API dependencies
-        working-directory: api
-        run: npm ci
-
-      - name: Validate API
-        working-directory: api
+      - name: Notice
         run: |
+<<<<<<< Updated upstream
           npm run --if-present lint
           npm run --if-present test
 
@@ -88,3 +76,7 @@ jobs:
 
       - name: Terraform validate
         run: terraform validate
+=======
+          echo "This workflow is deprecated."
+          echo "Use .github/workflows/app-ci-build.yml and .github/workflows/terraform-infra.yml instead."
+>>>>>>> Stashed changes

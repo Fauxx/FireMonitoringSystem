@@ -97,9 +97,89 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
 
 4. **CI/CD**
+<<<<<<< Updated upstream
    - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
    - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
    - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
+=======
+   - `.github/workflows/terraform-infra.yml` is the foundation workflow for Terraform validation/plan/apply using `infrastructure/terraform/environments/{dev,prod}`.
+   - `.github/workflows/app-ci-build.yml` builds and publishes API/ETL/Dashboard images to GHCR.
+   - `.github/workflows/app-cd-deploy.yml` deploys via SSH + Docker Compose (`main` for dev, `v*` tags for prod).
+
+## Terraform local first run (non-interactive backend init)
+
+Use this when initializing Terraform locally for the first time so `terraform init` never prompts for backend values.
+
+1. Create local backend env from template:
+   ```bash
+   cp infrastructure/terraform/backend.local.env.example infrastructure/terraform/backend.local.env
+   ```
+
+2. Fill required values in `infrastructure/terraform/backend.local.env`:
+   - `TF_STATE_BUCKET`
+   - `TF_STATE_REGION`
+   - `TF_STATE_ENDPOINT`
+   - `TF_STATE_ACCESS_KEY`
+   - `TF_STATE_SECRET_KEY`
+   - Optional: `TF_WORKSPACE` (default `local`), `TF_STATE_KEY_PREFIX` (default `terraform/fire-monitoring`), `TF_BACKEND_KEY` override.
+
+3. Run first-time local bootstrap:
+   ```bash
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+   This runs:
+   - `terraform init -reconfigure -input=false` with backend config (same flags/shape as CI shared contract)
+   - `terraform workspace select <workspace> || terraform workspace new <workspace>`
+
+### One-time local state migration (local backend -> remote backend)
+
+Use this only when you already have an existing local workspace state and want to copy it to remote state.
+
+1. Ensure `infrastructure/terraform/backend.local.env` is filled.
+2. Set migration mode and target workspace:
+   ```bash
+   export TF_INIT_MODE=migrate
+   export TF_WORKSPACE=prod
+   ```
+3. Run migration:
+   ```bash
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+   This performs `terraform init -migrate-state -force-copy -input=false` with the same backend contract used in CI.
+4. Validate migration:
+   ```bash
+   cd infrastructure/terraform
+   terraform plan -input=false
+   ```
+   Expect no-op/minimal drift if remote state matches reality.
+
+Rollback check:
+- Before running step 3 (migration), keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
+- To return to local backend state:
+  1. `cd <project_root>/infrastructure/terraform`
+  2. `rm -rf .terraform`
+  3. Restore your backup `terraform.tfstate` / `terraform.tfstate.d/`
+  4. `terraform init -backend=false -input=false`
+  5. `terraform workspace select <workspace>`
+
+4. Validate and plan:
+   ```bash
+   cd infrastructure/terraform
+   terraform validate
+   terraform plan -input=false
+   ```
+
+5. Clean-state re-test (optional):
+   ```bash
+   rm -rf infrastructure/terraform/.terraform
+   bash infrastructure/terraform/init-local-backend.sh
+   ```
+
+Troubleshooting:
+- If bootstrap fails with `Missing required backend setting(s)`, update `infrastructure/terraform/backend.local.env`.
+- If authentication fails, verify `TF_STATE_ACCESS_KEY` / `TF_STATE_SECRET_KEY`.
+- If endpoint/region errors occur, verify `TF_STATE_ENDPOINT` and `TF_STATE_REGION` match your Spaces bucket region.
+>>>>>>> Stashed changes
 
 ## Current CI/CD + Observability Flow (2026)
 
@@ -146,3 +226,20 @@ This is the current CI/CD structure in this repo:
   ```
   Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
 - The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
+
+## GHCR clean slate
+
+If you want to purge existing container versions and Actions caches before rebuilding the pipeline:
+
+```bash
+chmod +x infrastructure/scripts/ghcr-clean-slate.sh
+infrastructure/scripts/ghcr-clean-slate.sh <github_owner> FireMonitoringSystem
+```
+
+The script deletes package versions for `api`, `etl-processor`, and `dashboard`, then clears GitHub Actions caches for the repository.
+
+## Terraform migration quick links
+
+- Layout and local usage: `infrastructure/terraform/README.md`
+- Safe state address migration: `infrastructure/terraform/MIGRATION.md`
+

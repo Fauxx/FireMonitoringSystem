@@ -1,7 +1,8 @@
-name: Manual Terraform Validation
+name: Deprecated Manual Terraform Validation
 
 on:
   workflow_dispatch:
+<<<<<<< Updated upstream
     inputs:
       use_backend:
         description: "Initialize configured backend (if false, use local backend)"
@@ -123,3 +124,14 @@ jobs:
           path: infrastructure/terraform/tfplan.binary
           if-no-files-found: error
           retention-days: 7
+=======
+
+jobs:
+  deprecated:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice
+        run: |
+          echo "This workflow is deprecated."
+          echo "Use .github/workflows/terraform-infra.yml instead."
+>>>>>>> Stashed changes

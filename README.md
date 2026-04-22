@@ -56,7 +56,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 │   ├── requirements.txt     # Python dependencies
 │   └── Dockerfile           # Worker image definition
 ├── infrastructure/          # DevOps hub (configs + IaC)
-│   ├── terraform/           # DigitalOcean droplet + firewall boilerplate
+│   ├── terraform/           # Modular DigitalOcean-first IaC (providers, variables, DO resources, GitHub secret sync)
 │   ├── nginx/conf.d/        # Reverse proxy config
 │   ├── mqtt/                # Mosquitto config/data/log directories
 │   ├── telegraf/            # Agent configuration
@@ -97,14 +97,9 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
 
 4. **CI/CD**
-<<<<<<< Updated upstream
    - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
    - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
    - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
-=======
-   - `.github/workflows/terraform-infra.yml` is the foundation workflow for Terraform validation/plan/apply using `infrastructure/terraform/environments/{dev,prod}`.
-   - `.github/workflows/app-ci-build.yml` builds and publishes API/ETL/Dashboard images to GHCR.
-   - `.github/workflows/app-cd-deploy.yml` deploys via SSH + Docker Compose (`main` for dev, `v*` tags for prod).
 
 ## Terraform local first run (non-interactive backend init)
 
@@ -179,7 +174,6 @@ Troubleshooting:
 - If bootstrap fails with `Missing required backend setting(s)`, update `infrastructure/terraform/backend.local.env`.
 - If authentication fails, verify `TF_STATE_ACCESS_KEY` / `TF_STATE_SECRET_KEY`.
 - If endpoint/region errors occur, verify `TF_STATE_ENDPOINT` and `TF_STATE_REGION` match your Spaces bucket region.
->>>>>>> Stashed changes
 
 ## Current CI/CD + Observability Flow (2026)
 
@@ -188,17 +182,71 @@ This is the current CI/CD structure in this repo:
 - **PR validation pipeline (`ci-pr.yml`)**
   - Runs only on pull requests targeting `main`.
   - Uses path filtering (`api/**`, `etl-processor/**`, `infrastructure/**`) to avoid unnecessary runs.
-  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and Terraform `fmt/init/validate`.
+  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and backendless Terraform `fmt/init/validate`.
   - Uses branch-scoped concurrency cancellation and 10-minute job timeouts.
 - **Main build pipeline (`cd-main.yml`)**
   - Runs only on pushes to `main`.
   - Builds Docker images for `api` and `etl-processor`.
   - Validates Compose configuration using `docker compose config -q`.
-  - Uses concurrency cancellation and 10-minute timeout.
+  - Calls the shared Terraform reusable workflow for DigitalOcean plan/apply simulation control.
+  - Uses concurrency cancellation and timeout controls.
 - **Manual infrastructure pipeline (`infra.yml`)**
   - Runs only by `workflow_dispatch`.
-  - Executes Terraform `fmt`, `init`, `workspace`, `validate`, and `plan` with required secrets.
-  - Uploads plan artifact; does not run `terraform apply`.
+  - Calls the shared Terraform reusable workflow with required secrets and DigitalOcean Spaces backend checks.
+  - Supports `plan-only`, `apply`, and `destroy-recreate` simulation execution modes.
+
+## Clean-slate Infrastructure Simulation (Restart Cloud)
+
+- A shared reusable Terraform workflow is used across `ci-pr.yml`, `cd-main.yml`, and `infra.yml` via:
+  - `.github/workflows/terraform-execution.yml`
+- The reusable workflow enforces the shared Terraform contract via:
+  - `.github/actions/terraform-contract/action.yml`
+- `ci-pr.yml` intentionally runs backendless validation mode (`run_plan=false`) for fast static checks.
+- `cd-main.yml` and `infra.yml` run remote-state DigitalOcean Spaces workflows with execution modes:
+  - `plan-only`
+  - `apply`
+  - `destroy-recreate` (simulation)
+- Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend "s3" {}` in Terraform, runtime backend config in workflows).
+- Terraform configuration is split into modular files (`main.tf`, `providers.tf`, `variables.tf`, `digitalocean.tf`, `github-secrets.tf`, `outputs.tf`) for safer CI/CD evolution.
+
+### Required secrets by phase
+
+- **Bootstrap-required (hard fail if missing):**
+  - `TF_VAR_do_token`
+  - `TF_VAR_github_token`
+  - `TF_VAR_github_owner`
+  - `TF_VAR_github_repo`
+  - `TF_VAR_ssh_key_ids`
+  - `TF_VAR_do_ssh_host_fingerprint`
+  - `TF_STATE_BUCKET`
+  - `TF_STATE_REGION`
+  - `TF_STATE_ENDPOINT`
+  - `TF_STATE_ACCESS_KEY`
+  - `TF_STATE_SECRET_KEY`
+- **Post-provision/generated (warning-only if missing during clean-slate bootstrap):**
+  - `DO_SSH_HOST`
+  - `DO_SSH_PORT`
+  - `DO_SSH_USER`
+
+### Workspace and state key convention
+
+- Workspace is explicitly selected/created in all Terraform workflows.
+- State key format:
+  - `${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}/{workspace}.tfstate`
+
+### Service dependency map (single-host runtime)
+
+- **API**: requires PostgreSQL and internal bridge connectivity.
+- **Dashboard**: requires API routes and Grafana proxy path `/grafana`.
+- **ETL-Processor**: requires InfluxDB and PostgreSQL reachability.
+- **MQTT pipeline**: MQTT broker ingress + Telegraf -> InfluxDB chain.
+- **Terraform intent alignment**: current droplet/firewall model keeps service-to-service traffic internal on Docker network while exposing ingress through Nginx.
+
+### Restart simulation outcomes
+
+- **blank-project:** new workspace or empty state should show full-create plan.
+- **existing-state:** converged infra should plan to no-op/minimal delta.
+- **recovery:** partial drift should produce targeted reconciliation plan.
 
 ### Observability stack in Compose
 

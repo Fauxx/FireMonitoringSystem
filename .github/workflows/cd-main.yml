@@ -1,16 +1,49 @@
 name: Deprecated Main Build Validation
 
 on:
-<<<<<<< Updated upstream
   push:
     branches:
       - main
     paths:
       - "api/**"
+      - "dashboard/**"
       - "etl-processor/**"
+      - "infrastructure/**"
       - "docker-compose.yml"
       - "docker-compose-prod.yml"
       - ".github/workflows/cd-main.yml"
+      - ".github/workflows/terraform-execution.yml"
+      - ".github/actions/terraform-contract/**"
+  workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+          - destroy-recreate
+        default: plan-only
+      terraform_workspace:
+        description: "Terraform workspace"
+        required: true
+        type: string
+        default: prod
+      use_backend:
+        description: "Initialize remote backend"
+        required: true
+        type: boolean
+        default: true
+      simulation_profile:
+        description: "Simulation profile"
+        required: true
+        type: choice
+        options:
+          - blank-project
+          - existing-state
+          - recovery
+        default: existing-state
 
 concurrency:
   group: cd-main-${{ github.ref }}
@@ -18,14 +51,11 @@ concurrency:
 
 permissions:
   contents: read
-=======
-  workflow_dispatch:
->>>>>>> Stashed changes
+  actions: read
 
 jobs:
-  deprecated:
+  build-and-validate:
     runs-on: ubuntu-latest
-<<<<<<< Updated upstream
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -37,7 +67,10 @@ jobs:
       - name: Build ETL image
         run: docker build -t local/etl-processor-ci:latest ./etl-processor
 
-      - name: Validate docker-compose configuration (fails on invalid config)
+      - name: Build Dashboard image
+        run: docker build -t local/dashboard-ci:latest ./dashboard
+
+      - name: Validate docker-compose configuration
         env:
           POSTGRES_DB: fire_db
           POSTGRES_USER: postgres
@@ -53,7 +86,7 @@ jobs:
           IMAGE_REGISTRY: ghcr.io/example/repo
           IMAGE_TAG: latest
         run: |
-          cat > .env <<EOF
+          cat > .env <<EOFENV
           POSTGRES_DB=${POSTGRES_DB}
           POSTGRES_USER=${POSTGRES_USER}
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -67,13 +100,20 @@ jobs:
           INFLUXDB_URL=${INFLUXDB_URL}
           IMAGE_REGISTRY=${IMAGE_REGISTRY}
           IMAGE_TAG=${IMAGE_TAG}
-          EOF
+          EOFENV
           docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
           rm -f .env
-=======
-    steps:
-      - name: Notice
-        run: |
-          echo "This workflow is deprecated."
-          echo "Use .github/workflows/app-ci-build.yml, .github/workflows/terraform-infra.yml, and .github/workflows/app-cd-deploy.yml instead."
->>>>>>> Stashed changes
+
+  terraform-full-provision:
+    if: github.actor != 'github-actions[bot]'
+    needs: build-and-validate
+    uses: ./.github/workflows/terraform-execution.yml
+    with:
+      execution_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_mode || 'plan-only' }}
+      terraform_workspace: ${{ github.event_name == 'workflow_dispatch' && inputs.terraform_workspace || 'prod' }}
+      use_backend: ${{ github.event_name == 'workflow_dispatch' && inputs.use_backend || true }}
+      simulation_profile: ${{ github.event_name == 'workflow_dispatch' && inputs.simulation_profile || 'existing-state' }}
+      require_secrets: true
+      run_plan: true
+      artifact_prefix: cd-main-terraform
+    secrets: inherit

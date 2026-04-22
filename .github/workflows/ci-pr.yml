@@ -1,14 +1,20 @@
 name: Deprecated PR Validation
 
 on:
-<<<<<<< Updated upstream
   pull_request:
     branches:
       - main
     paths:
       - "api/**"
+      - "dashboard/**"
       - "etl-processor/**"
       - "infrastructure/**"
+      - "docker-compose.yml"
+      - "docker-compose-dev.yml"
+      - "docker-compose-prod.yml"
+      - ".github/workflows/ci-pr.yml"
+      - ".github/workflows/terraform-execution.yml"
+      - ".github/actions/terraform-contract/**"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,19 +22,16 @@ concurrency:
 
 permissions:
   contents: read
-=======
-  workflow_dispatch:
->>>>>>> Stashed changes
 
 jobs:
-  deprecated:
+  deprecated-notices:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Notice
         run: |
-<<<<<<< Updated upstream
-          npm run --if-present lint
-          npm run --if-present test
+          echo "This workflow is deprecated and will be removed once the new monorepo structure is finalized."
 
   etl-validation:
     if: github.actor != 'github-actions[bot]'
@@ -55,12 +58,21 @@ jobs:
 
   terraform-validation:
     if: github.actor != 'github-actions[bot]'
+    uses: ./.github/workflows/terraform-execution.yml
+    with:
+      execution_mode: plan-only
+      terraform_workspace: ci-pr
+      use_backend: false
+      simulation_profile: blank-project
+      require_secrets: false
+      run_plan: false
+      artifact_prefix: ci-pr-terraform
+    secrets: inherit
+
+  compose-and-infra-validation:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    defaults:
-      run:
-        shell: bash
-        working-directory: infrastructure/terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,7 +88,38 @@ jobs:
 
       - name: Terraform validate
         run: terraform validate
-=======
-          echo "This workflow is deprecated."
-          echo "Use .github/workflows/app-ci-build.yml and .github/workflows/terraform-infra.yml instead."
->>>>>>> Stashed changes
+
+      - name: Validate docker-compose topology (API, Dashboard, ETL, MQTT)
+        env:
+          POSTGRES_DB: fire_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          DATABASE_URL: postgresql://postgres:password@db:5432/fire_db
+          INFLUXDB_INIT_MODE: setup
+          INFLUXDB_USERNAME: admin
+          INFLUXDB_PASSWORD: password
+          INFLUXDB_ORG: fire-org
+          INFLUXDB_BUCKET: fire-bucket
+          INFLUXDB_TOKEN: test-token
+          INFLUXDB_URL: http://influx:8086
+          IMAGE_REGISTRY: ghcr.io/example/repo
+          IMAGE_TAG: latest
+        run: |
+          cat > .env <<EOFENV
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          DATABASE_URL=${DATABASE_URL}
+          INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
+          INFLUXDB_USERNAME=${INFLUXDB_USERNAME}
+          INFLUXDB_PASSWORD=${INFLUXDB_PASSWORD}
+          INFLUXDB_ORG=${INFLUXDB_ORG}
+          INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+          INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+          INFLUXDB_URL=${INFLUXDB_URL}
+          IMAGE_REGISTRY=${IMAGE_REGISTRY}
+          IMAGE_TAG=${IMAGE_TAG}
+          EOFENV
+          docker compose -f docker-compose.yml -f docker-compose-dev.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
+          rm -f .env

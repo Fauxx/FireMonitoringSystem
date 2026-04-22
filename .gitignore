@@ -64,6 +64,7 @@ infrastructure/terraform/.terraform/
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/crash.log
+infrastructure/terraform/backend.local.env
 infrastructure/terraform/override.tf
 infrastructure/terraform/override.tf.json
 infrastructure/terraform/*_override.tf

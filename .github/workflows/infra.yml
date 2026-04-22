@@ -2,25 +2,42 @@ name: Deprecated Manual Terraform Validation
 
 on:
   workflow_dispatch:
-<<<<<<< Updated upstream
     inputs:
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+          - destroy-recreate
+        default: plan-only
       use_backend:
-        description: "Initialize configured backend (if false, use local backend)"
+        description: "Initialize remote backend (DigitalOcean Spaces)"
         required: true
         type: boolean
-        default: false
+        default: true
       terraform_workspace:
-        description: "Terraform workspace to use for manual plans"
+        description: "Terraform workspace"
         required: true
         type: string
-        default: "prod"
+        default: prod
+      simulation_profile:
+        description: "Simulation profile"
+        required: true
+        type: choice
+        options:
+          - blank-project
+          - existing-state
+          - recovery
+        default: blank-project
 
 concurrency:
   group: infra-manual
   cancel-in-progress: false
 
 jobs:
-  terraform-plan:
+  terraform-run:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -124,14 +141,13 @@ jobs:
           path: infrastructure/terraform/tfplan.binary
           if-no-files-found: error
           retention-days: 7
-=======
-
-jobs:
-  deprecated:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notice
-        run: |
-          echo "This workflow is deprecated."
-          echo "Use .github/workflows/terraform-infra.yml instead."
->>>>>>> Stashed changes
+    uses: ./.github/workflows/terraform-execution.yml
+    with:
+      execution_mode: ${{ inputs.execution_mode }}
+      terraform_workspace: ${{ inputs.terraform_workspace }}
+      use_backend: ${{ inputs.use_backend }}
+      simulation_profile: ${{ inputs.simulation_profile }}
+      require_secrets: true
+      run_plan: true
+      artifact_prefix: terraform
+    secrets: inherit

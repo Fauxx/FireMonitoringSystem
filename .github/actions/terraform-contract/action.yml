@@ -70,6 +70,38 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate Terraform workspace format
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        TF_WORKSPACE: ${{ inputs.terraform_workspace }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${TF_WORKSPACE}" ]]; then
+          echo "terraform_workspace cannot be empty"
+          exit 1
+        fi
+
+        if [[ ! "${TF_WORKSPACE}" =~ ^[a-z0-9][a-z0-9_-]{1,62}$ ]]; then
+          echo "terraform_workspace '${TF_WORKSPACE}' is invalid; use lowercase letters, numbers, '_' or '-' (2-63 chars)."
+          exit 1
+        fi
+
+    - name: Enforce DigitalOcean backend shape
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        USE_BACKEND: ${{ inputs.use_backend }}
+        BACKEND_ENDPOINT: ${{ inputs.backend_endpoint }}
+      run: |
+        set -euo pipefail
+        if [ "${USE_BACKEND}" = "true" ] && [ -n "${BACKEND_ENDPOINT}" ]; then
+          if [[ "${BACKEND_ENDPOINT}" != *"digitaloceanspaces.com"* ]]; then
+            echo "backend_endpoint must target DigitalOcean Spaces (digitaloceanspaces.com) when use_backend=true"
+            exit 1
+          fi
+        fi
+
     - name: Verify bootstrap vs post-provision secrets
       if: ${{ inputs.require_secrets == 'true' }}
       shell: bash
@@ -166,7 +198,7 @@ runs:
             exit 1
           fi
 
-          terraform init -reconfigure -input=false \
+          terraform init -reconfigure -input=false -lockfile=readonly \
             -backend-config="bucket=${BACKEND_BUCKET}" \
             -backend-config="key=${BACKEND_KEY}" \
             -backend-config="region=${BACKEND_REGION}" \
@@ -179,7 +211,7 @@ runs:
             -backend-config="skip_requesting_account_id=true" \
             -backend-config="use_path_style=true"
         else
-          terraform init -backend=false -input=false
+          terraform init -backend=false -input=false -lockfile=readonly
         fi
 
     - name: Select or create workspace

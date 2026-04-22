@@ -56,7 +56,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 │   ├── requirements.txt     # Python dependencies
 │   └── Dockerfile           # Worker image definition
 ├── infrastructure/          # DevOps hub (configs + IaC)
-│   ├── terraform/           # DigitalOcean droplet + firewall boilerplate
+│   ├── terraform/           # Modular DigitalOcean-first IaC (providers, variables, DO resources, GitHub secret sync)
 │   ├── nginx/conf.d/        # Reverse proxy config
 │   ├── mqtt/                # Mosquitto config/data/log directories
 │   ├── telegraf/            # Agent configuration
@@ -99,7 +99,8 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 4. **CI/CD**
    - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
    - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
-   - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
+   - `.github/workflows/infra.yml` runs manual Terraform execution through the shared reusable pipeline.
+   - `.github/workflows/terraform-execution.yml` provides shared Terraform CI/CD execution logic for PR, main, and manual infra runs.
 
 ## Terraform local first run (non-interactive backend init)
 
@@ -182,28 +183,32 @@ This is the current CI/CD structure in this repo:
 - **PR validation pipeline (`ci-pr.yml`)**
   - Runs only on pull requests targeting `main`.
   - Uses path filtering (`api/**`, `etl-processor/**`, `infrastructure/**`) to avoid unnecessary runs.
-  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and Terraform `fmt/init/validate`.
+  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and backendless Terraform `fmt/init/validate`.
   - Uses branch-scoped concurrency cancellation and 10-minute job timeouts.
 - **Main build pipeline (`cd-main.yml`)**
   - Runs only on pushes to `main`.
   - Builds Docker images for `api` and `etl-processor`.
   - Validates Compose configuration using `docker compose config -q`.
-  - Uses concurrency cancellation and 10-minute timeout.
+  - Calls the shared Terraform reusable workflow for DigitalOcean plan/apply simulation control.
+  - Uses concurrency cancellation and timeout controls.
 - **Manual infrastructure pipeline (`infra.yml`)**
   - Runs only by `workflow_dispatch`.
-  - Executes Terraform `fmt`, `init`, `workspace`, `validate`, and `plan` with required secrets.
+  - Calls the shared Terraform reusable workflow with required secrets and DigitalOcean Spaces backend checks.
   - Supports `plan-only`, `apply`, and `destroy-recreate` simulation execution modes.
 
 ## Clean-slate Infrastructure Simulation (Restart Cloud)
 
-- A shared Terraform contract is used across `ci-pr.yml`, `cd-main.yml`, and `infra.yml` via:
+- A shared reusable Terraform workflow is used across `ci-pr.yml`, `cd-main.yml`, and `infra.yml` via:
+  - `.github/workflows/terraform-execution.yml`
+- The reusable workflow enforces the shared Terraform contract via:
   - `.github/actions/terraform-contract/action.yml`
-- `ci-pr.yml` intentionally uses backendless Terraform init for static validation.
-- `cd-main.yml` and `infra.yml` support remote-state workflows with execution modes:
+- `ci-pr.yml` intentionally runs backendless validation mode (`run_plan=false`) for fast static checks.
+- `cd-main.yml` and `infra.yml` run remote-state DigitalOcean Spaces workflows with execution modes:
   - `plan-only`
   - `apply`
   - `destroy-recreate` (simulation)
 - Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend "s3" {}` in Terraform, runtime backend config in workflows).
+- Terraform configuration is split into modular files (`main.tf`, `providers.tf`, `variables.tf`, `digitalocean.tf`, `github-secrets.tf`, `outputs.tf`) for safer CI/CD evolution.
 
 ### Required secrets by phase
 

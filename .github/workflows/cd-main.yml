@@ -1,4 +1,4 @@
-name: Main Build Validation
+name: Deprecated Main Build Validation
 
 on:
   push:
@@ -55,9 +55,8 @@ permissions:
 
 jobs:
   build-and-validate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,7 +70,7 @@ jobs:
       - name: Build Dashboard image
         run: docker build -t local/dashboard-ci:latest ./dashboard
 
-      - name: Validate docker-compose configuration (all monorepo services)
+      - name: Validate docker-compose configuration
         env:
           POSTGRES_DB: fire_db
           POSTGRES_USER: postgres

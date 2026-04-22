@@ -1,15 +1,15 @@
 name: terraform-contract
-description: Shared Terraform init/workspace/secrets contract for CI/CD workflows
+description: Shared Terraform init/environment/secrets contract for CI/CD workflows
 
 inputs:
   working_directory:
     description: Terraform working directory
     required: false
-    default: infrastructure/terraform
-  terraform_workspace:
-    description: Terraform workspace to select/create
+    default: infrastructure/terraform/environments/dev
+  environment_name:
+    description: Environment directory name (dev/prod)
     required: false
-    default: prod
+    default: dev
   use_backend:
     description: Whether to initialize configured backend
     required: false
@@ -20,70 +20,85 @@ inputs:
     default: "false"
 
   do_token:
+    description: DigitalOcean API token
     required: false
     default: ""
   github_token:
+    description: GitHub token for managing repository secrets
     required: false
     default: ""
   github_owner:
+    description: GitHub owner (user or organization)
     required: false
     default: ""
   github_repo:
+    description: GitHub repository name
     required: false
     default: ""
   ssh_key_ids:
+    description: HCL list literal of DigitalOcean SSH key IDs/fingerprints
     required: false
     default: ""
   do_ssh_host_fingerprint:
+    description: SSH host fingerprint in SHA256 format
     required: false
     default: ""
 
   do_ssh_host:
+    description: Deploy host public IP
     required: false
     default: ""
   do_ssh_port:
+    description: Deploy host SSH port
     required: false
     default: ""
   do_ssh_user:
+    description: Deploy host SSH user
     required: false
     default: ""
 
   backend_bucket:
+    description: Terraform backend bucket name
     required: false
     default: ""
   backend_region:
+    description: Terraform backend region
     required: false
     default: ""
   backend_key:
+    description: Terraform backend key for current environment
     required: false
     default: ""
   backend_endpoint:
+    description: S3-compatible backend endpoint
     required: false
     default: ""
   backend_access_key:
+    description: Backend access key
     required: false
     default: ""
   backend_secret_key:
+    description: Backend secret key
     required: false
     default: ""
 
 runs:
   using: composite
   steps:
-    - name: Validate Terraform workspace format
+    - name: Validate Terraform environment format
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
-        TF_WORKSPACE: ${{ inputs.terraform_workspace }}
+        TF_ENVIRONMENT: ${{ inputs.environment_name }}
       run: |
         set -euo pipefail
-        if [[ -z "${TF_WORKSPACE}" ]]; then
-          echo "terraform_workspace cannot be empty"
+        if [[ -z "${TF_ENVIRONMENT}" ]]; then
+          echo "environment_name cannot be empty"
           exit 1
         fi
 
-        if [[ ! "${TF_WORKSPACE}" =~ ^[a-z0-9][a-z0-9_-]{1,62}$ ]]; then
-          echo "terraform_workspace '${TF_WORKSPACE}' is invalid; use lowercase letters, numbers, '_' or '-' (2-63 chars)."
+        if [[ ! "${TF_ENVIRONMENT}" =~ ^[a-z0-9][a-z0-9_-]{1,62}$ ]]; then
+          echo "environment_name '${TF_ENVIRONMENT}' is invalid; use lowercase letters, numbers, '_' or '-' (2-63 chars)."
           exit 1
         fi
 
@@ -198,7 +213,7 @@ runs:
             exit 1
           fi
 
-          terraform init -reconfigure -input=false -lockfile=readonly \
+          terraform init -reconfigure -input=false \
             -backend-config="bucket=${BACKEND_BUCKET}" \
             -backend-config="key=${BACKEND_KEY}" \
             -backend-config="region=${BACKEND_REGION}" \
@@ -211,14 +226,6 @@ runs:
             -backend-config="skip_requesting_account_id=true" \
             -backend-config="use_path_style=true"
         else
-          terraform init -backend=false -input=false -lockfile=readonly
+          terraform init -backend=false -input=false
         fi
 
-    - name: Select or create workspace
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        TF_WORKSPACE: ${{ inputs.terraform_workspace }}
-      run: |
-        set -euo pipefail
-        terraform workspace select "${TF_WORKSPACE}" || terraform workspace new "${TF_WORKSPACE}"

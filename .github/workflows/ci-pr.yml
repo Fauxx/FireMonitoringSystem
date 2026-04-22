@@ -1,4 +1,4 @@
-name: PR Validation
+name: Deprecated PR Validation
 
 on:
   pull_request:
@@ -24,30 +24,14 @@ permissions:
   contents: read
 
 jobs:
-  api-validation:
-    if: github.actor != 'github-actions[bot]'
+  deprecated-notices:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: api/package-lock.json
-
-      - name: Install API dependencies
-        working-directory: api
-        run: npm ci
-
-      - name: Validate API
-        working-directory: api
+      - name: Notice
         run: |
-          npm run --if-present lint
-          npm run --if-present test
+          echo "This workflow is deprecated and will be removed once the new monorepo structure is finalized."
 
   etl-validation:
     if: github.actor != 'github-actions[bot]'
@@ -85,13 +69,25 @@ jobs:
       artifact_prefix: ci-pr-terraform
     secrets: inherit
 
-  compose-validation:
+  compose-and-infra-validation:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate
 
       - name: Validate docker-compose topology (API, Dashboard, ETL, MQTT)
         env:

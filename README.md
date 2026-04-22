@@ -99,8 +99,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 4. **CI/CD**
    - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
    - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
-   - `.github/workflows/infra.yml` runs manual Terraform execution through the shared reusable pipeline.
-   - `.github/workflows/terraform-execution.yml` provides shared Terraform CI/CD execution logic for PR, main, and manual infra runs.
+   - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
 
 ## Terraform local first run (non-interactive backend init)
 
@@ -275,3 +274,20 @@ This is the current CI/CD structure in this repo:
   ```
   Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
 - The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
+
+## GHCR clean slate
+
+If you want to purge existing container versions and Actions caches before rebuilding the pipeline:
+
+```bash
+chmod +x infrastructure/scripts/ghcr-clean-slate.sh
+infrastructure/scripts/ghcr-clean-slate.sh <github_owner> FireMonitoringSystem
+```
+
+The script deletes package versions for `api`, `etl-processor`, and `dashboard`, then clears GitHub Actions caches for the repository.
+
+## Terraform migration quick links
+
+- Layout and local usage: `infrastructure/terraform/README.md`
+- Safe state address migration: `infrastructure/terraform/MIGRATION.md`
+

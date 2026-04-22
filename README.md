@@ -101,6 +101,113 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    - `.github/workflows/app-ci-build.yml` builds images and publishes to GHCR.
    - `.github/workflows/app-cd-deploy.yml` deploys on `main` (dev) and `v*` tags (prod).
 
+## Runbook (What You Need + How To Run)
+
+### Prerequisites
+
+- Docker Engine + Docker Compose plugin
+- Terraform >= 1.5
+- GitHub repository admin access (for Actions secrets and workflow runs)
+- DigitalOcean account + API token + SSH key registered in DO
+
+### Required configuration
+
+1. Local app runtime (`.env`):
+   - Copy `.env.example` to `.env`
+   - Fill DB, JWT, and Influx values before starting containers
+
+2. Terraform secrets (used by `.github/workflows/terraform-infra.yml`):
+   - `TF_VAR_do_token`
+   - `TF_VAR_github_token`
+   - `TF_VAR_github_owner`
+   - `TF_VAR_github_repo`
+   - `TF_VAR_ssh_key_ids` (must be HCL list string like `["fingerprint-or-id"]`)
+   - `TF_VAR_do_ssh_host_fingerprint`
+   - `TF_STATE_BUCKET`
+   - `TF_STATE_REGION`
+   - `TF_STATE_ENDPOINT`
+   - `TF_STATE_ACCESS_KEY`
+   - `TF_STATE_SECRET_KEY`
+   - Optional key prefix override: `TF_STATE_KEY_PREFIX`
+
+3. Deploy workflow secrets (used by `.github/workflows/app-cd-deploy.yml`):
+   - `DO_SSH_HOST`
+   - `DO_SSH_PORT`
+   - `DO_SSH_USER`
+   - `DO_SSH_PRIVATE_KEY`
+   - `GHCR_DEPLOY_USERNAME`
+   - `GHCR_DEPLOY_TOKEN`
+
+### Run locally
+
+Development stack:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+docker compose ps
+```
+
+Production-like local stack:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
+docker compose ps
+```
+
+Stop and clean local stack:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose-dev.yml down
+docker compose -f docker-compose.yml -f docker-compose-prod.yml down
+```
+
+### Run Terraform (environment roots)
+
+Validate `dev` without backend:
+
+```bash
+cd infrastructure/terraform/environments/dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init -backend=false -input=false
+terraform validate
+terraform plan -input=false
+```
+
+Validate `prod` without backend:
+
+```bash
+cd infrastructure/terraform/environments/prod
+cp terraform.tfvars.example terraform.tfvars
+terraform init -backend=false -input=false
+terraform validate
+terraform plan -input=false
+```
+
+Remote backend mode (per environment):
+
+```bash
+cd infrastructure/terraform/environments/dev
+terraform init -backend-config=backend.conf
+terraform plan -input=false
+```
+
+State migration details are in `infrastructure/terraform/MIGRATION.md`.
+
+### Workflow usage
+
+- `terraform-infra.yml`
+  - PR to `main`: fmt + validate on Terraform changes
+  - Manual run: choose `environment` (`dev`/`prod`) and mode (`plan-only`/`apply`/`destroy-recreate`)
+- `app-ci-build.yml`
+  - PR to `main`: build/validate only
+  - Push to `main` or tag `v*`: build and push GHCR images
+- `app-cd-deploy.yml`
+  - Push to `main`: deploy dev
+  - Push tag `v*`: deploy prod
+  - Manual run: choose target env and optional `image_tag`
+
 ## Terraform clean slate
 
 Terraform now runs only from environment roots:

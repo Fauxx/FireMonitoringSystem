@@ -97,117 +97,33 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
 
 4. **CI/CD**
-   - `.github/workflows/ci-pr.yml` validates API, ETL, and Terraform on pull requests to `main`.
-   - `.github/workflows/cd-main.yml` builds API/ETL Docker images and validates compose config on pushes to `main`.
-   - `.github/workflows/infra.yml` runs manual Terraform init/validate/plan only (no auto-apply).
+   - `.github/workflows/terraform-infra.yml` is the only infrastructure workflow (PR validate + manual plan/apply/destroy-recreate).
+   - `.github/workflows/app-ci-build.yml` builds images and publishes to GHCR.
+   - `.github/workflows/app-cd-deploy.yml` deploys on `main` (dev) and `v*` tags (prod).
 
-## Terraform local first run (non-interactive backend init)
+## Terraform clean slate
 
-Use this when initializing Terraform locally for the first time so `terraform init` never prompts for backend values.
+Terraform now runs only from environment roots:
 
-1. Create local backend env from template:
-   ```bash
-   cp infrastructure/terraform/backend.local.env.example infrastructure/terraform/backend.local.env
-   ```
+- `infrastructure/terraform/environments/dev`
+- `infrastructure/terraform/environments/prod`
 
-2. Fill required values in `infrastructure/terraform/backend.local.env`:
-   - `TF_STATE_BUCKET`
-   - `TF_STATE_REGION`
-   - `TF_STATE_ENDPOINT`
-   - `TF_STATE_ACCESS_KEY`
-   - `TF_STATE_SECRET_KEY`
-   - Optional: `TF_WORKSPACE` (default `local`), `TF_STATE_KEY_PREFIX` (default `terraform/fire-monitoring`), `TF_BACKEND_KEY` override.
+Quick local check:
 
-3. Run first-time local bootstrap:
-   ```bash
-   bash infrastructure/terraform/init-local-backend.sh
-   ```
-   This runs:
-   - `terraform init -reconfigure -input=false` with backend config (same flags/shape as CI shared contract)
-   - `terraform workspace select <workspace> || terraform workspace new <workspace>`
+```bash
+cd infrastructure/terraform/environments/dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init -backend=false -input=false
+terraform validate
+terraform plan -input=false
+```
 
-### One-time local state migration (local backend -> remote backend)
+Use the runbooks for backend/state work:
 
-Use this only when you already have an existing local workspace state and want to copy it to remote state.
-
-1. Ensure `infrastructure/terraform/backend.local.env` is filled.
-2. Set migration mode and target workspace:
-   ```bash
-   export TF_INIT_MODE=migrate
-   export TF_WORKSPACE=prod
-   ```
-3. Run migration:
-   ```bash
-   bash infrastructure/terraform/init-local-backend.sh
-   ```
-   This performs `terraform init -migrate-state -force-copy -input=false` with the same backend contract used in CI.
-4. Validate migration:
-   ```bash
-   cd infrastructure/terraform
-   terraform plan -input=false
-   ```
-   Expect no-op/minimal drift if remote state matches reality.
-
-Rollback check:
-- Before running step 3 (migration), keep a backup of local state files (`terraform.tfstate` and `terraform.tfstate.d/`).
-- To return to local backend state:
-  1. `cd <project_root>/infrastructure/terraform`
-  2. `rm -rf .terraform`
-  3. Restore your backup `terraform.tfstate` / `terraform.tfstate.d/`
-  4. `terraform init -backend=false -input=false`
-  5. `terraform workspace select <workspace>`
-
-4. Validate and plan:
-   ```bash
-   cd infrastructure/terraform
-   terraform validate
-   terraform plan -input=false
-   ```
-
-5. Clean-state re-test (optional):
-   ```bash
-   rm -rf infrastructure/terraform/.terraform
-   bash infrastructure/terraform/init-local-backend.sh
-   ```
-
-Troubleshooting:
-- If bootstrap fails with `Missing required backend setting(s)`, update `infrastructure/terraform/backend.local.env`.
-- If authentication fails, verify `TF_STATE_ACCESS_KEY` / `TF_STATE_SECRET_KEY`.
-- If endpoint/region errors occur, verify `TF_STATE_ENDPOINT` and `TF_STATE_REGION` match your Spaces bucket region.
+- `infrastructure/terraform/README.md`
+- `infrastructure/terraform/MIGRATION.md`
 
 ## Current CI/CD + Observability Flow (2026)
-
-This is the current CI/CD structure in this repo:
-
-- **PR validation pipeline (`ci-pr.yml`)**
-  - Runs only on pull requests targeting `main`.
-  - Uses path filtering (`api/**`, `etl-processor/**`, `infrastructure/**`) to avoid unnecessary runs.
-  - Validates Node API dependencies/scripts, ETL dependencies/source syntax, and backendless Terraform `fmt/init/validate`.
-  - Uses branch-scoped concurrency cancellation and 10-minute job timeouts.
-- **Main build pipeline (`cd-main.yml`)**
-  - Runs only on pushes to `main`.
-  - Builds Docker images for `api` and `etl-processor`.
-  - Validates Compose configuration using `docker compose config -q`.
-  - Calls the shared Terraform reusable workflow for DigitalOcean plan/apply simulation control.
-  - Uses concurrency cancellation and timeout controls.
-- **Manual infrastructure pipeline (`infra.yml`)**
-  - Runs only by `workflow_dispatch`.
-  - Calls the shared Terraform reusable workflow with required secrets and DigitalOcean Spaces backend checks.
-  - Supports `plan-only`, `apply`, and `destroy-recreate` simulation execution modes.
-
-## Clean-slate Infrastructure Simulation (Restart Cloud)
-
-- A shared reusable Terraform workflow is used across `ci-pr.yml`, `cd-main.yml`, and `infra.yml` via:
-  - `.github/workflows/terraform-execution.yml`
-- The reusable workflow enforces the shared Terraform contract via:
-  - `.github/actions/terraform-contract/action.yml`
-- `ci-pr.yml` intentionally runs backendless validation mode (`run_plan=false`) for fast static checks.
-- `cd-main.yml` and `infra.yml` run remote-state DigitalOcean Spaces workflows with execution modes:
-  - `plan-only`
-  - `apply`
-  - `destroy-recreate` (simulation)
-- Remote Terraform state is externalized via DigitalOcean Spaces backend (`backend "s3" {}` in Terraform, runtime backend config in workflows).
-- Terraform configuration is split into modular files (`main.tf`, `providers.tf`, `variables.tf`, `digitalocean.tf`, `github-secrets.tf`, `outputs.tf`) for safer CI/CD evolution.
 
 ### Required secrets by phase
 
@@ -228,11 +144,11 @@ This is the current CI/CD structure in this repo:
   - `DO_SSH_PORT`
   - `DO_SSH_USER`
 
-### Workspace and state key convention
+### State key convention
 
-- Workspace is explicitly selected/created in all Terraform workflows.
+- Environment-only state split is used.
 - State key format:
-  - `${TF_STATE_KEY_PREFIX:-terraform/fire-monitoring}/{workspace}.tfstate`
+  - `${TF_STATE_KEY_PREFIX:-state}/{environment}/terraform.tfstate`
 
 ### Service dependency map (single-host runtime)
 

@@ -26,6 +26,7 @@ provider "github" {
 
 locals {
   environment           = "dev"
+  github_environment    = "development"
   droplet_name          = "fire-monitoring-dev"
   firewall_name         = "fire-monitoring-dev-firewall"
   manage_github_secrets = length(trimspace(var.github_token)) > 0 && length(trimspace(var.github_repo)) > 0
@@ -52,6 +53,7 @@ module "github_secrets" {
   source                  = "../../modules/github-secrets"
   enabled                 = local.manage_github_secrets
   github_repo             = var.github_repo
+  github_environment      = local.github_environment
   do_ssh_host             = module.compute.ipv4_address
   do_ssh_host_fingerprint = var.do_ssh_host_fingerprint
 }

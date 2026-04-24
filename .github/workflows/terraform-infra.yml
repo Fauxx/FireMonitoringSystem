@@ -97,7 +97,7 @@ jobs:
           TF_STATE_KEY_PREFIX: ${{ secrets.TF_STATE_KEY_PREFIX }}
         run: |
           set -euo pipefail
-          prefix="${TF_STATE_KEY_PREFIX:-state}"
+          prefix="${TF_STATE_KEY_PREFIX:-environments}"
           echo "backend_key=${prefix}/${TARGET_ENV}/terraform.tfstate" >> "$GITHUB_OUTPUT"
 
       - name: Apply shared Terraform contract

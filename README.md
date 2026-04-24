@@ -189,8 +189,15 @@ Remote backend mode (per environment):
 
 ```bash
 cd infrastructure/terraform/environments/dev
-terraform init -backend-config=backend.conf
+terraform init -reconfigure -backend-config=backend.conf -backend-config="key=environments/dev/terraform.tfstate"
 terraform plan -input=false
+```
+
+Root shortcuts (recommended):
+
+```bash
+make tf-init-dev
+make tf-init-prod
 ```
 
 State migration details are in `infrastructure/terraform/MIGRATION.md`.
@@ -255,7 +262,7 @@ Use the runbooks for backend/state work:
 
 - Environment-only state split is used.
 - State key format:
-  - `${TF_STATE_KEY_PREFIX:-state}/{environment}/terraform.tfstate`
+  - `${TF_STATE_KEY_PREFIX:-environments}/{environment}/terraform.tfstate`
 
 ### Service dependency map (single-host runtime)
 

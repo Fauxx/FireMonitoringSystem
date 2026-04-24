@@ -6,6 +6,10 @@ variable "github_repo" {
   type = string
 }
 
+variable "github_environment" {
+  type = string
+}
+
 variable "do_ssh_host" {
   type = string
 }

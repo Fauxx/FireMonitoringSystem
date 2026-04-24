@@ -13,8 +13,8 @@ This Terraform layout is environment-rooted and module-driven:
 
 This repository uses environment-only state splitting:
 
-- `state/dev/terraform.tfstate`
-- `state/prod/terraform.tfstate`
+- `environments/dev/terraform.tfstate`
+- `environments/prod/terraform.tfstate`
 
 `backend.conf` in each environment captures the key shape and backend settings contract.
 
@@ -23,7 +23,7 @@ This repository uses environment-only state splitting:
 ```bash
 cd infrastructure/terraform/environments/dev
 cp terraform.tfvars.example terraform.tfvars
-terraform init -backend-config=backend.conf
+terraform init -reconfigure -backend-config=backend.conf -backend-config="key=environments/dev/terraform.tfstate"
 terraform validate
 terraform plan -input=false
 ```

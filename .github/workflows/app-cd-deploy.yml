@@ -41,6 +41,7 @@ jobs:
     if: github.actor != 'github-actions[bot]' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'dev'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: development
     env:
       DEPLOY_ENV: dev
     steps:

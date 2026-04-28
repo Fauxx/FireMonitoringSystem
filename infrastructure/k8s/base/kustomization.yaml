@@ -1,0 +1,68 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - db/statefulset.yaml
+  - db/service.yaml
+  - influx/statefulset.yaml
+  - influx/service.yaml
+  - mqtt/deployment.yaml
+  - mqtt/service.yaml
+  - telegraf/deployment.yaml
+  - flyway/job.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - etl/deployment.yaml
+  - dashboard/deployment.yaml
+  - dashboard/service.yaml
+  - grafana/deployment.yaml
+  - grafana/service.yaml
+  - grafana/pvc.yaml
+  - loki/deployment.yaml
+  - loki/service.yaml
+  - loki/pvc.yaml
+  - prometheus/deployment.yaml
+  - prometheus/service.yaml
+  - prometheus/pvc.yaml
+  - node-exporter/daemonset.yaml
+  - cadvisor/daemonset.yaml
+  - alloy/daemonset.yaml
+  - ingress/ingress.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: mqtt-config
+    files:
+      - mosquitto.conf=../../mqtt/config/mosquitto.conf
+  - name: telegraf-config
+    files:
+      - telegraf.conf=../../telegraf/telegraf.conf
+  - name: prometheus-config
+    files:
+      - prometheus.yml=../../prometheus/prometheus.yml
+  - name: loki-config
+    files:
+      - local-config.yaml=../../loki/local-config.yaml
+  - name: alloy-config
+    files:
+      - config.alloy=../../alloy/config.alloy
+  - name: grafana-provisioning
+    files:
+      - dashboards.yaml=../../grafana/provisioning/dashboards/fire-dashboards.yaml
+      - influxdb.yaml=../../grafana/provisioning/datasources/influxdb.yaml
+      - loki.yaml=../../grafana/provisioning/datasources/loki.yaml
+      - prometheus.yaml=../../grafana/provisioning/datasources/prometheus.yaml
+  - name: grafana-dashboards
+    files:
+      - fire_main.json=../../grafana/dashboards/fire_main.json
+  - name: flyway-sql
+    files:
+      - V1__Initial_Schema.sql=../../sql/V1__Initial_Schema.sql
+      - V2__Add_Incident_Alerts.sql=../../sql/V2__Add_Incident_Alerts.sql
+      - V3__Official_Incidents_Setup.sql=../../sql/V3__Official_Incidents_Setup.sql
+      - V4__Add_Final_Sensor_Schema.sql=../../sql/V4__Add_Final_Sensor_Schema.sql
+      - V5__Final_Sensor_Views.sql=../../sql/V5__Final_Sensor_Views.sql
+
+

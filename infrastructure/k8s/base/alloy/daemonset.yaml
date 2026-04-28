@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: alloy
+  labels:
+    app: alloy
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.7.2
+          args: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
+          volumeMounts:
+            - name: alloy-config
+              mountPath: /etc/alloy/config.alloy
+              subPath: config.alloy
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+              readOnly: true
+      volumes:
+        - name: alloy-config
+          configMap:
+            name: alloy-config
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+

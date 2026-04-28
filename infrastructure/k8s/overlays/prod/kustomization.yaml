@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fire-monitoring-prod
+
+resources:
+  - ../../base
+
+images:
+  - name: api
+    newName: ghcr.io/your-org/fire-monitoring-system/api
+    newTag: latest
+  - name: etl-processor
+    newName: ghcr.io/your-org/fire-monitoring-system/etl-processor
+    newTag: latest
+  - name: dashboard
+    newName: ghcr.io/your-org/fire-monitoring-system/dashboard
+    newTag: latest
+

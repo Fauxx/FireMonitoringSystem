@@ -4,12 +4,42 @@ do_token                = "PASTE_DO_TOKEN"
 github_token            = "PASTE_GITHUB_TOKEN"
 github_owner            = "PASTE_GITHUB_OWNER"
 github_repo             = "FireMonitoringSystem"
-ssh_key_ids             = ["PASTE_DO_SSH_FINGERPRINT_OR_ID"]
-do_ssh_host_fingerprint = "SHA256:PASTE_HOST_FINGERPRINT"
+
+doks_version    = ""
+doks_node_size  = "s-2vcpu-4gb"
+doks_node_count = 2
+
+ghcr_deploy_username = "PASTE_GHCR_USERNAME"
+ghcr_deploy_token    = "PASTE_GHCR_TOKEN"
 
 region        = "sgp1"
-droplet_size  = "s-1vcpu-2gb"
-droplet_image = "docker-20-04"
 
-allow_ssh_cidrs = ["0.0.0.0/0", "::/0"]
+postgres_user     = "fireuser"
+postgres_password = "local-password"
+postgres_db       = "fire_monitoring"
+postgres_host     = "db"
+postgres_port     = 5432
+pgsslmode         = "disable"
+database_url      = "postgresql://fireuser:local-password@db:5432/fire_monitoring"
+
+influxdb_init_mode       = "setup"
+influxdb_username        = "admin"
+influxdb_password        = "adminpassword123"
+influxdb_url             = "http://influx:8086"
+influxdb_token           = "local-influx-token"
+influxdb_org             = "fire-monitoring"
+influxdb_bucket          = "sensor-data"
+influxdb_cli_config_name = "firedev"
+influx_measurement       = "fire_data"
+
+mqtt_broker_host = "mqtt"
+mqtt_broker_port = 1883
+
+etl_sync_interval  = 30
+agg_window_minutes = 5
+
+threshold_smoke_orange = 100
+threshold_smoke_red    = 250
+threshold_temp_orange  = 38.0
+threshold_temp_red     = 45.0
 

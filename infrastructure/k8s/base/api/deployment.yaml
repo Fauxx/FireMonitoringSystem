@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-credentials
+      containers:
+        - name: api
+          image: api
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+

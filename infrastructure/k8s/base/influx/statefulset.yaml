@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: influx
+  labels:
+    app: influx
+spec:
+  serviceName: influx
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influx
+  template:
+    metadata:
+      labels:
+        app: influx
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:2.7-alpine
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+          volumeMounts:
+            - name: influx-data
+              mountPath: /var/lib/influxdb2
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 30
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: influx-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+

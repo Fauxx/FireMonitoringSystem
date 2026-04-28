@@ -131,6 +131,9 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    - Optional key prefix override: `TF_STATE_KEY_PREFIX`
 
 3. Deploy workflow secrets (used by `.github/workflows/app-cd-deploy.yml`):
+   - Set these in GitHub Environment secrets (not repository-level only):
+     - `development` for `deploy-dev`
+     - `production` for `deploy-prod`
    - `DO_SSH_HOST`
    - `DO_SSH_PORT`
    - `DO_SSH_USER`

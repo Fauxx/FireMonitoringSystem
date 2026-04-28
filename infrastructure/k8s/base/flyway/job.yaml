@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flyway-migrate
+  labels:
+    app: flyway
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: flyway
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: flyway
+          image: flyway/flyway:10-alpine
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+          command: ["-connectRetries=60", "migrate"]
+          volumeMounts:
+            - name: flyway-sql
+              mountPath: /flyway/sql
+      volumes:
+        - name: flyway-sql
+          configMap:
+            name: flyway-sql
+

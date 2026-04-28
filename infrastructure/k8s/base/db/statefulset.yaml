@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: db-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+

@@ -18,6 +18,30 @@ variable "do_ssh_host_fingerprint" {
   type = string
 }
 
+variable "kubeconfig" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "do_ssh_private_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "ghcr_deploy_username" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "ghcr_deploy_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "do_ssh_port" {
   type    = string
   default = "22"

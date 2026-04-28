@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SERVER_ROOT_URL
+              value: "%(protocol)s://%(domain)s/grafana/"
+            - name: GF_SERVER_SERVE_FROM_SUB_PATH
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Viewer"
+            - name: GF_SECURITY_ALLOW_EMBEDDING
+              value: "true"
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+            - name: grafana-provisioning
+              mountPath: /etc/grafana/provisioning
+            - name: grafana-dashboards
+              mountPath: /etc/grafana/dashboards
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: grafana-provisioning
+          configMap:
+            name: grafana-provisioning
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etl-processor
+  labels:
+    app: etl-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etl-processor
+  template:
+    metadata:
+      labels:
+        app: etl-processor
+    spec:
+      imagePullSecrets:
+        - name: ghcr-credentials
+      containers:
+        - name: etl-processor
+          image: etl-processor
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+

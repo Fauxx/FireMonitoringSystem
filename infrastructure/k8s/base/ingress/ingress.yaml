@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fire-monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+

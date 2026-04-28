@@ -2,16 +2,16 @@ output "environment" {
   value = "prod"
 }
 
-output "deploy_host_ip" {
-  description = "The actual IP address to be used for GitHub Actions and SSH"
-  value       = module.compute.ipv4_address
+output "kubernetes_cluster_name" {
+  value = digitalocean_kubernetes_cluster.this.name
 }
 
-output "droplet_ids" {
-  value = [module.compute.id]
+output "kubernetes_namespace" {
+  value = kubernetes_namespace.this.metadata[0].name
 }
 
-output "firewall_id" {
-  value = module.networking.id
+output "kubeconfig" {
+  value     = local.kubeconfig
+  sensitive = true
 }
 

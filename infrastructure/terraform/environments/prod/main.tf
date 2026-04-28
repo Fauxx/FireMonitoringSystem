@@ -172,6 +172,9 @@ module "github_secrets" {
   github_environment      = local.github_environment
   do_ssh_host             = ""
   do_ssh_host_fingerprint = ""
+  do_ssh_port             = ""
+  do_ssh_user             = ""
+  do_ssh_private_key      = ""
   kubeconfig              = local.kubeconfig
   ghcr_deploy_username    = var.ghcr_deploy_username
   ghcr_deploy_token       = var.ghcr_deploy_token

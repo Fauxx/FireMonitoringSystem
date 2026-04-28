@@ -18,7 +18,6 @@ locals {
   create_do_ssh_port        = var.enabled && length(trimspace(var.do_ssh_port)) > 0
   create_do_ssh_user        = var.enabled && length(trimspace(var.do_ssh_user)) > 0
   create_do_ssh_private_key = var.enabled && length(trimspace(var.do_ssh_private_key)) > 0
-  create_kubeconfig         = var.enabled && length(trimspace(var.kubeconfig)) > 0
   create_ghcr_username      = var.enabled && length(trimspace(var.ghcr_deploy_username)) > 0
   create_ghcr_token         = var.enabled && length(trimspace(var.ghcr_deploy_token)) > 0
 }
@@ -28,7 +27,7 @@ resource "github_actions_environment_secret" "do_ssh_host" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_HOST"
-  plaintext_value = var.do_ssh_host
+  value = var.do_ssh_host
 
   depends_on = [github_repository_environment.this]
 }
@@ -38,7 +37,7 @@ resource "github_actions_environment_secret" "do_ssh_fingerprint" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_FINGERPRINT"
-  plaintext_value = var.do_ssh_host_fingerprint
+  value = var.do_ssh_host_fingerprint
 
   depends_on = [github_repository_environment.this]
 }
@@ -48,7 +47,7 @@ resource "github_actions_environment_secret" "do_ssh_port" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_PORT"
-  plaintext_value = var.do_ssh_port
+  value = var.do_ssh_port
 
   depends_on = [github_repository_environment.this]
 }
@@ -58,7 +57,7 @@ resource "github_actions_environment_secret" "do_ssh_user" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_USER"
-  plaintext_value = var.do_ssh_user
+  value = var.do_ssh_user
 
   depends_on = [github_repository_environment.this]
 }
@@ -68,17 +67,17 @@ resource "github_actions_environment_secret" "do_ssh_private_key" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_PRIVATE_KEY"
-  plaintext_value = var.do_ssh_private_key
+  value = var.do_ssh_private_key
 
   depends_on = [github_repository_environment.this]
 }
 
 resource "github_actions_environment_secret" "kubeconfig" {
-  count       = local.create_kubeconfig ? 1 : 0
+  count       = var.enabled ? 1 : 0
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "KUBECONFIG"
-  plaintext_value = var.kubeconfig
+  value = var.kubeconfig
 
   depends_on = [github_repository_environment.this]
 }
@@ -88,7 +87,7 @@ resource "github_actions_environment_secret" "ghcr_deploy_username" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "GHCR_DEPLOY_USERNAME"
-  plaintext_value = var.ghcr_deploy_username
+  value = var.ghcr_deploy_username
 
   depends_on = [github_repository_environment.this]
 }
@@ -98,7 +97,7 @@ resource "github_actions_environment_secret" "ghcr_deploy_token" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "GHCR_DEPLOY_TOKEN"
-  plaintext_value = var.ghcr_deploy_token
+  value = var.ghcr_deploy_token
 
   depends_on = [github_repository_environment.this]
 }

@@ -105,7 +105,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 ### Prerequisites
 
-- Docker Engine + Docker Compose plugin
+- Docker Engine + Docker Compose plugin **or** Podman + Podman Compose
 - Terraform >= 1.5
 - GitHub repository admin access (for Actions secrets and workflow runs)
 - DigitalOcean account + API token + SSH key registered in DO
@@ -141,6 +141,14 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 ### Run locally
 
+Fedora-native (recommended):
+
+```bash
+cp .env.example .env
+podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+podman compose ps
+```
+
 Development stack:
 
 ```bash
@@ -162,6 +170,13 @@ Stop and clean local stack:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose-dev.yml down
 docker compose -f docker-compose.yml -f docker-compose-prod.yml down
+```
+
+If you are on Fedora with SELinux enforcing and Docker daemon is not active, use Podman directly:
+
+```bash
+systemctl --user enable --now podman.socket
+podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
 ```
 
 ### Run Terraform (environment roots)
@@ -321,4 +336,3 @@ The script deletes package versions for `api`, `etl-processor`, and `dashboard`,
 
 - Layout and local usage: `infrastructure/terraform/README.md`
 - Safe state address migration: `infrastructure/terraform/MIGRATION.md`
-

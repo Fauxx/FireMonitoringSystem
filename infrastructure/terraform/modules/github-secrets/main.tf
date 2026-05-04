@@ -20,6 +20,8 @@ locals {
   create_do_ssh_private_key = var.enabled && length(trimspace(var.do_ssh_private_key)) > 0
   create_ghcr_username      = var.enabled && length(trimspace(var.ghcr_deploy_username)) > 0
   create_ghcr_token         = var.enabled && length(trimspace(var.ghcr_deploy_token)) > 0
+  create_argocd_server      = var.enabled && length(trimspace(var.argocd_server)) > 0
+  create_argocd_token       = var.enabled && length(trimspace(var.argocd_auth_token)) > 0
 }
 
 resource "github_actions_environment_secret" "do_ssh_host" {
@@ -27,7 +29,7 @@ resource "github_actions_environment_secret" "do_ssh_host" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_HOST"
-  value = var.do_ssh_host
+  value       = var.do_ssh_host
 
   depends_on = [github_repository_environment.this]
 }
@@ -37,7 +39,7 @@ resource "github_actions_environment_secret" "do_ssh_fingerprint" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_FINGERPRINT"
-  value = var.do_ssh_host_fingerprint
+  value       = var.do_ssh_host_fingerprint
 
   depends_on = [github_repository_environment.this]
 }
@@ -47,7 +49,7 @@ resource "github_actions_environment_secret" "do_ssh_port" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_PORT"
-  value = var.do_ssh_port
+  value       = var.do_ssh_port
 
   depends_on = [github_repository_environment.this]
 }
@@ -57,7 +59,7 @@ resource "github_actions_environment_secret" "do_ssh_user" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_USER"
-  value = var.do_ssh_user
+  value       = var.do_ssh_user
 
   depends_on = [github_repository_environment.this]
 }
@@ -67,7 +69,7 @@ resource "github_actions_environment_secret" "do_ssh_private_key" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "DO_SSH_PRIVATE_KEY"
-  value = var.do_ssh_private_key
+  value       = var.do_ssh_private_key
 
   depends_on = [github_repository_environment.this]
 }
@@ -77,7 +79,7 @@ resource "github_actions_environment_secret" "kubeconfig" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "KUBECONFIG"
-  value = var.kubeconfig
+  value       = var.kubeconfig
 
   depends_on = [github_repository_environment.this]
 }
@@ -87,7 +89,7 @@ resource "github_actions_environment_secret" "ghcr_deploy_username" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "GHCR_DEPLOY_USERNAME"
-  value = var.ghcr_deploy_username
+  value       = var.ghcr_deploy_username
 
   depends_on = [github_repository_environment.this]
 }
@@ -97,7 +99,28 @@ resource "github_actions_environment_secret" "ghcr_deploy_token" {
   repository  = var.github_repo
   environment = github_repository_environment.this[0].environment
   secret_name = "GHCR_DEPLOY_TOKEN"
-  value = var.ghcr_deploy_token
+  value       = var.ghcr_deploy_token
 
   depends_on = [github_repository_environment.this]
 }
+
+resource "github_actions_environment_secret" "argocd_server" {
+  count       = local.create_argocd_server ? 1 : 0
+  repository  = var.github_repo
+  environment = github_repository_environment.this[0].environment
+  secret_name = "ARGOCD_SERVER"
+  value       = var.argocd_server
+
+  depends_on = [github_repository_environment.this]
+}
+
+resource "github_actions_environment_secret" "argocd_auth_token" {
+  count       = local.create_argocd_token ? 1 : 0
+  repository  = var.github_repo
+  environment = github_repository_environment.this[0].environment
+  secret_name = "ARGOCD_AUTH_TOKEN"
+  value       = var.argocd_auth_token
+
+  depends_on = [github_repository_environment.this]
+}
+

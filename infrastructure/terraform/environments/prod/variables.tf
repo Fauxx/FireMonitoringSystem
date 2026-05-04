@@ -181,3 +181,14 @@ variable "threshold_temp_red" {
   default = 45.0
 }
 
+variable "argocd_server" {
+  type    = string
+  default = ""
+}
+
+variable "argocd_auth_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+

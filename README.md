@@ -99,7 +99,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 4. **CI/CD**
    - `.github/workflows/terraform-infra.yml` is the only infrastructure workflow (PR validate + manual plan/apply/destroy-recreate).
    - `.github/workflows/app-ci-build.yml` builds images and publishes to GHCR.
-   - `.github/workflows/app-cd-deploy.yml` deploys on `main` (dev) and `v*` tags (prod).
+   - `.github/workflows/app-cd-deploy.yml` is a manual Argo CD sync for dev/prod.
 
 ## Runbook (What You Need + How To Run)
 
@@ -121,6 +121,8 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    - `TF_VAR_github_token`
    - `TF_VAR_github_owner`
    - `TF_VAR_github_repo`
+   - `TF_VAR_argocd_server`
+   - `TF_VAR_argocd_auth_token`
    - `TF_VAR_ssh_key_ids` (must be HCL list string like `["fingerprint-or-id"]`)
    - `TF_VAR_do_ssh_host_fingerprint`
    - `TF_STATE_BUCKET`
@@ -134,12 +136,8 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
    - Set these in GitHub Environment secrets (not repository-level only):
      - `development` for `deploy-dev`
      - `production` for `deploy-prod`
-   - `DO_SSH_HOST`
-   - `DO_SSH_PORT`
-   - `DO_SSH_USER`
-   - `DO_SSH_PRIVATE_KEY`
-   - `GHCR_DEPLOY_USERNAME`
-   - `GHCR_DEPLOY_TOKEN`
+   - `ARGOCD_SERVER`
+   - `ARGOCD_AUTH_TOKEN`
 
 ### Run locally
 
@@ -214,9 +212,7 @@ State migration details are in `infrastructure/terraform/MIGRATION.md`.
   - PR to `main`: build/validate only
   - Push to `main` or tag `v*`: build and push GHCR images
 - `app-cd-deploy.yml`
-  - Push to `main`: deploy dev
-  - Push tag `v*`: deploy prod
-  - Manual run: choose target env and optional `image_tag`
+  - Manual run: trigger Argo CD sync for `dev`/`prod`
 
 ## Terraform clean slate
 
@@ -260,6 +256,8 @@ Use the runbooks for backend/state work:
   - `DO_SSH_HOST`
   - `DO_SSH_PORT`
   - `DO_SSH_USER`
+  - `TF_VAR_argocd_server`
+  - `TF_VAR_argocd_auth_token`
 
 ### State key convention
 

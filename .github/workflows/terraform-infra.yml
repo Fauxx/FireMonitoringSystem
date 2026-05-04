@@ -111,6 +111,8 @@ jobs:
           github_token: ${{ secrets.TF_VAR_github_token }}
           github_owner: ${{ secrets.TF_VAR_github_owner }}
           github_repo: ${{ secrets.TF_VAR_github_repo }}
+          argocd_server: ${{ secrets.TF_VAR_argocd_server }}
+          argocd_auth_token: ${{ secrets.TF_VAR_argocd_auth_token }}
           ssh_key_ids: ${{ secrets.TF_VAR_ssh_key_ids }}
           do_ssh_host_fingerprint: ${{ secrets.TF_VAR_do_ssh_host_fingerprint }}
           do_ssh_host: ${{ secrets.DO_SSH_HOST }}

@@ -35,6 +35,14 @@ inputs:
     description: GitHub repository name
     required: false
     default: ""
+  argocd_server:
+    description: Argo CD server endpoint (for workflows)
+    required: false
+    default: ""
+  argocd_auth_token:
+    description: Argo CD auth token (for workflows/image updater)
+    required: false
+    default: ""
   ssh_key_ids:
     description: HCL list literal of DigitalOcean SSH key IDs/fingerprints
     required: false
@@ -165,6 +173,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_AUTH_TOKEN: ${{ inputs.argocd_auth_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
         DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
       run: |
@@ -178,6 +188,12 @@ runs:
             printf 'github_token = "%s"\n' "${GITHUB_TOKEN}"
             printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
             printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
+            if [ -n "${ARGOCD_SERVER}" ]; then
+              printf 'argocd_server = "%s"\n' "${ARGOCD_SERVER}"
+            fi
+            if [ -n "${ARGOCD_AUTH_TOKEN}" ]; then
+              printf 'argocd_auth_token = "%s"\n' "${ARGOCD_AUTH_TOKEN}"
+            fi
             printf 'ssh_key_ids  = %s\n' "${SSH_KEY_IDS}"
             printf 'do_ssh_host_fingerprint = "%s"\n' "${DO_SSH_HOST_FINGERPRINT}"
           } > runtime.auto.tfvars

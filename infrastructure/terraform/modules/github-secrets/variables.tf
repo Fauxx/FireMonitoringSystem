@@ -42,6 +42,17 @@ variable "ghcr_deploy_token" {
   default   = ""
 }
 
+variable "argocd_server" {
+  type    = string
+  default = ""
+}
+
+variable "argocd_auth_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "do_ssh_port" {
   type    = string
   default = "22"

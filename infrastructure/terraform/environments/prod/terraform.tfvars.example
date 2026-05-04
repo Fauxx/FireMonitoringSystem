@@ -12,6 +12,9 @@ doks_node_count = 2
 ghcr_deploy_username = "PASTE_GHCR_USERNAME"
 ghcr_deploy_token    = "PASTE_GHCR_TOKEN"
 
+argocd_server     = "https://argocd.example.com"
+argocd_auth_token = "PASTE_ARGOCD_AUTH_TOKEN"
+
 region        = "sgp1"
 
 postgres_user     = "fireuser"

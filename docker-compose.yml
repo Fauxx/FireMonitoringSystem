@@ -1,230 +1,161 @@
 networks:
-  fire-net:
+  fire-monitoring-net:
+    name: fire-monitoring-net
     driver: bridge
 
 volumes:
   db_data:
-  grafana_data:
   influx_data:
-  loki_data:
+  grafana_data:
   prometheus_data:
-  nginx_logs:
-  api_logs:
-  telegraf_data:
+  loki_data:
 
 services:
-  # PostgreSQL Database
+  # --- DATA LAYER ---
   db:
     image: postgres:14-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-fire_db}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_local_password}
+    container_name: fire-db
+    # Professionals use 'keep-id' to map your Fedora UID to the container
+    userns_mode: "keep-id"
+    env_file: .env
+    ports:
+      - "15432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      # Added 'U' option: tells Podman to recursively chown the volume to the current user
+      - db_data:/var/lib/postgresql/data:Z,U
+    sysctls:
+      - net.ipv4.ping_group_range=0 0
     networks:
-      - fire-net
+      - fire-monitoring-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fire_db}"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
       retries: 5
 
-  # InfluxDB (time-series storage)
   influx:
     image: influxdb:2.7-alpine
-    restart: unless-stopped
-    environment:
-      - DOCKER_INFLUXDB_INIT_MODE=${INFLUXDB_INIT_MODE}
-      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
-      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
-      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
-      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    container_name: fire-influx
+    userns_mode: "keep-id"
+    env_file: .env
+    ports:
+      - "18086:8086"
     volumes:
-      - influx_data:/var/lib/influxdb2
+      - influx_data:/var/lib/influxdb2:Z,U
+    sysctls:
+      - net.ipv4.ping_group_range=0 0
     networks:
-      - fire-net
+      - fire-monitoring-net
     healthcheck:
       test: ["CMD", "influx", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
       retries: 5
 
-  # MQTT broker
   mqtt:
     image: eclipse-mosquitto:2.0
-    restart: unless-stopped
+    container_name: fire-mqtt
+    userns_mode: "keep-id"
+    ports:
+      - "1883:1883"
+      - "9001:9001"
     volumes:
-      - ./infrastructure/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./infrastructure/mqtt/data:/mosquitto/data
+      - type: bind
+        source: ./infrastructure/mqtt/config/mosquitto.conf
+        target: /mosquitto/config/mosquitto.conf
+        read_only: true
+        bind:
+          selinux: Z
     networks:
-      - fire-net
+      - fire-monitoring-net
 
-  # Telegraf (The missing bridge between MQTT and InfluxDB)
-  telegraf:
-    image: telegraf:alpine
-    restart: unless-stopped
-    volumes:
-      - ./infrastructure/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-    environment:
-      - INFLUX_TOKEN=${INFLUXDB_TOKEN}
-    depends_on:
-      influx:
-        condition: service_healthy
-    networks:
-      - fire-net
-
-  # Flyway migrations
-  flyway:
-    image: flyway/flyway:10-alpine
-    volumes:
-      - ./infrastructure/sql:/flyway/sql
-    environment:
-      - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
-      - FLYWAY_USER=${POSTGRES_USER}
-      - FLYWAY_PASSWORD=${POSTGRES_PASSWORD}
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["-connectRetries=60", "migrate"]
-    networks:
-      - fire-net
-
-  # Node.js Web Application
+  # --- APPLICATION LAYER ---
   api:
     build: ./api
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=8000
-      - DATABASE_URL=${DATABASE_URL}
+    container_name: fire-api
+    userns_mode: "keep-id"
+    env_file: .env
+    ports:
+      - "18000:8000"
     volumes:
-      - api_logs:/usr/src/app/logs
-    networks:
-      - fire-net
+      - ./api:/usr/src/app:Z
+      # Anonymous volume for node_modules prevents host/container conflicts
+      - /usr/src/app/node_modules
     depends_on:
       db:
         condition: service_healthy
-      flyway:
-        condition: service_completed_successfully
-
-  # Grafana
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    environment:
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_SECURITY_ALLOW_EMBEDDING=true
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
     networks:
-      - fire-net
-    depends_on:
-      - influx
-      - loki
-      - prometheus
+      - fire-monitoring-net
 
-  # Loki (centralized log storage)
-  loki:
-    image: grafana/loki:2.9.8
-    restart: unless-stopped
-    command: -config.file=/etc/loki/local-config.yaml
-    volumes:
-      - ./infrastructure/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
-    networks:
-      - fire-net
-
-  # Prometheus (metrics collection)
-  prometheus:
-    image: prom/prometheus:v2.53.0
-    restart: unless-stopped
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-    volumes:
-      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    networks:
-      - fire-net
-
-  # Node Exporter (host metrics)
-  node-exporter:
-    image: prom/node-exporter:v1.8.1
-    restart: unless-stopped
-    command:
-      - --path.procfs=/host/proc
-      - --path.sysfs=/host/sys
-      - --path.rootfs=/host/root
-      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/host/root:ro
-    networks:
-      - fire-net
-
-  # cAdvisor (container-level metrics)
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    restart: unless-stopped
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    networks:
-      - fire-net
-
-  # Grafana Alloy (collects Docker logs and pushes to Loki)
-  alloy:
-    image: grafana/alloy:v1.7.2
-    restart: unless-stopped
-    command: run /etc/alloy/config.alloy --storage.path=/var/lib/alloy/data
-    volumes:
-      - ./infrastructure/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on:
-      - loki
-    networks:
-      - fire-net
-  
   etl-processor:
-    build:
-      context: ./etl-processor
-      dockerfile: Dockerfile
-    command: python3 -m src.main
-    restart: unless-stopped
-    environment:
-      - PYTHONUNBUFFERED=1
-      - INFLUXDB_URL=${INFLUXDB_URL}
-      - DATABASE_URL=${DATABASE_URL}
+    build: ./etl-processor
+    container_name: fire-etl
+    userns_mode: "keep-id"
+    env_file: .env
     depends_on:
       influx:
         condition: service_healthy
       db:
         condition: service_healthy
     networks:
-      - fire-net
+      - fire-monitoring-net
 
-  # Nginx Reverse Proxy
+  # --- OBSERVABILITY LAYER ---
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: fire-prometheus
+    # Note: userns_mode not always needed for prometheus, but kept for consistency
+    userns_mode: "keep-id"
+    ports:
+      - "19090:9090"
+    volumes:
+      - prometheus_data:/prometheus:Z,U
+      - type: bind
+        source: ./infrastructure/prometheus/prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+        bind:
+          selinux: Z
+    networks:
+      - fire-monitoring-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fire-grafana
+    userns_mode: "keep-id"
+    env_file: .env
+    ports:
+      - "13000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana:Z,U
+      - type: bind
+        source: ./infrastructure/grafana/provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          selinux: Z
+    networks:
+      - fire-monitoring-net
+
+  # --- REVERSE PROXY ---
   nginx:
     image: nginx:alpine
-    restart: unless-stopped
+    container_name: fire-nginx
+
+
+    userns_mode: "keep-id"
     ports:
-      - "80:80"
+      - "18080:80"
     volumes:
-      - ./dashboard/public:/usr/share/nginx/html:ro
-      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./infrastructure/nginx/ssl:/etc/nginx/ssl:ro
+      - type: bind
+        source: ./dashboard/public
+        target: /usr/share/nginx/html
+        read_only: true
+        bind:
+          selinux: Z
+      - type: bind
+        source: ./infrastructure/nginx/conf.d
+        target: /etc/nginx/conf.d
+        read_only: true
+        bind:
+          selinux: Z
     networks:
-      - fire-net
-    depends_on:
-      - api
+      - fire-monitoring-net

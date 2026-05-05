@@ -30,6 +30,27 @@ services:
       interval: 5s
       retries: 5
 
+  # --- DATABASE MIGRATIONS ---
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: fire-flyway
+    env_file: .env
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
+      FLYWAY_USER: ${POSTGRES_USER}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./infrastructure/sql:/flyway/sql:Z
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - fire-monitoring-net
+    command: ["-connectRetries=60", "migrate"]
+    profiles:
+      - ""
+
   influx:
     image: influxdb:2.7-alpine
     container_name: fire-influx
@@ -137,22 +158,23 @@ services:
   nginx:
     image: nginx:alpine
     container_name: fire-nginx
-
-
     ports:
       - "18080:80"
     volumes:
-      - type: bind
-        source: ./dashboard/public
-        target: /usr/share/nginx/html
-        read_only: true
-        bind:
-          selinux: Z
       - type: bind
         source: ./infrastructure/nginx/conf.d
         target: /etc/nginx/conf.d
         read_only: true
         bind:
           selinux: Z
+    networks:
+      - fire-monitoring-net
+
+  # --- DASHBOARD ---
+  dashboard:
+    build: ./dashboard
+    container_name: fire-dashboard
+    ports:
+      - "127.0.0.1:13001:80"
     networks:
       - fire-monitoring-net

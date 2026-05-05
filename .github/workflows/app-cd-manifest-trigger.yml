@@ -1,0 +1,98 @@
+name: App CD Manifest Trigger
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/k8s/**"
+      - ".github/workflows/app-cd-manifest-trigger.yml"
+
+concurrency:
+  group: app-cd-manifest-trigger-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-kustomization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kustomize
+        run: |
+          set -euo pipefail
+          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.0/kustomize_v5.4.0_linux_amd64.tar.gz | tar xz
+          chmod +x kustomize
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Validate dev overlay
+        run: |
+          set -euo pipefail
+          cd infrastructure/k8s/overlays/dev
+          kustomize build . > /dev/null
+          echo "✅ Dev overlay validation passed"
+
+      - name: Validate prod overlay
+        run: |
+          set -euo pipefail
+          cd infrastructure/k8s/overlays/prod
+          kustomize build . > /dev/null
+          echo "✅ Prod overlay validation passed"
+
+  trigger-argo-sync:
+    needs: validate-kustomization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        include:
+          - environment: dev
+            server_secret: ARGOCD_SERVER
+            token_secret: ARGOCD_AUTH_TOKEN
+    environment: development
+    steps:
+      - name: Validate Argo CD secrets
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          if [ -z "${ARGOCD_SERVER}" ] || [ -z "${ARGOCD_AUTH_TOKEN}" ]; then
+            echo "⚠️  ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not configured - skipping Argo sync"
+            exit 0
+          fi
+
+      - name: Install Argo CD CLI
+        run: |
+          set -euo pipefail
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Trigger Argo CD sync for manifest changes
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARGOCD_APP_NAME="fire-monitoring-dev"
+          
+          echo "ℹ️  Triggering sync for $ARGOCD_APP_NAME after manifest changes..."
+          argocd app sync "${ARGOCD_APP_NAME}" \
+            --server "${ARGOCD_SERVER}" \
+            --auth-token "${ARGOCD_AUTH_TOKEN}" \
+            --grpc-web \
+            --prune || true
+          
+          echo "⏳ Waiting for sync to complete..."
+          argocd app wait "${ARGOCD_APP_NAME}" \
+            --server "${ARGOCD_SERVER}" \
+            --auth-token "${ARGOCD_AUTH_TOKEN}" \
+            --grpc-web \
+            --timeout 300 || true
+          
+          echo "✅ Manifest sync completed"

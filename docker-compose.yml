@@ -15,8 +15,6 @@ services:
   db:
     image: postgres:14-alpine
     container_name: fire-db
-    # Professionals use 'keep-id' to map your Fedora UID to the container
-    userns_mode: "keep-id"
     env_file: .env
     ports:
       - "15432:5432"
@@ -32,11 +30,38 @@ services:
       interval: 5s
       retries: 5
 
+  # --- DATABASE MIGRATIONS ---
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: fire-flyway
+    env_file: .env
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
+      FLYWAY_USER: ${POSTGRES_USER}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+    volumes:
+      - ./infrastructure/sql:/flyway/sql:Z
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - fire-monitoring-net
+    command: ["-connectRetries=60", "migrate"]
+    profiles:
+      - ""
+
   influx:
     image: influxdb:2.7-alpine
     container_name: fire-influx
-    userns_mode: "keep-id"
     env_file: .env
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: ${INFLUXDB_INIT_MODE}
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
     ports:
       - "18086:8086"
     volumes:
@@ -53,7 +78,6 @@ services:
   mqtt:
     image: eclipse-mosquitto:2.0
     container_name: fire-mqtt
-    userns_mode: "keep-id"
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -71,7 +95,6 @@ services:
   api:
     build: ./api
     container_name: fire-api
-    userns_mode: "keep-id"
     env_file: .env
     ports:
       - "18000:8000"
@@ -88,7 +111,6 @@ services:
   etl-processor:
     build: ./etl-processor
     container_name: fire-etl
-    userns_mode: "keep-id"
     env_file: .env
     depends_on:
       influx:
@@ -102,8 +124,6 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: fire-prometheus
-    # Note: userns_mode not always needed for prometheus, but kept for consistency
-    userns_mode: "keep-id"
     ports:
       - "19090:9090"
     volumes:
@@ -120,7 +140,6 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: fire-grafana
-    userns_mode: "keep-id"
     env_file: .env
     ports:
       - "13000:3000"
@@ -139,23 +158,23 @@ services:
   nginx:
     image: nginx:alpine
     container_name: fire-nginx
-
-
-    userns_mode: "keep-id"
     ports:
       - "18080:80"
     volumes:
-      - type: bind
-        source: ./dashboard/public
-        target: /usr/share/nginx/html
-        read_only: true
-        bind:
-          selinux: Z
       - type: bind
         source: ./infrastructure/nginx/conf.d
         target: /etc/nginx/conf.d
         read_only: true
         bind:
           selinux: Z
+    networks:
+      - fire-monitoring-net
+
+  # --- DASHBOARD ---
+  dashboard:
+    build: ./dashboard
+    container_name: fire-dashboard
+    ports:
+      - "127.0.0.1:13001:80"
     networks:
       - fire-monitoring-net

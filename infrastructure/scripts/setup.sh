@@ -9,21 +9,33 @@ echo "🔥 Fire Monitoring Web Application - Setup Script"
 echo "=================================================="
 echo ""
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed. Please install Docker first."
+# Select container runtime (Docker or Podman)
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    CONTAINER_RUNTIME="docker"
+    echo "✅ Docker with Compose is installed"
+elif command -v podman &> /dev/null && podman compose version &> /dev/null; then
+    CONTAINER_RUNTIME="podman"
+    echo "✅ Podman with Compose is installed"
+elif command -v podman-compose &> /dev/null; then
+    CONTAINER_RUNTIME="podman-compose"
+    echo "✅ Podman Compose is installed"
+else
+    echo "❌ No supported container runtime found."
+    echo "   Install one of:"
+    echo "   - Docker Engine + Docker Compose plugin"
+    echo "   - Podman + podman compose (or podman-compose)"
     exit 1
 fi
 
-echo "✅ Docker is installed"
-
-# Check if Docker Compose is installed
-if ! docker compose version &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
-    exit 1
-fi
-
-echo "✅ Docker Compose is installed"
+run_compose() {
+    if [ "${CONTAINER_RUNTIME}" = "docker" ]; then
+        docker compose "$@"
+    elif [ "${CONTAINER_RUNTIME}" = "podman" ]; then
+        podman compose "$@"
+    else
+        podman-compose "$@"
+    fi
+}
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
@@ -38,7 +50,7 @@ if [ ! -f .env ]; then
 NODE_ENV=production
 PORT=8000
 
-DATABASE_URL=postgresql://fireuser:${POSTGRES_PASSWORD}@postgres:5432/fire_monitoring
+DATABASE_URL=postgresql://fireuser:${POSTGRES_PASSWORD}@db:5432/fire_monitoring
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 SESSION_SECRET=${SESSION_SECRET}
@@ -78,20 +90,20 @@ if grep -q "your-domain.com" nginx.conf; then
     echo "✅ Updated nginx.conf with your domain/IP"
 fi
 
-# Pull Docker images
+# Pull container images
 echo ""
-echo "🐳 Pulling Docker images..."
-docker compose pull
+echo "🐳 Pulling images..."
+run_compose pull
 
 # Build application
 echo ""
 echo "🔨 Building application..."
-docker compose build
+run_compose build
 
 # Start services
 echo ""
 echo "🚀 Starting services..."
-docker compose up -d
+run_compose up -d
 
 # Wait for services to be healthy
 echo ""
@@ -101,7 +113,7 @@ sleep 10
 # Check service status
 echo ""
 echo "📊 Service Status:"
-docker compose ps
+run_compose ps
 
 echo ""
 echo "=================================================="
@@ -117,4 +129,3 @@ echo "3. Set up SSL/HTTPS (recommended for production)"
 echo ""
 echo "📚 See DEPLOYMENT.md for detailed instructions"
 echo "=================================================="
-

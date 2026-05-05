@@ -1,0 +1,117 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-network-policy
+  namespace: argocd
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from application namespace (for webhook/pulling)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: fire-monitoring-dev
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+
+    # Allow from monitoring namespace if present
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # Allow DNS
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+
+  egress:
+    # Allow to application namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: fire-monitoring-dev
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+    # Allow to GitHub/registry
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+    # Allow DNS
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+
+    # Allow kube-dns
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-repo-server-network-policy
+  namespace: argocd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from argocd-server
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: argocd-server
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8084
+
+  egress:
+    # Allow to GitHub and container registries
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53

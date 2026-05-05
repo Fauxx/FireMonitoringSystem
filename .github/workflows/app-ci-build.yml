@@ -23,6 +23,7 @@ on:
       - "docker-compose.yml"
       - "docker-compose-prod.yml"
       - ".github/workflows/app-ci-build.yml"
+  workflow_dispatch:
 
 concurrency:
   group: app-ci-build-${{ github.ref }}
@@ -37,11 +38,32 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      skip: ${{ steps.check-paths.outputs.skip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check if only manifests changed
+        id: check-paths
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, check if only infrastructure/k8s files changed
+            changed_files=$(git diff --name-only origin/main...HEAD)
+          else
+            # For pushes, check the last commit
+            changed_files=$(git diff --name-only HEAD~1...HEAD)
+          fi
+          
+          # Check if any non-infrastructure files changed
+          if echo "$changed_files" | grep -qv "^infrastructure/k8s/"; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
       - name: Validate docker-compose config
+        if: steps.check-paths.outputs.skip != 'true'
         env:
           POSTGRES_DB: fire_db
           POSTGRES_USER: postgres
@@ -76,7 +98,7 @@ jobs:
           rm -f .env
 
   build-images:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && needs.compose-validate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: compose-validate

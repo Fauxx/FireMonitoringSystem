@@ -28,6 +28,7 @@ resources:
   - cadvisor/daemonset.yaml
   - alloy/daemonset.yaml
   - ingress/ingress.yaml
+  - argocd/networkpolicy.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

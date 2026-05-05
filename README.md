@@ -105,7 +105,7 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 ### Prerequisites
 
-- Docker Engine + Docker Compose plugin
+- Docker Engine + Docker Compose plugin **or** Podman + Podman Compose
 - Terraform >= 1.5
 - GitHub repository admin access (for Actions secrets and workflow runs)
 - DigitalOcean account + API token + SSH key registered in DO
@@ -141,6 +141,14 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 ### Run locally
 
+Fedora-native (recommended):
+
+```bash
+cp .env.example .env
+podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+podman compose ps
+```
+
 Development stack:
 
 ```bash
@@ -162,6 +170,13 @@ Stop and clean local stack:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose-dev.yml down
 docker compose -f docker-compose.yml -f docker-compose-prod.yml down
+```
+
+If you are on Fedora with SELinux enforcing and Docker daemon is not active, use Podman directly:
+
+```bash
+systemctl --user enable --now podman.socket
+podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
 ```
 
 ### Run Terraform (environment roots)
@@ -322,3 +337,73 @@ The script deletes package versions for `api`, `etl-processor`, and `dashboard`,
 - Layout and local usage: `infrastructure/terraform/README.md`
 - Safe state address migration: `infrastructure/terraform/MIGRATION.md`
 
+## GitOps Deployment (Argo CD)
+
+This repository uses **Argo CD** for GitOps-based automated deployments. Git is the single source of truth for infrastructure and applications.
+
+### How It Works
+
+1. **Code changes** → GitHub Actions builds and pushes images
+2. **Argo CD detects** new images and automatically syncs cluster state
+3. **Deployment is automatic** - no manual triggers needed
+
+### Key Documents
+
+- **[GITOPS_GUIDE.md](./GITOPS_GUIDE.md)** - Complete GitOps deployment guide for developers
+  - How deployments work
+  - Making configuration changes
+  - Checking deployment status
+  - Best practices
+
+- **[OPERATIONAL_RUNBOOK.md](./OPERATIONAL_RUNBOOK.md)** - Emergency procedures and troubleshooting
+  - Manual sync procedures
+  - Rollback strategies
+  - Troubleshooting sync failures
+  - Health checks and diagnostics
+
+### Quick Start
+
+```bash
+# Deploy automatically (no action needed)
+git commit -am "Your changes"
+git push origin main
+# → CI builds images → Argo CD deploys automatically (~5-10 min)
+
+# Check deployment status
+argocd app get fire-monitoring-dev
+kubectl get pods -n fire-monitoring-dev
+
+# Manually sync if needed (emergency)
+argocd app sync fire-monitoring-dev --server $ARGOCD_SERVER --auth-token $ARGOCD_AUTH_TOKEN
+```
+
+### Architecture
+
+```
+infrastructure/
+├── k8s/
+│   ├── base/                      # Shared Kubernetes resources
+│   │   ├── api/, dashboard/, ... # Service deployments
+│   │   ├── db/, influx/, mqtt/   # Data infrastructure
+│   │   ├── argocd/               # Argo CD specific configs
+│   │   └── kustomization.yaml    # Base configuration
+│   └── overlays/
+│       ├── dev/                  # Dev environment specifics
+│       └── prod/                 # Production environment specifics
+└── terraform/
+    └── environments/
+        ├── dev/main.tf           # Dev cluster + Argo setup
+        └── prod/main.tf          # Prod cluster + Argo setup
+```
+
+### CI/CD Optimization
+
+The CI/CD pipeline is optimized for cost efficiency:
+
+- **Code changes**: Full CI (compose validate + 3 image builds) → ~9-10 min
+- **Manifest changes**: Lightweight validation only → ~1-2 min
+- **Auto-sync**: Argo detects Git changes and deploys automatically
+
+**Expected monthly CI cost reduction: ~36%** (from cost optimization + auto-sync elimination)
+
+---

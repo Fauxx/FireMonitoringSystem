@@ -243,9 +243,29 @@ resource "helm_release" "argocd" {
 
   values = [
     yamlencode({
+      global = {
+        domain = "argocd.${local.environment}.local"
+      }
       configs = {
         params = {
-          "server.insecure" = true
+          "server.insecure" = false
+        }
+      }
+      server = {
+        ingress = {
+          enabled = false
+        }
+        service = {
+          type = "ClusterIP"
+        }
+        extraArgs = [
+          "--insecure=false"
+        ]
+      }
+      repoServer = {
+        autoscaling = {
+          enabled = false
+          minReplicas = 1
         }
       }
     })
@@ -266,8 +286,8 @@ resource "helm_release" "argocd_image_updater" {
       config = {
         argocd = {
           serverAddress = local.argocd_server_internal
-          insecure      = true
-          plaintext     = true
+          insecure      = false
+          plaintext     = false
           token         = "$ARGOCD_TOKEN"
         }
         registries = [
@@ -334,6 +354,25 @@ resource "kubernetes_manifest" "argocd_application" {
         server    = "https://kubernetes.default.svc"
         namespace = local.namespace
       }
+      syncPolicy = {
+        automated = {
+          prune   = true
+          selfHeal = true
+          allowEmpty = false
+        }
+        syncOptions = [
+          "CreateNamespace=true"
+        ]
+        retry = {
+          limit = 5
+          backoff = {
+            duration    = "5s"
+            factor      = 2
+            maxDuration = "3m"
+          }
+        }
+      }
+      revisionHistoryLimit = 10
     }
   }
 

@@ -53,6 +53,7 @@ postgres_data/
 !infrastructure/mqtt/data/.gitkeep
 !infrastructure/mqtt/log/.gitkeep
 
+
 # =================================================================
 # 6. DOCKER & LOGS
 # =================================================================
@@ -69,3 +70,25 @@ infrastructure/terraform/override.tf
 infrastructure/terraform/override.tf.json
 infrastructure/terraform/*_override.tf
 infrastructure/terraform/*_override.tf.json
+
+
+# =================================================================
+# 6. TERRAFORM (Monorepo optimized)
+# =================================================================
+# Ignore all hidden terraform directories in any subdirectory
+**/.terraform/
+
+# Ignore all state files (sensitive and environment-specific)
+**/*.tfstate
+**/*.tfstate.*
+
+# Ignore all variable files except examples
+**/*.tfvars
+!**/*.tfvars.example
+
+# Infrastructure logs and local overrides
+**/crash.log
+**/*_override.tf
+**/*_override.tf.json
+.terraform.rc
+terraform.rc

@@ -24,8 +24,9 @@ npm-debug.log*
 yarn-debug.log*
 .npm
 dist/
-build/
+build/*
 !build/compose/
+!build/compose/**
 .cache/
 
 # =================================================================

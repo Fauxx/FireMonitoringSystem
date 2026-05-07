@@ -1,0 +1,9 @@
+services:
+  api:
+    environment:
+      NODE_ENV: development
+      GRAFANA_PROXY_PROTECT: "false"
+
+  etl-processor:
+    environment:
+      ENVIRONMENT: development

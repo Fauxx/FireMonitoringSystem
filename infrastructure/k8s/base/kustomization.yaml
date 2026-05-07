@@ -36,34 +36,34 @@ generatorOptions:
 configMapGenerator:
   - name: mqtt-config
     files:
-      - mosquitto.conf=../../mqtt/config/mosquitto.conf
+      - mosquitto.conf=mqtt/config/mosquitto.conf
   - name: telegraf-config
     files:
-      - telegraf.conf=../../telegraf/telegraf.conf
+      - telegraf.conf=telegraf/telegraf.conf
   - name: prometheus-config
     files:
-      - prometheus.yml=../../prometheus/prometheus.yml
+      - prometheus.yml=prometheus/prometheus.yml
   - name: loki-config
     files:
-      - local-config.yaml=../../loki/local-config.yaml
+      - local-config.yaml=loki/local-config.yaml
   - name: alloy-config
     files:
-      - config.alloy=../../alloy/config.alloy
+      - config.alloy=alloy/config.alloy
   - name: grafana-provisioning
     files:
-      - dashboards.yaml=../../grafana/provisioning/dashboards/fire-dashboards.yaml
-      - influxdb.yaml=../../grafana/provisioning/datasources/influxdb.yaml
-      - loki.yaml=../../grafana/provisioning/datasources/loki.yaml
-      - prometheus.yaml=../../grafana/provisioning/datasources/prometheus.yaml
+      - dashboards.yaml=grafana/provisioning/dashboards/fire-dashboards.yaml
+      - influxdb.yaml=grafana/provisioning/datasources/influxdb.yaml
+      - loki.yaml=grafana/provisioning/datasources/loki.yaml
+      - prometheus.yaml=grafana/provisioning/datasources/prometheus.yaml
   - name: grafana-dashboards
     files:
-      - fire_main.json=../../grafana/dashboards/fire_main.json
+      - fire_main.json=grafana/dashboards/fire_main.json
   - name: flyway-sql
     files:
-      - V1__Initial_Schema.sql=../../sql/V1__Initial_Schema.sql
-      - V2__Add_Incident_Alerts.sql=../../sql/V2__Add_Incident_Alerts.sql
-      - V3__Official_Incidents_Setup.sql=../../sql/V3__Official_Incidents_Setup.sql
-      - V4__Add_Final_Sensor_Schema.sql=../../sql/V4__Add_Final_Sensor_Schema.sql
-      - V5__Final_Sensor_Views.sql=../../sql/V5__Final_Sensor_Views.sql
+      - V1__Initial_Schema.sql=sql/V1__Initial_Schema.sql
+      - V2__Add_Incident_Alerts.sql=sql/V2__Add_Incident_Alerts.sql
+      - V3__Official_Incidents_Setup.sql=sql/V3__Official_Incidents_Setup.sql
+      - V4__Add_Final_Sensor_Schema.sql=sql/V4__Add_Final_Sensor_Schema.sql
+      - V5__Final_Sensor_Views.sql=sql/V5__Final_Sensor_Views.sql
 
 

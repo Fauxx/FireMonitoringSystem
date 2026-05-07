@@ -1,6 +1,28 @@
 # Fire Monitoring Infrastructure Monorepo
 
-This repository centralizes every component of the IoT fire-monitoring stack into a single, DevOps-friendly layout. Application code now lives under `api/`, `dashboard/`, and `etl-processor/` while infrastructure-as-code, broker configs, and SQL migrations sit under `infrastructure/`.
+This repository centralizes every component of the IoT fire-monitoring stack into a single, DevOps-friendly layout. Application code now lives under `apps/api/`, `apps/dashboard/`, and `apps/etl-processor/` while infrastructure-as-code, broker configs, and SQL migrations sit under `infrastructure/`.
+
+## Repository Status (Structure Migration)
+
+This repository is in a phased structure migration.
+
+1. Phase 1 complete: infrastructure config assets moved under `infrastructure/k8s/base/*` and path references normalized.
+2. Phase 2 complete: governance and documentation scaffolding added.
+3. Phase 3 complete: application services regrouped under `apps/` and core CI/compose paths updated.
+4. Phase 4 baseline complete: environment overlays introduced under `build/compose/` and CI/docs rewired.
+5. Phase 4.1 complete: base compose relocated to `build/compose/docker-compose.base.yml` with root shim compatibility.
+
+## Documentation and Governance
+
+1. Documentation index: `docs/README.md`
+2. Architecture scaffold: `docs/ARCHITECTURE.md`
+3. Deployment scaffold: `docs/DEPLOYMENT.md`
+4. Developer guide scaffold: `docs/DEV_GUIDE.md`
+5. Troubleshooting scaffold: `docs/TROUBLESHOOTING.md`
+6. ADR index: `docs/ADR/README.md`
+7. Contribution policy: `CONTRIBUTING.md`
+8. Support routing: `SUPPORT.md`
+9. Ownership map: `.github/CODEOWNERS`
 
 ## Repository Guide (Codebase Structure + Tech Stack)
 
@@ -12,12 +34,12 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 ### 3) Core directories
 - `.github/workflows/`: CI/CD pipelines (build, deploy, terraform checks)
-- `api/`: Node.js + Express backend (auth, sensor, analytics, metrics, sessions)
-- `dashboard/public/`: static frontend pages (login/signup/protected dashboard)
-- `etl-processor/`: Python ETL worker that syncs InfluxDB data into PostgreSQL
-- `simulators/`: sensor data simulator that publishes mock MQTT payloads
+- `apps/api/`: Node.js + Express backend (auth, sensor, analytics, metrics, sessions)
+- `apps/dashboard/public/`: static frontend pages (login/signup/protected dashboard)
+- `apps/etl-processor/`: Python ETL worker that syncs InfluxDB data into PostgreSQL
+- `apps/simulators/`: sensor data simulator that publishes mock MQTT payloads
 - `infrastructure/`: deployment/runtime configs (Nginx, MQTT, Telegraf, SQL, Terraform, Prometheus/Loki/Grafana/Alloy)
-- `docker-compose*.yml`: local/dev/prod-style service orchestration
+- `build/compose/docker-compose.base.yml` + `build/compose/*.yml`: local/dev/prod-style service orchestration (root `docker-compose.yml` remains a compatibility shim)
 
 ### 4) Key technologies used
 - **Backend API:** Node.js, Express, `pg`, `express-session`, `prom-client`
@@ -29,13 +51,13 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 - **Infrastructure/Automation:** Docker Compose, Flyway, Terraform, GitHub Actions
 
 ### 5) How code is organized
-- **API app entrypoint:** `api/src/server.js`
+- **API app entrypoint:** `apps/api/src/server.js`
   - wires middleware, sessions, auth-gated routes, metrics endpoint (`/metrics`), and Grafana proxy (`/grafana`)
-- **API routes:** `api/src/routes/`
+- **API routes:** `apps/api/src/routes/`
   - `auth.js`, `api.js`, `analytics.js`, `messages.js`, `finalSensors.js`
-- **ETL entrypoint:** `etl-processor/src/main.py`
+- **ETL entrypoint:** `apps/etl-processor/src/main.py`
   - fetches from Influx, transforms records, writes to `final_sensor_events`, `sensor_data_aggregated`, and `system_metrics`
-- **MQTT simulator:** `simulators/mcu_sim.py`
+- **MQTT simulator:** `apps/simulators/mcu_sim.py`
   - publishes mock fire sensor payloads for local testing
 - **Infra config:** `infrastructure/**`
   - service configs, SQL migrations, dashboards, monitoring, and IaC
@@ -45,16 +67,11 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 ```
 .
 ├── .github/workflows        # CI/CD pipelines (build + deploy)
-├── api/                     # Node.js / Express backend
-│   ├── src/                 # Application code (server, routes, middleware)
-│   └── tests/               # Placeholder for API tests
-├── dashboard/               # Static web UI served via Nginx
-│   ├── public/              # HTML + JS (protected dashboard bundle)
-│   └── styles/              # Shared CSS
-├── etl-processor/           # Python data mover (InfluxDB -> Postgres)
-│   ├── app/                 # `etl_influx_to_postgres.py` plus helpers
-│   ├── requirements.txt     # Python dependencies
-│   └── Dockerfile           # Worker image definition
+├── apps/
+│   ├── api/                 # Node.js / Express backend
+│   ├── dashboard/           # Static web UI served via Nginx
+│   ├── etl-processor/       # Python data mover (InfluxDB -> Postgres)
+│   └── simulators/          # MQTT sensor data simulator
 ├── infrastructure/          # DevOps hub (configs + IaC)
 │   ├── terraform/           # Modular DigitalOcean-first IaC (providers, variables, DO resources, GitHub secret sync)
 │   ├── nginx/conf.d/        # Reverse proxy config
@@ -62,7 +79,8 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 │   ├── telegraf/            # Agent configuration
 │   └── sql/                 # Database migrations and seed scripts
 ├── iot-firmware/            # ESP32 / Arduino sketches (placeholder)
-├── docker-compose.yml       # Local orchestration across all services
+├── docker-compose.yml       # Compatibility shim -> build/compose/docker-compose.base.yml
+├── build/compose/           # Canonical compose base + environment overlays
 ├── .env / .env.example      # Centralized environment variables
 └── .dockerignore / .gitignore
 ```
@@ -78,13 +96,13 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 2. **Choose a compose stack**
    ```bash
    # Development: reopens internal ports for easy access
-   docker compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+  docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
 
    # Production-like: only Nginx is exposed; all other services stay on the bridge network
-   docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
+  docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml up -d
    ```
    - Base/prod: exposes only Nginx on 80/443; everything else remains internal.
-   - Dev override: adds Postgres 5432, InfluxDB 8086, Grafana 3000, API 8000, MQTT 1883/9001, plus Nginx 80/443. Hot-reloads API by mounting `./api` into the container.
+  - Dev override: adds Postgres 5432, InfluxDB 8086, Grafana 3000, API 8000, MQTT 1883/9001, plus Nginx 80/443. Hot-reloads API by mounting `./apps/api` into the container.
 
 3. **Network sanity checks**
    ```bash
@@ -145,7 +163,7 @@ Fedora-native (recommended):
 
 ```bash
 cp .env.example .env
-podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+podman compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
 podman compose ps
 ```
 
@@ -153,7 +171,7 @@ Development stack:
 
 ```bash
 cp .env.example .env
-docker compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
 docker compose ps
 ```
 
@@ -161,22 +179,22 @@ Production-like local stack:
 
 ```bash
 cp .env.example .env
-docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
+docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml up -d
 docker compose ps
 ```
 
 Stop and clean local stack:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose-dev.yml down
-docker compose -f docker-compose.yml -f docker-compose-prod.yml down
+docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml down
+docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml down
 ```
 
 If you are on Fedora with SELinux enforcing and Docker daemon is not active, use Podman directly:
 
 ```bash
 systemctl --user enable --now podman.socket
-podman compose -f docker-compose.yml -f docker-compose-dev.yml up -d
+podman compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
 ```
 
 ### Run Terraform (environment roots)
@@ -299,26 +317,26 @@ Use the runbooks for backend/state work:
 - **Prometheus** scrapes service and host/container metrics.
 - **Loki** stores centralized logs.
 - **Grafana Alloy** collects Docker logs and forwards them to Loki.
-- **Grafana** provides dashboards with provisioned datasources/dashboards from `infrastructure/grafana/**`.
-- The stack is wired in `docker-compose.yml` with configs under `infrastructure/prometheus/`, `infrastructure/loki/`, and `infrastructure/alloy/`.
+- **Grafana** provides dashboards with provisioned datasources/dashboards from `infrastructure/k8s/base/grafana/**`.
+- The stack is wired in `docker-compose.yml` with configs under `infrastructure/k8s/base/prometheus/`, `infrastructure/k8s/base/loki/`, and `infrastructure/k8s/base/alloy/`.
 
 ## Next Steps
 
 - Wire the ETL container into Telegraf/MQTT once real sensor feeds are available.
 - Extend Terraform with firewalls, managed databases, and monitoring as infrastructure requirements solidify.
-- Add automated test coverage under `api/tests` and a frontend build pipeline when the dashboard grows.
+- Add automated test coverage under `apps/api/tests` and a frontend build pipeline when the dashboard grows.
 - [Practice safe secrets management]
 - another practice
 
 ## Grafana dashboards (versioned)
-- Dashboards are provisioned from `infrastructure/grafana/dashboards` via `infrastructure/grafana/provisioning/dashboards/fire-dashboards.yaml`. Any JSON you commit there is auto-loaded on container start.
+- Dashboards are provisioned from `infrastructure/k8s/base/grafana/dashboards` via `infrastructure/k8s/base/grafana/provisioning/dashboards/fire-dashboards.yaml`. Any JSON you commit there is auto-loaded on container start.
 - Export updates from a running Grafana with an API token:
   ```bash
   GRAFANA_URL=http://localhost:3000 \
   GRAFANA_TOKEN=<admin-or-editor-token> \
-  ./infrastructure/grafana/export_dashboards.sh <dashboard_uid>
+  ./infrastructure/k8s/base/grafana/export_dashboards.sh <dashboard_uid>
   ```
-  Commit the resulting `infrastructure/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
+  Commit the resulting `infrastructure/k8s/base/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
 - The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
 
 ## GHCR clean slate

@@ -5,11 +5,11 @@ set -euo pipefail
 # Usage:
 #   GRAFANA_URL=http://localhost:3000 \
 #   GRAFANA_TOKEN=eyJ... \
-#   ./infrastructure/grafana/export_dashboards.sh <uid1> <uid2> ...
+#   ./infrastructure/k8s/base/grafana/export_dashboards.sh <uid1> <uid2> ...
 #
 # GRAFANA_TOKEN: API token with "Admin" or "Editor" role.
 # GRAFANA_URL:   Grafana base URL (default http://localhost:3000).
-# Output files are written to infrastructure/grafana/dashboards/<uid>.json
+# Output files are written to infrastructure/k8s/base/grafana/dashboards/<uid>.json
 
 GRAFANA_URL=${GRAFANA_URL:-http://localhost:3000}
 GRAFANA_TOKEN=${GRAFANA_TOKEN:-}

@@ -42,7 +42,8 @@ ENV/
 # =================================================================
 # 5. INFRASTRUCTURE & PERSISTENT DATA
 # =================================================================
-# Ignore actual database files but keep the directory structure
+# Ignore runtime/persistent data but keep the directory structure.
+# Note: declarative MQTT/K8s config now lives under infrastructure/k8s/base/mqtt.
 infrastructure/mqtt/data/*
 infrastructure/mqtt/log/*
 infrastructure/influxdb/data/*

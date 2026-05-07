@@ -129,7 +129,7 @@ Terraform workflow (infra changes only):
 
 App CI image build workflow:
 - [.github/workflows/app-ci-build.yml](.github/workflows/app-ci-build.yml)
-- Triggers on `api/**`, `dashboard/**`, `etl-processor/**`, compose files, and workflow file.
+- Triggers on `apps/api/**`, `apps/dashboard/**`, `apps/etl-processor/**`, compose files, and workflow file.
 
 Manifest-to-sync workflow:
 - [.github/workflows/app-cd-manifest-trigger.yml](.github/workflows/app-cd-manifest-trigger.yml)
@@ -239,7 +239,7 @@ The practical traffic flow is:
 2. Dashboard pages call `/api/...` on the same origin, so requests are routed by ingress to the `api` service.
 3. API reads database and telemetry settings from the Terraform-created Secret/ConfigMap.
 4. API talks to backend services by the Kubernetes service names `db`, `mqtt`, and `influx`.
-5. Grafana is exposed on `/grafana` and can be embedded in the dashboard via the iframe URLs in [dashboard/public/protected/dashboard.html](dashboard/public/protected/dashboard.html).
+5. Grafana is exposed on `/grafana` and can be embedded in the dashboard via the iframe URLs in [apps/dashboard/public/protected/dashboard.html](apps/dashboard/public/protected/dashboard.html).
 
 ### 5.5 What Is Connected and What Is Not
 

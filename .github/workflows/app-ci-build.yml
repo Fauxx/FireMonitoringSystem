@@ -5,11 +5,11 @@ on:
     branches:
       - main
     paths:
-      - "api/**"
-      - "dashboard/**"
-      - "etl-processor/**"
+      - "apps/api/**"
+      - "apps/dashboard/**"
+      - "apps/etl-processor/**"
       - "docker-compose.yml"
-      - "docker-compose-prod.yml"
+      - "build/compose/**"
       - ".github/workflows/app-ci-build.yml"
   push:
     branches:
@@ -17,11 +17,11 @@ on:
     tags:
       - "v*"
     paths:
-      - "api/**"
-      - "dashboard/**"
-      - "etl-processor/**"
+      - "apps/api/**"
+      - "apps/dashboard/**"
+      - "apps/etl-processor/**"
       - "docker-compose.yml"
-      - "docker-compose-prod.yml"
+      - "build/compose/**"
       - ".github/workflows/app-ci-build.yml"
   workflow_dispatch:
 
@@ -94,7 +94,7 @@ jobs:
           IMAGE_REGISTRY=${IMAGE_REGISTRY}
           IMAGE_TAG=${IMAGE_TAG}
           EOFENV
-          docker compose -f docker-compose.yml -f docker-compose-prod.yml config -q
+          docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml config -q
           rm -f .env
 
   build-images:
@@ -106,11 +106,11 @@ jobs:
       matrix:
         include:
           - service: api
-            context: ./api
+            context: ./apps/api
           - service: etl-processor
-            context: ./etl-processor
+            context: ./apps/etl-processor
           - service: dashboard
-            context: ./dashboard
+            context: ./apps/dashboard
     steps:
       - name: Checkout
         uses: actions/checkout@v4

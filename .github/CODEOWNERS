@@ -1,0 +1,18 @@
+# Infrastructure
+/infrastructure/ @your-org/devops
+/infrastructure/terraform/ @your-org/devops
+/infrastructure/k8s/ @your-org/devops @your-org/platform
+
+# Applications
+/apps/api/ @your-org/backend
+/apps/dashboard/ @your-org/frontend
+/apps/etl-processor/ @your-org/data
+/apps/simulators/ @your-org/qa
+
+# CI/CD and governance
+/.github/workflows/ @your-org/devops
+/.github/actions/ @your-org/devops
+/README.md @your-org/tech-leads
+/CONTRIBUTING.md @your-org/tech-leads
+/SUPPORT.md @your-org/tech-leads
+/docs/ @your-org/tech-leads

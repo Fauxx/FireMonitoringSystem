@@ -1,0 +1,30 @@
+services:
+  api:
+    environment:
+      NODE_ENV: production
+      GRAFANA_PROXY_PROTECT: "true"
+
+  etl-processor:
+    environment:
+      ENVIRONMENT: production
+
+  db:
+    restart: unless-stopped
+
+  influx:
+    restart: unless-stopped
+
+  mqtt:
+    restart: unless-stopped
+
+  prometheus:
+    restart: unless-stopped
+
+  grafana:
+    restart: unless-stopped
+
+  nginx:
+    restart: unless-stopped
+
+  dashboard:
+    restart: unless-stopped

@@ -26,6 +26,7 @@ spec:
               subPath: local-config.yaml
             - name: loki-data
               mountPath: /loki
+              subPath: loki-data
       volumes:
         - name: loki-config
           configMap:

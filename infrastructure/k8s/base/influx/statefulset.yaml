@@ -28,6 +28,7 @@ spec:
           volumeMounts:
             - name: influx-data
               mountPath: /var/lib/influxdb2
+              subPath: influxdb2-data
           readinessProbe:
             httpGet:
               path: /health

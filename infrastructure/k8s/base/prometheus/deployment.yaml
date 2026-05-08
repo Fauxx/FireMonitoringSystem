@@ -28,6 +28,7 @@ spec:
               subPath: prometheus.yml
             - name: prometheus-data
               mountPath: /prometheus
+              subPath: prometheus-data
       volumes:
         - name: prometheus-config
           configMap:

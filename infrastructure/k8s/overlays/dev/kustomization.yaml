@@ -8,12 +8,12 @@ resources:
 
 images:
   - name: api
-    newName: ghcr.io/Fauxx/fire-monitoring-system/api
+    newName: ghcr.io/fauxx/fire-monitoring-system/api
     newTag: latest
   - name: etl-processor
-    newName: ghcr.io/Fauxx/fire-monitoring-system/etl-processor
+    newName: ghcr.io/fauxx/fire-monitoring-system/etl-processor
     newTag: latest
   - name: dashboard
-    newName: ghcr.io/Fauxx/fire-monitoring-system/dashboard
+    newName: ghcr.io/fauxx/fire-monitoring-system/dashboard
     newTag: latest
 

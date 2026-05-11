@@ -20,6 +20,8 @@ locals {
   create_do_ssh_private_key = var.enabled && length(trimspace(var.do_ssh_private_key)) > 0
   create_ghcr_username      = var.enabled && length(trimspace(var.ghcr_deploy_username)) > 0
   create_ghcr_token         = var.enabled && length(trimspace(var.ghcr_deploy_token)) > 0
+  create_github_app_id      = var.enabled && length(trimspace(var.github_app_id)) > 0
+  create_github_app_key     = var.enabled && length(trimspace(var.github_app_private_key)) > 0
   create_argocd_server      = var.enabled && length(trimspace(var.argocd_server)) > 0
   create_argocd_token       = var.enabled && length(trimspace(var.argocd_auth_token)) > 0
 }
@@ -100,6 +102,26 @@ resource "github_actions_environment_secret" "ghcr_deploy_token" {
   environment = github_repository_environment.this[0].environment
   secret_name = "GHCR_DEPLOY_TOKEN"
   value       = var.ghcr_deploy_token
+
+  depends_on = [github_repository_environment.this]
+}
+
+resource "github_actions_environment_secret" "github_app_id" {
+  count       = local.create_github_app_id ? 1 : 0
+  repository  = var.github_repo
+  environment = github_repository_environment.this[0].environment
+  secret_name = "GH_APP_ID"
+  value       = var.github_app_id
+
+  depends_on = [github_repository_environment.this]
+}
+
+resource "github_actions_environment_secret" "github_app_private_key" {
+  count       = local.create_github_app_key ? 1 : 0
+  repository  = var.github_repo
+  environment = github_repository_environment.this[0].environment
+  secret_name = "GH_APP_PRIVATE_KEY"
+  value       = var.github_app_private_key
 
   depends_on = [github_repository_environment.this]
 }

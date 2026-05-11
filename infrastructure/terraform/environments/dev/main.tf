@@ -389,6 +389,8 @@ module "github_secrets" {
   kubeconfig              = local.kubeconfig
   ghcr_deploy_username    = var.ghcr_deploy_username
   ghcr_deploy_token       = var.ghcr_deploy_token
+  github_app_id           = var.github_app_id
+  github_app_private_key  = var.github_app_private_key
   argocd_server           = var.argocd_server
   argocd_auth_token       = var.argocd_auth_token
 }

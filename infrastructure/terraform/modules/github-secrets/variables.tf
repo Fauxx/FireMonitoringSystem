@@ -42,6 +42,17 @@ variable "ghcr_deploy_token" {
   default   = ""
 }
 
+variable "github_app_id" {
+  type    = string
+  default = ""
+}
+
+variable "github_app_private_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 variable "argocd_server" {
   type    = string
   default = ""

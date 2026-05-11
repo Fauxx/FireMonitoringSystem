@@ -79,7 +79,7 @@ jobs:
           INFLUXDB_TOKEN: test-token
           INFLUXDB_URL: http://influx:8086
           IMAGE_REGISTRY: ghcr.io/example/repo
-          IMAGE_TAG: latest
+          IMAGE_TAG: sha-000000000000
         run: |
           cat > .env <<EOFENV
           POSTGRES_DB=${POSTGRES_DB}
@@ -150,7 +150,6 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: |
             ${{ steps.meta.outputs.image_registry }}/${{ matrix.service }}:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.meta.outputs.image_registry }}/${{ matrix.service }}:latest
 
       - name: Save image metadata
         if: matrix.service == 'api'
@@ -169,5 +168,50 @@ jobs:
         with:
           name: image-metadata-${{ github.run_id }}
           path: image-metadata.json
+          retention-days: 7
+
+  update-dev-overlay:
+    if: github.actor != 'github-actions[bot]' && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.compose-validate.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-images
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup kustomize
+        run: |
+          set -euo pipefail
+          curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.0/kustomize_v5.4.0_linux_amd64.tar.gz | tar xz
+          chmod +x kustomize
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Update dev image tags
+        run: |
+          set -euo pipefail
+          image_registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          image_tag="sha-${GITHUB_SHA::12}"
+          cd infrastructure/k8s/overlays/dev
+          kustomize edit set image api=${image_registry}/api:${image_tag}
+          kustomize edit set image etl-processor=${image_registry}/etl-processor:${image_tag}
+          kustomize edit set image dashboard=${image_registry}/dashboard:${image_tag}
+
+      - name: Create dev manifest patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No manifest changes to package."
+            exit 0
+          fi
+          git diff -- infrastructure/k8s/overlays/dev/kustomization.yaml > dev-manifests.patch
+
+      - name: Upload dev manifest patch
+        if: hashFiles('dev-manifests.patch') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-kustomize-patch-${{ github.run_id }}
+          path: dev-manifests.patch
           retention-days: 7
 

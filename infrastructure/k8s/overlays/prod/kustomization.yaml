@@ -8,6 +8,8 @@ resources:
 
 patchesStrategicMerge:
   - ingress-patch.yaml
+  - api-replicas-patch.yaml
+  - dashboard-replicas-patch.yaml
 
 patchesJson6902:
   - target:
@@ -24,13 +26,13 @@ patchesJson6902:
 images:
   - name: api
     newName: ghcr.io/fauxx/firemonitoringsystem/api
-    newTag: latest
+    newTag: sha-000000000000
   - name: etl-processor
     newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-    newTag: latest
+    newTag: sha-000000000000
   - name: dashboard
     newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-    newTag: latest
+    newTag: sha-000000000000
 
 commonLabels:
   environment: prod

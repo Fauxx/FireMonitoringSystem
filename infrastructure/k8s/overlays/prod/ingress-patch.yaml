@@ -3,7 +3,6 @@ kind: Ingress
 metadata:
   name: fire-monitoring
   annotations:
-    kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /
     # Security and rate limiting for production
     nginx.ingress.kubernetes.io/limit-rps: "50"

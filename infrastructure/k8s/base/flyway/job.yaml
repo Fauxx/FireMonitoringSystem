@@ -20,7 +20,7 @@ spec:
                 name: fire-monitoring-config
             - secretRef:
                 name: fire-monitoring-secrets
-          command: ["-connectRetries=60", "migrate"]
+          args: ["-connectRetries=60", "migrate"]
           volumeMounts:
             - name: flyway-sql
               mountPath: /flyway/sql

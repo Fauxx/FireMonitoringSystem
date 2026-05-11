@@ -6,6 +6,21 @@ namespace: fire-monitoring-prod
 resources:
   - ../../base
 
+patchesStrategicMerge:
+  - ingress-patch.yaml
+
+patchesJson6902:
+  - target:
+      group: v1
+      version: v1
+      kind: Service
+      name: nginx-ingress-controller
+      namespace: ingress-nginx
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer
+
 images:
   - name: api
     newName: ghcr.io/fauxx/firemonitoringsystem/api
@@ -16,4 +31,8 @@ images:
   - name: dashboard
     newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
     newTag: latest
+
+commonLabels:
+  environment: prod
+  deployment-type: production
 

@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   packages: write
 
 jobs:
@@ -198,20 +199,28 @@ jobs:
           kustomize edit set image etl-processor=${image_registry}/etl-processor:${image_tag}
           kustomize edit set image dashboard=${image_registry}/dashboard:${image_tag}
 
-      - name: Create dev manifest patch
+      - name: Detect dev overlay changes
+        id: dev-changes
         run: |
           set -euo pipefail
           if git diff --quiet; then
             echo "No manifest changes to package."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff -- infrastructure/k8s/overlays/dev/kustomization.yaml > dev-manifests.patch
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Upload dev manifest patch
-        if: hashFiles('dev-manifests.patch') != ''
-        uses: actions/upload-artifact@v4
+      - name: Create dev overlay PR
+        if: steps.dev-changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
         with:
-          name: dev-kustomize-patch-${{ github.run_id }}
-          path: dev-manifests.patch
-          retention-days: 7
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/dev-image-bump-${{ github.sha }}
+          delete-branch: true
+          title: "chore(kustomize): bump dev images to ${GITHUB_SHA::12}"
+          commit-message: "chore(kustomize): bump dev images to ${GITHUB_SHA::12}"
+          body: |
+            Automated update of dev overlay image tags for commit ${GITHUB_SHA}.
+          add-paths: |
+            infrastructure/k8s/overlays/dev/kustomization.yaml
 

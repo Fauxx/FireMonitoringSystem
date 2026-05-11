@@ -7,6 +7,12 @@ on:
     paths:
       - "infrastructure/k8s/**"
       - ".github/workflows/app-cd-manifest-trigger.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infrastructure/k8s/**"
+      - ".github/workflows/app-cd-manifest-trigger.yml"
 
 concurrency:
   group: app-cd-manifest-trigger-${{ github.ref }}
@@ -44,55 +50,3 @@ jobs:
           kustomize build . > /dev/null
           echo "✅ Prod overlay validation passed"
 
-  trigger-argo-sync:
-    needs: validate-kustomization
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      matrix:
-        include:
-          - environment: dev
-            server_secret: ARGOCD_SERVER
-            token_secret: ARGOCD_AUTH_TOKEN
-    environment: development
-    steps:
-      - name: Validate Argo CD secrets
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-        run: |
-          if [ -z "${ARGOCD_SERVER}" ] || [ -z "${ARGOCD_AUTH_TOKEN}" ]; then
-            echo "⚠️  ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not configured - skipping Argo sync"
-            exit 0
-          fi
-
-      - name: Install Argo CD CLI
-        run: |
-          set -euo pipefail
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          chmod +x argocd
-          sudo mv argocd /usr/local/bin/argocd
-
-      - name: Trigger Argo CD sync for manifest changes
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-        run: |
-          set -euo pipefail
-          ARGOCD_APP_NAME="fire-monitoring-dev"
-          
-          echo "ℹ️  Triggering sync for $ARGOCD_APP_NAME after manifest changes..."
-          argocd app sync "${ARGOCD_APP_NAME}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --grpc-web \
-            --prune || true
-          
-          echo "⏳ Waiting for sync to complete..."
-          argocd app wait "${ARGOCD_APP_NAME}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --grpc-web \
-            --timeout 300 || true
-          
-          echo "✅ Manifest sync completed"

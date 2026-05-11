@@ -6,6 +6,9 @@ namespace: fire-monitoring-dev
 resources:
   - ../../base
 
+patchesStrategicMerge:
+  - ingress-patch.yaml
+
 images:
   - name: api
     newName: ghcr.io/fauxx/firemonitoringsystem/api
@@ -16,4 +19,8 @@ images:
   - name: dashboard
     newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
     newTag: latest
+
+commonLabels:
+  environment: dev
+  deployment-type: development
 

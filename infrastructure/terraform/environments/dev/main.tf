@@ -37,24 +37,17 @@ provider "github" {
   app_auth {
     id              = var.github_app_id
     installation_id = var.github_app_installation_id
-    pem_file        = local.github_app_pem_file
+    pem_file        = base64decode(var.github_app_private_key)
   }
 }
 
 locals {
-  github_app_pem_file = var.github_app_private_key != "" ? ".terraform/github-app.pem" : ""
-}
-
-resource "local_sensitive_file" "github_app_pem" {
-  count    = var.github_app_private_key != "" ? 1 : 0
-  content  = var.github_app_private_key
-  filename = ".terraform/github-app.pem"
+  environment = "dev"
 }
 
 data "digitalocean_kubernetes_versions" "this" {}
 
 locals {
-  environment            = "dev"
   github_environment     = "development"
   namespace              = "fire-monitoring-dev"
   argocd_namespace       = "argocd"

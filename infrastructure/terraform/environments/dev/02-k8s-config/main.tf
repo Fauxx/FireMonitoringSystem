@@ -4,10 +4,6 @@ terraform {
   backend "s3" {}
 
   required_providers {
-    digitalocean = {
-      source  = "digitalocean/digitalocean"
-      version = ">= 2.40.0"
-    }
     github = {
       source  = "integrations/github"
       version = "~> 6.0"
@@ -20,15 +16,23 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.0"
-    }
   }
 }
 
-provider "digitalocean" {
-  token = var.do_token
+data "terraform_remote_state" "infra" {
+  backend = "s3"
+
+  config = {
+    endpoint                  = var.remote_state_endpoint
+    bucket                    = var.remote_state_bucket
+    key                       = var.remote_state_key
+    region                    = var.remote_state_region
+    skip_credentials_validation = var.remote_state_skip_credentials_validation
+    skip_metadata_api_check     = var.remote_state_skip_metadata_api_check
+    skip_region_validation      = var.remote_state_skip_region_validation
+    skip_requesting_account_id  = var.remote_state_skip_requesting_account_id
+    use_path_style              = var.remote_state_use_path_style
+  }
 }
 
 provider "github" {
@@ -41,48 +45,49 @@ provider "github" {
   }
 }
 
-data "digitalocean_kubernetes_versions" "this" {}
-
 locals {
-  environment            = "prod"
-  github_environment     = "production"
-  namespace              = "fire-monitoring-prod"
-  argocd_namespace       = "argocd"
-  manage_github_secrets  = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
+  environment        = "dev"
+  github_environment = "development"
+  namespace          = "fire-monitoring-dev"
+  argocd_namespace   = "argocd"
+
+  manage_github_secrets = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
   argocd_repo_url        = "https://github.com/${var.github_owner}/${var.github_repo}.git"
   argocd_server_internal = "argocd-server.${local.argocd_namespace}.svc.cluster.local"
   image_registry         = length(trimspace(var.github_owner)) > 0 && length(trimspace(var.github_repo)) > 0 ? "ghcr.io/${lower(var.github_owner)}/${lower(var.github_repo)}" : "ghcr.io/your-org/fire-monitoring-system"
+
   kubeconfig = yamlencode({
     apiVersion      = "v1"
     kind            = "Config"
-    current-context = digitalocean_kubernetes_cluster.this.name
+    current-context = data.terraform_remote_state.infra.outputs.cluster_name
     clusters = [
       {
-        name = digitalocean_kubernetes_cluster.this.name
+        name = data.terraform_remote_state.infra.outputs.cluster_name
         cluster = {
-          server                     = digitalocean_kubernetes_cluster.this.endpoint
-          certificate-authority-data = digitalocean_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate
+          server                     = data.terraform_remote_state.infra.outputs.cluster_endpoint
+          certificate-authority-data = data.terraform_remote_state.infra.outputs.cluster_ca_certificate
         }
       }
     ]
     contexts = [
       {
-        name = digitalocean_kubernetes_cluster.this.name
+        name = data.terraform_remote_state.infra.outputs.cluster_name
         context = {
-          cluster = digitalocean_kubernetes_cluster.this.name
-          user    = digitalocean_kubernetes_cluster.this.name
+          cluster = data.terraform_remote_state.infra.outputs.cluster_name
+          user    = data.terraform_remote_state.infra.outputs.cluster_name
         }
       }
     ]
     users = [
       {
-        name = digitalocean_kubernetes_cluster.this.name
+        name = data.terraform_remote_state.infra.outputs.cluster_name
         user = {
-          token = digitalocean_kubernetes_cluster.this.kube_config[0].token
+          token = data.terraform_remote_state.infra.outputs.cluster_token
         }
       }
     ]
   })
+
   ghcr_dockerconfigjson = jsonencode({
     auths = {
       "ghcr.io" = {
@@ -94,30 +99,17 @@ locals {
   })
 }
 
-resource "digitalocean_kubernetes_cluster" "this" {
-  name    = "fire-monitoring-${local.environment}"
-  region  = var.region
-  version = var.doks_version != "" ? var.doks_version : data.digitalocean_kubernetes_versions.this.latest_version
-
-  node_pool {
-    name       = "default-pool"
-    size       = var.doks_node_size
-    node_count = var.doks_node_count
-    tags       = ["fire-monitoring", "iot", local.environment]
-  }
-}
-
 provider "kubernetes" {
-  host                   = digitalocean_kubernetes_cluster.this.endpoint
-  token                  = digitalocean_kubernetes_cluster.this.kube_config[0].token
-  cluster_ca_certificate = base64decode(digitalocean_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate)
+  host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
+  token                  = data.terraform_remote_state.infra.outputs.cluster_token
+  cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
 }
 
 provider "helm" {
   kubernetes {
-    host                   = digitalocean_kubernetes_cluster.this.endpoint
-    token                  = digitalocean_kubernetes_cluster.this.kube_config[0].token
-    cluster_ca_certificate = base64decode(digitalocean_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate)
+    host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
+    token                  = data.terraform_remote_state.infra.outputs.cluster_token
+    cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
   }
 }
 
@@ -336,7 +328,7 @@ resource "kubernetes_manifest" "argocd_application" {
     apiVersion = "argoproj.io/v1alpha1"
     kind       = "Application"
     metadata = {
-      name      = "fire-monitoring-prod"
+      name      = "fire-monitoring-dev"
       namespace = kubernetes_namespace.argocd.metadata[0].name
       annotations = {
         "argocd-image-updater.argoproj.io/image-list"                    = "api=${local.image_registry}/api,etl-processor=${local.image_registry}/etl-processor,dashboard=${local.image_registry}/dashboard"
@@ -357,7 +349,7 @@ resource "kubernetes_manifest" "argocd_application" {
       source = {
         repoURL        = local.argocd_repo_url
         targetRevision = "main"
-        path           = "infrastructure/k8s/overlays/prod"
+        path           = "infrastructure/k8s/overlays/dev"
       }
       destination = {
         server    = "https://kubernetes.default.svc"
@@ -389,15 +381,12 @@ resource "kubernetes_manifest" "argocd_application" {
 }
 
 module "github_secrets" {
-  source                     = "../../modules/github-secrets"
+  source                     = "../../../modules/github-secrets"
   enabled                    = local.manage_github_secrets
   github_repo                = var.github_repo
   github_environment         = local.github_environment
   do_ssh_host                = ""
   do_ssh_host_fingerprint    = ""
-  do_ssh_port                = ""
-  do_ssh_user                = ""
-  do_ssh_private_key         = ""
   kubeconfig                 = local.kubeconfig
   ghcr_deploy_username       = var.ghcr_deploy_username
   ghcr_deploy_token          = var.ghcr_deploy_token
@@ -407,4 +396,3 @@ module "github_secrets" {
   argocd_server              = var.argocd_server
   argocd_auth_token          = var.argocd_auth_token
 }
-

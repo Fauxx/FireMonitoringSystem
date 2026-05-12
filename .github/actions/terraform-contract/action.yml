@@ -109,6 +109,43 @@ inputs:
     required: false
     default: ""
 
+  remote_state_bucket:
+    description: Remote state bucket name
+    required: false
+    default: ""
+  remote_state_key:
+    description: Remote state key path
+    required: false
+    default: ""
+  remote_state_region:
+    description: Remote state region
+    required: false
+    default: ""
+  remote_state_endpoint:
+    description: Remote state endpoint
+    required: false
+    default: ""
+  remote_state_skip_credentials_validation:
+    description: Skip remote state credentials validation
+    required: false
+    default: "true"
+  remote_state_skip_metadata_api_check:
+    description: Skip remote state metadata API check
+    required: false
+    default: "true"
+  remote_state_skip_region_validation:
+    description: Skip remote state region validation
+    required: false
+    default: "true"
+  remote_state_skip_requesting_account_id:
+    description: Skip remote state requesting account ID
+    required: false
+    default: "true"
+  remote_state_use_path_style:
+    description: Use path-style for remote state S3 endpoint
+    required: false
+    default: "true"
+
 runs:
   using: composite
   steps:
@@ -206,6 +243,15 @@ runs:
         ARGOCD_AUTH_TOKEN: ${{ inputs.argocd_auth_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
         DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
+        REMOTE_STATE_BUCKET: ${{ inputs.remote_state_bucket }}
+        REMOTE_STATE_KEY: ${{ inputs.remote_state_key }}
+        REMOTE_STATE_REGION: ${{ inputs.remote_state_region }}
+        REMOTE_STATE_ENDPOINT: ${{ inputs.remote_state_endpoint }}
+        REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION: ${{ inputs.remote_state_skip_credentials_validation }}
+        REMOTE_STATE_SKIP_METADATA_API_CHECK: ${{ inputs.remote_state_skip_metadata_api_check }}
+        REMOTE_STATE_SKIP_REGION_VALIDATION: ${{ inputs.remote_state_skip_region_validation }}
+        REMOTE_STATE_SKIP_REQUESTING_ACCOUNT_ID: ${{ inputs.remote_state_skip_requesting_account_id }}
+        REMOTE_STATE_USE_PATH_STYLE: ${{ inputs.remote_state_use_path_style }}
       run: |
         set -euo pipefail
         rm -f terraform.tfvars runtime.auto.tfvars
@@ -243,6 +289,26 @@ runs:
           } > runtime.auto.tfvars
         else
           printf 'require_secrets = false\n' > runtime.auto.tfvars
+        fi
+
+        if [ -n "${REMOTE_STATE_BUCKET}" ]; then
+          {
+            printf 'remote_state_bucket = "%s"\n' "${REMOTE_STATE_BUCKET}"
+            if [ -n "${REMOTE_STATE_KEY}" ]; then
+              printf 'remote_state_key = "%s"\n' "${REMOTE_STATE_KEY}"
+            fi
+            if [ -n "${REMOTE_STATE_REGION}" ]; then
+              printf 'remote_state_region = "%s"\n' "${REMOTE_STATE_REGION}"
+            fi
+            if [ -n "${REMOTE_STATE_ENDPOINT}" ]; then
+              printf 'remote_state_endpoint = "%s"\n' "${REMOTE_STATE_ENDPOINT}"
+            fi
+            printf 'remote_state_skip_credentials_validation = %s\n' "${REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION}"
+            printf 'remote_state_skip_metadata_api_check = %s\n' "${REMOTE_STATE_SKIP_METADATA_API_CHECK}"
+            printf 'remote_state_skip_region_validation = %s\n' "${REMOTE_STATE_SKIP_REGION_VALIDATION}"
+            printf 'remote_state_skip_requesting_account_id = %s\n' "${REMOTE_STATE_SKIP_REQUESTING_ACCOUNT_ID}"
+            printf 'remote_state_use_path_style = %s\n' "${REMOTE_STATE_USE_PATH_STYLE}"
+          } >> runtime.auto.tfvars
         fi
 
     - name: Terraform init

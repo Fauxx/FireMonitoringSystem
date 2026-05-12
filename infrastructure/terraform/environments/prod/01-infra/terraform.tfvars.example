@@ -1,0 +1,6 @@
+do_token = "PASTE_DO_TOKEN"
+
+region        = "sgp1"
+doks_version  = ""
+doks_node_size  = "s-2vcpu-4gb"
+doks_node_count = 2

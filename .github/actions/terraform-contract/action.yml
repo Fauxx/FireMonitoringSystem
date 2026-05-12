@@ -85,6 +85,7 @@ inputs:
     description: GHCR container registry token
     required: false
     default: ""
+  backend_bucket:
     description: Terraform backend bucket name
     required: false
     default: ""

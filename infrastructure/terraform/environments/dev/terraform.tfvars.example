@@ -46,3 +46,6 @@ threshold_smoke_red    = 250
 threshold_temp_orange  = 38.0
 threshold_temp_red     = 45.0
 
+github_app_id = "PASTE_GITHUB_APP_ID"
+github_app_private_key = "PASTE_GITHUB_APP_PRIVATE_KEY"
+

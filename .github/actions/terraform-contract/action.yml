@@ -65,7 +65,26 @@ inputs:
     required: false
     default: ""
 
-  backend_bucket:
+  github_app_id:
+    description: GitHub App ID
+    required: false
+    default: ""
+  github_app_installation_id:
+    description: GitHub App Installation ID
+    required: false
+    default: ""
+  github_app_private_key:
+    description: GitHub App private key (PEM format)
+    required: false
+    default: ""
+  ghcr_deploy_username:
+    description: GHCR container registry username
+    required: false
+    default: ""
+  ghcr_deploy_token:
+    description: GHCR container registry token
+    required: false
+    default: ""
     description: Terraform backend bucket name
     required: false
     default: ""
@@ -134,6 +153,11 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
+        GITHUB_APP_ID: ${{ inputs.github_app_id }}
+        GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
+        GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
+        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
+        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
         DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
         DO_SSH_HOST: ${{ inputs.do_ssh_host }}
@@ -173,6 +197,11 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
+        GITHUB_APP_ID: ${{ inputs.github_app_id }}
+        GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
+        GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
+        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
+        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
         ARGOCD_SERVER: ${{ inputs.argocd_server }}
         ARGOCD_AUTH_TOKEN: ${{ inputs.argocd_auth_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
@@ -188,6 +217,21 @@ runs:
             printf 'github_token = "%s"\n' "${GITHUB_TOKEN}"
             printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
             printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
+            if [ -n "${GITHUB_APP_ID}" ]; then
+              printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
+            fi
+            if [ -n "${GITHUB_APP_INSTALLATION_ID}" ]; then
+              printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
+            fi
+            if [ -n "${GITHUB_APP_PRIVATE_KEY}" ]; then
+              printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
+            fi
+            if [ -n "${GHCR_DEPLOY_USERNAME}" ]; then
+              printf 'ghcr_deploy_username = "%s"\n' "${GHCR_DEPLOY_USERNAME}"
+            fi
+            if [ -n "${GHCR_DEPLOY_TOKEN}" ]; then
+              printf 'ghcr_deploy_token = "%s"\n' "${GHCR_DEPLOY_TOKEN}"
+            fi
             if [ -n "${ARGOCD_SERVER}" ]; then
               printf 'argocd_server = "%s"\n' "${ARGOCD_SERVER}"
             fi

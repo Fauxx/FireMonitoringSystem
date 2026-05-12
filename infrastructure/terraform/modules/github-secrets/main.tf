@@ -13,17 +13,18 @@ resource "github_repository_environment" "this" {
 }
 
 locals {
-  create_do_ssh_host        = var.enabled && length(trimspace(var.do_ssh_host)) > 0
-  create_do_ssh_fingerprint = var.enabled && length(trimspace(var.do_ssh_host_fingerprint)) > 0
-  create_do_ssh_port        = var.enabled && length(trimspace(var.do_ssh_port)) > 0
-  create_do_ssh_user        = var.enabled && length(trimspace(var.do_ssh_user)) > 0
-  create_do_ssh_private_key = var.enabled && length(trimspace(var.do_ssh_private_key)) > 0
-  create_ghcr_username      = var.enabled && length(trimspace(var.ghcr_deploy_username)) > 0
-  create_ghcr_token         = var.enabled && length(trimspace(var.ghcr_deploy_token)) > 0
-  create_github_app_id      = var.enabled && length(trimspace(var.github_app_id)) > 0
-  create_github_app_key     = var.enabled && length(trimspace(var.github_app_private_key)) > 0
-  create_argocd_server      = var.enabled && length(trimspace(var.argocd_server)) > 0
-  create_argocd_token       = var.enabled && length(trimspace(var.argocd_auth_token)) > 0
+  create_do_ssh_host           = var.enabled && length(trimspace(var.do_ssh_host)) > 0
+  create_do_ssh_fingerprint    = var.enabled && length(trimspace(var.do_ssh_host_fingerprint)) > 0
+  create_do_ssh_port           = var.enabled && length(trimspace(var.do_ssh_port)) > 0
+  create_do_ssh_user           = var.enabled && length(trimspace(var.do_ssh_user)) > 0
+  create_do_ssh_private_key    = var.enabled && length(trimspace(var.do_ssh_private_key)) > 0
+  create_ghcr_username         = var.enabled && length(trimspace(var.ghcr_deploy_username)) > 0
+  create_ghcr_token            = var.enabled && length(trimspace(var.ghcr_deploy_token)) > 0
+  create_github_app_id         = var.enabled && length(trimspace(var.github_app_id)) > 0
+  create_github_app_key        = var.enabled && length(trimspace(var.github_app_private_key)) > 0
+  create_github_app_install_id = var.enabled && length(trimspace(var.github_app_installation_id)) > 0
+  create_argocd_server         = var.enabled && length(trimspace(var.argocd_server)) > 0
+  create_argocd_token          = var.enabled && length(trimspace(var.argocd_auth_token)) > 0
 }
 
 resource "github_actions_environment_secret" "do_ssh_host" {
@@ -122,6 +123,16 @@ resource "github_actions_environment_secret" "github_app_private_key" {
   environment = github_repository_environment.this[0].environment
   secret_name = "GH_APP_PRIVATE_KEY"
   value       = var.github_app_private_key
+
+  depends_on = [github_repository_environment.this]
+}
+
+resource "github_actions_environment_secret" "github_app_installation_id" {
+  count       = local.create_github_app_install_id ? 1 : 0
+  repository  = var.github_repo
+  environment = github_repository_environment.this[0].environment
+  secret_name = "GH_APP_INSTALLATION_ID"
+  value       = var.github_app_installation_id
 
   depends_on = [github_repository_environment.this]
 }

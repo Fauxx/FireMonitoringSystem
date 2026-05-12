@@ -51,7 +51,7 @@ locals {
   namespace          = "fire-monitoring-prod"
   argocd_namespace   = "argocd"
 
-  manage_github_secrets = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
+  manage_github_secrets  = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
   argocd_repo_url        = "https://github.com/${var.github_owner}/${var.github_repo}.git"
   argocd_server_internal = "argocd-server.${local.argocd_namespace}.svc.cluster.local"
   image_registry         = length(trimspace(var.github_owner)) > 0 && length(trimspace(var.github_repo)) > 0 ? "ghcr.io/${lower(var.github_owner)}/${lower(var.github_repo)}" : "ghcr.io/your-org/fire-monitoring-system"

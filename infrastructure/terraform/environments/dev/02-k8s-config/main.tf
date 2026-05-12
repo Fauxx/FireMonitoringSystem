@@ -23,10 +23,10 @@ data "terraform_remote_state" "infra" {
   backend = "s3"
 
   config = {
-    endpoint                  = var.remote_state_endpoint
-    bucket                    = var.remote_state_bucket
-    key                       = var.remote_state_key
-    region                    = var.remote_state_region
+    endpoint                    = var.remote_state_endpoint
+    bucket                      = var.remote_state_bucket
+    key                         = var.remote_state_key
+    region                      = var.remote_state_region
     skip_credentials_validation = var.remote_state_skip_credentials_validation
     skip_metadata_api_check     = var.remote_state_skip_metadata_api_check
     skip_region_validation      = var.remote_state_skip_region_validation
@@ -51,7 +51,7 @@ locals {
   namespace          = "fire-monitoring-dev"
   argocd_namespace   = "argocd"
 
-  manage_github_secrets = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
+  manage_github_secrets  = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
   argocd_repo_url        = "https://github.com/${var.github_owner}/${var.github_repo}.git"
   argocd_server_internal = "argocd-server.${local.argocd_namespace}.svc.cluster.local"
   image_registry         = length(trimspace(var.github_owner)) > 0 && length(trimspace(var.github_repo)) > 0 ? "ghcr.io/${lower(var.github_owner)}/${lower(var.github_repo)}" : "ghcr.io/your-org/fire-monitoring-system"

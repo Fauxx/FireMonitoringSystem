@@ -20,6 +20,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
   }
 }
 
@@ -28,18 +32,26 @@ provider "digitalocean" {
 }
 
 provider "github" {
-  token = var.github_token
   owner = var.github_owner
+
+  app_auth {
+    id              = var.github_app_id
+    installation_id = var.github_app_installation_id
+    pem_file        = base64decode(var.github_app_private_key)
+  }
+}
+
+locals {
+  environment = "dev"
 }
 
 data "digitalocean_kubernetes_versions" "this" {}
 
 locals {
-  environment            = "dev"
   github_environment     = "development"
   namespace              = "fire-monitoring-dev"
   argocd_namespace       = "argocd"
-  manage_github_secrets  = length(trimspace(var.github_token)) > 0 && length(trimspace(var.github_repo)) > 0
+  manage_github_secrets  = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
   argocd_repo_url        = "https://github.com/${var.github_owner}/${var.github_repo}.git"
   argocd_server_internal = "argocd-server.${local.argocd_namespace}.svc.cluster.local"
   image_registry         = length(trimspace(var.github_owner)) > 0 && length(trimspace(var.github_repo)) > 0 ? "ghcr.io/${lower(var.github_owner)}/${lower(var.github_repo)}" : "ghcr.io/your-org/fire-monitoring-system"
@@ -264,7 +276,7 @@ resource "helm_release" "argocd" {
       }
       repoServer = {
         autoscaling = {
-          enabled = false
+          enabled     = false
           minReplicas = 1
         }
       }
@@ -356,8 +368,8 @@ resource "kubernetes_manifest" "argocd_application" {
       }
       syncPolicy = {
         automated = {
-          prune   = true
-          selfHeal = true
+          prune      = true
+          selfHeal   = true
           allowEmpty = false
         }
         syncOptions = [
@@ -380,18 +392,19 @@ resource "kubernetes_manifest" "argocd_application" {
 }
 
 module "github_secrets" {
-  source                  = "../../modules/github-secrets"
-  enabled                 = local.manage_github_secrets
-  github_repo             = var.github_repo
-  github_environment      = local.github_environment
-  do_ssh_host             = ""
-  do_ssh_host_fingerprint = ""
-  kubeconfig              = local.kubeconfig
-  ghcr_deploy_username    = var.ghcr_deploy_username
-  ghcr_deploy_token       = var.ghcr_deploy_token
-  github_app_id           = var.github_app_id
-  github_app_private_key  = var.github_app_private_key
-  argocd_server           = var.argocd_server
-  argocd_auth_token       = var.argocd_auth_token
+  source                     = "../../modules/github-secrets"
+  enabled                    = local.manage_github_secrets
+  github_repo                = var.github_repo
+  github_environment         = local.github_environment
+  do_ssh_host                = ""
+  do_ssh_host_fingerprint    = ""
+  kubeconfig                 = local.kubeconfig
+  ghcr_deploy_username       = var.ghcr_deploy_username
+  ghcr_deploy_token          = var.ghcr_deploy_token
+  github_app_id              = var.github_app_id
+  github_app_installation_id = var.github_app_installation_id
+  github_app_private_key     = var.github_app_private_key
+  argocd_server              = var.argocd_server
+  argocd_auth_token          = var.argocd_auth_token
 }
 

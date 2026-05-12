@@ -65,7 +65,26 @@ inputs:
     required: false
     default: ""
 
-  backend_bucket:
+  github_app_id:
+    description: GitHub App ID
+    required: false
+    default: ""
+  github_app_installation_id:
+    description: GitHub App Installation ID
+    required: false
+    default: ""
+  github_app_private_key:
+    description: GitHub App private key (PEM format)
+    required: false
+    default: ""
+  ghcr_deploy_username:
+    description: GHCR container registry username
+    required: false
+    default: ""
+  ghcr_deploy_token:
+    description: GHCR container registry token
+    required: false
+    default: ""
     description: Terraform backend bucket name
     required: false
     default: ""
@@ -89,6 +108,43 @@ inputs:
     description: Backend secret key
     required: false
     default: ""
+
+  remote_state_bucket:
+    description: Remote state bucket name
+    required: false
+    default: ""
+  remote_state_key:
+    description: Remote state key path
+    required: false
+    default: ""
+  remote_state_region:
+    description: Remote state region
+    required: false
+    default: ""
+  remote_state_endpoint:
+    description: Remote state endpoint
+    required: false
+    default: ""
+  remote_state_skip_credentials_validation:
+    description: Skip remote state credentials validation
+    required: false
+    default: "true"
+  remote_state_skip_metadata_api_check:
+    description: Skip remote state metadata API check
+    required: false
+    default: "true"
+  remote_state_skip_region_validation:
+    description: Skip remote state region validation
+    required: false
+    default: "true"
+  remote_state_skip_requesting_account_id:
+    description: Skip remote state requesting account ID
+    required: false
+    default: "true"
+  remote_state_use_path_style:
+    description: Use path-style for remote state S3 endpoint
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -134,6 +190,11 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
+        GITHUB_APP_ID: ${{ inputs.github_app_id }}
+        GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
+        GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
+        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
+        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
         DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
         DO_SSH_HOST: ${{ inputs.do_ssh_host }}
@@ -173,10 +234,24 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
+        GITHUB_APP_ID: ${{ inputs.github_app_id }}
+        GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
+        GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
+        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
+        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
         ARGOCD_SERVER: ${{ inputs.argocd_server }}
         ARGOCD_AUTH_TOKEN: ${{ inputs.argocd_auth_token }}
         SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
         DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
+        REMOTE_STATE_BUCKET: ${{ inputs.remote_state_bucket }}
+        REMOTE_STATE_KEY: ${{ inputs.remote_state_key }}
+        REMOTE_STATE_REGION: ${{ inputs.remote_state_region }}
+        REMOTE_STATE_ENDPOINT: ${{ inputs.remote_state_endpoint }}
+        REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION: ${{ inputs.remote_state_skip_credentials_validation }}
+        REMOTE_STATE_SKIP_METADATA_API_CHECK: ${{ inputs.remote_state_skip_metadata_api_check }}
+        REMOTE_STATE_SKIP_REGION_VALIDATION: ${{ inputs.remote_state_skip_region_validation }}
+        REMOTE_STATE_SKIP_REQUESTING_ACCOUNT_ID: ${{ inputs.remote_state_skip_requesting_account_id }}
+        REMOTE_STATE_USE_PATH_STYLE: ${{ inputs.remote_state_use_path_style }}
       run: |
         set -euo pipefail
         rm -f terraform.tfvars runtime.auto.tfvars
@@ -188,6 +263,21 @@ runs:
             printf 'github_token = "%s"\n' "${GITHUB_TOKEN}"
             printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
             printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
+            if [ -n "${GITHUB_APP_ID}" ]; then
+              printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
+            fi
+            if [ -n "${GITHUB_APP_INSTALLATION_ID}" ]; then
+              printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
+            fi
+            if [ -n "${GITHUB_APP_PRIVATE_KEY}" ]; then
+              printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
+            fi
+            if [ -n "${GHCR_DEPLOY_USERNAME}" ]; then
+              printf 'ghcr_deploy_username = "%s"\n' "${GHCR_DEPLOY_USERNAME}"
+            fi
+            if [ -n "${GHCR_DEPLOY_TOKEN}" ]; then
+              printf 'ghcr_deploy_token = "%s"\n' "${GHCR_DEPLOY_TOKEN}"
+            fi
             if [ -n "${ARGOCD_SERVER}" ]; then
               printf 'argocd_server = "%s"\n' "${ARGOCD_SERVER}"
             fi
@@ -199,6 +289,26 @@ runs:
           } > runtime.auto.tfvars
         else
           printf 'require_secrets = false\n' > runtime.auto.tfvars
+        fi
+
+        if [ -n "${REMOTE_STATE_BUCKET}" ]; then
+          {
+            printf 'remote_state_bucket = "%s"\n' "${REMOTE_STATE_BUCKET}"
+            if [ -n "${REMOTE_STATE_KEY}" ]; then
+              printf 'remote_state_key = "%s"\n' "${REMOTE_STATE_KEY}"
+            fi
+            if [ -n "${REMOTE_STATE_REGION}" ]; then
+              printf 'remote_state_region = "%s"\n' "${REMOTE_STATE_REGION}"
+            fi
+            if [ -n "${REMOTE_STATE_ENDPOINT}" ]; then
+              printf 'remote_state_endpoint = "%s"\n' "${REMOTE_STATE_ENDPOINT}"
+            fi
+            printf 'remote_state_skip_credentials_validation = %s\n' "${REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION}"
+            printf 'remote_state_skip_metadata_api_check = %s\n' "${REMOTE_STATE_SKIP_METADATA_API_CHECK}"
+            printf 'remote_state_skip_region_validation = %s\n' "${REMOTE_STATE_SKIP_REGION_VALIDATION}"
+            printf 'remote_state_skip_requesting_account_id = %s\n' "${REMOTE_STATE_SKIP_REQUESTING_ACCOUNT_ID}"
+            printf 'remote_state_use_path_style = %s\n' "${REMOTE_STATE_USE_PATH_STYLE}"
+          } >> runtime.auto.tfvars
         fi
 
     - name: Terraform init

@@ -1,3 +1,48 @@
+variable "remote_state_bucket" {
+  type    = string
+  default = ""
+}
+
+variable "remote_state_key" {
+  type    = string
+  default = "prod/01-infra/terraform.tfstate"
+}
+
+variable "remote_state_region" {
+  type    = string
+  default = "us-east-1"
+}
+
+variable "remote_state_endpoint" {
+  type    = string
+  default = "https://sgp1.digitaloceanspaces.com"
+}
+
+variable "remote_state_skip_credentials_validation" {
+  type    = bool
+  default = true
+}
+
+variable "remote_state_skip_metadata_api_check" {
+  type    = bool
+  default = true
+}
+
+variable "remote_state_skip_region_validation" {
+  type    = bool
+  default = true
+}
+
+variable "remote_state_skip_requesting_account_id" {
+  type    = bool
+  default = true
+}
+
+variable "remote_state_use_path_style" {
+  type    = bool
+  default = true
+}
+
 variable "require_secrets" {
   type    = bool
   default = false
@@ -7,6 +52,16 @@ variable "do_token" {
   type      = string
   sensitive = true
   default   = ""
+}
+
+variable "ssh_key_ids" {
+  type    = string
+  default = ""
+}
+
+variable "do_ssh_host_fingerprint" {
+  type    = string
+  default = ""
 }
 
 variable "github_token" {
@@ -23,26 +78,6 @@ variable "github_owner" {
 variable "github_repo" {
   type    = string
   default = ""
-}
-
-variable "region" {
-  type    = string
-  default = "sgp1"
-}
-
-variable "doks_version" {
-  type    = string
-  default = ""
-}
-
-variable "doks_node_size" {
-  type    = string
-  default = "s-2vcpu-4gb"
-}
-
-variable "doks_node_count" {
-  type    = number
-  default = 2
 }
 
 variable "ghcr_deploy_username" {
@@ -207,4 +242,3 @@ variable "argocd_auth_token" {
   sensitive = true
   default   = ""
 }
-

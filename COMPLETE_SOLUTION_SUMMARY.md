@@ -363,6 +363,17 @@ Fire Monitoring System
 
 ---
 
+## 📅 TODAY'S EXECUTION PLAN
+
+- [ ] Confirm local prerequisites (`.env`, Docker/Compose, kubectl access)
+- [ ] Validate compose configuration (`dev` + `prod` overlays)
+- [ ] Rebuild and locally verify dashboard image serves `login.html`
+- [ ] Run dev deployment verification (rollout + service reachability checks)
+- [ ] Capture results in the active progress report and record blockers
+- [ ] Proceed to prod deployment only after all verification checks pass
+
+---
+
 ## 📞 SUPPORT RESOURCES
 
 - **Quick Action Plan:** APPLICATION_LAYER_FIX_QUICK_PLAN.md

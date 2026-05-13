@@ -136,9 +136,11 @@ This monorepo powers an IoT fire monitoring platform. Sensor readings flow throu
 
 2. Terraform secrets (used by `.github/workflows/terraform-infra.yml`):
    - `TF_VAR_do_token`
-   - `TF_VAR_github_token`
    - `TF_VAR_github_owner`
    - `TF_VAR_github_repo`
+  - `TF_VAR_github_app_id`
+  - `TF_VAR_github_app_installation_id`
+  - `TF_VAR_github_app_private_key`
    - `TF_VAR_argocd_server`
    - `TF_VAR_argocd_auth_token`
    - `TF_VAR_ssh_key_ids` (must be HCL list string like `["fingerprint-or-id"]`)
@@ -275,9 +277,11 @@ Use the runbooks for backend/state work:
 
 - **Bootstrap-required (hard fail if missing):**
   - `TF_VAR_do_token`
-  - `TF_VAR_github_token`
   - `TF_VAR_github_owner`
   - `TF_VAR_github_repo`
+  - `TF_VAR_github_app_id`
+  - `TF_VAR_github_app_installation_id`
+  - `TF_VAR_github_app_private_key`
   - `TF_VAR_ssh_key_ids`
   - `TF_VAR_do_ssh_host_fingerprint`
   - `TF_STATE_BUCKET`

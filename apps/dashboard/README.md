@@ -105,7 +105,7 @@ curl http://localhost:8080/css/style.css
 
 ```bash
 # Authenticate with GitHub Container Registry
-echo $GITHUB_TOKEN | docker login ghcr.io -u <username> --password-stdin
+echo $GHCR_TOKEN | docker login ghcr.io -u <username> --password-stdin
 
 # Push image
 docker push ghcr.io/fauxx/firemonitoringsystem/dashboard:latest

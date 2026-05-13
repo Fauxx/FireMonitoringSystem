@@ -174,7 +174,7 @@ kubectl logs -n argocd deployment/argocd-image-updater --tail=100
 **Step 2: Verify image exists in registry**
 ```bash
 # Check what images are available
-curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -H "Authorization: Bearer $GHCR_TOKEN" \
   https://ghcr.io/v2/fauxx/fire-monitoring-system/api/tags/list
 ```
 
@@ -243,7 +243,7 @@ git push origin main
 **Cause: Image doesn't exist**
 ```bash
 # Verify image in registry
-curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -H "Authorization: Bearer $GHCR_TOKEN" \
   https://ghcr.io/v2/fauxx/fire-monitoring-system/api/manifests/sha-abc123
 
 # If missing, trigger a rebuild

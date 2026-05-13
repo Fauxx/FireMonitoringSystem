@@ -3,7 +3,6 @@ remote_state_key    = "dev/01-infra/terraform.tfstate"
 remote_state_region = "us-east-1"
 remote_state_endpoint = "https://sgp1.digitaloceanspaces.com"
 
-github_token            = "PASTE_GITHUB_TOKEN"
 github_owner            = "PASTE_GITHUB_OWNER"
 github_repo             = "FireMonitoringSystem"
 

@@ -23,10 +23,6 @@ inputs:
     description: DigitalOcean API token
     required: false
     default: ""
-  github_token:
-    description: GitHub token for managing repository secrets
-    required: false
-    default: ""
   github_owner:
     description: GitHub owner (user or organization)
     required: false
@@ -188,7 +184,6 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       env:
         DO_TOKEN: ${{ inputs.do_token }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
@@ -206,9 +201,11 @@ runs:
 
         missing_bootstrap=()
         [ -n "${DO_TOKEN}" ] || missing_bootstrap+=("TF_VAR_do_token")
-        [ -n "${GITHUB_TOKEN}" ] || missing_bootstrap+=("TF_VAR_github_token")
         [ -n "${GITHUB_OWNER}" ] || missing_bootstrap+=("TF_VAR_github_owner")
         [ -n "${GITHUB_REPO}" ] || missing_bootstrap+=("TF_VAR_github_repo")
+        [ -n "${GITHUB_APP_ID}" ] || missing_bootstrap+=("TF_VAR_github_app_id")
+        [ -n "${GITHUB_APP_INSTALLATION_ID}" ] || missing_bootstrap+=("TF_VAR_github_app_installation_id")
+        [ -n "${GITHUB_APP_PRIVATE_KEY}" ] || missing_bootstrap+=("TF_VAR_github_app_private_key")
         [ -n "${SSH_KEY_IDS}" ] || missing_bootstrap+=("TF_VAR_ssh_key_ids")
         [ -n "${DO_SSH_HOST_FINGERPRINT}" ] || missing_bootstrap+=("TF_VAR_do_ssh_host_fingerprint")
 
@@ -232,7 +229,6 @@ runs:
       env:
         REQUIRE_SECRETS: ${{ inputs.require_secrets }}
         DO_TOKEN: ${{ inputs.do_token }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
         GITHUB_OWNER: ${{ inputs.github_owner }}
         GITHUB_REPO: ${{ inputs.github_repo }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
@@ -261,7 +257,6 @@ runs:
           {
             printf 'require_secrets = true\n'
             printf 'do_token     = "%s"\n' "${DO_TOKEN}"
-            printf 'github_token = "%s"\n' "${GITHUB_TOKEN}"
             printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
             printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
             if [ -n "${GITHUB_APP_ID}" ]; then

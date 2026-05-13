@@ -64,12 +64,6 @@ variable "do_ssh_host_fingerprint" {
   default = ""
 }
 
-variable "github_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
 variable "github_owner" {
   type    = string
   default = ""

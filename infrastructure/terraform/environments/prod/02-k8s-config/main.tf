@@ -45,13 +45,26 @@ provider "github" {
   }
 }
 
+data "github_app_token" "argocd_repo" {
+  count           = local.manage_github_secrets ? 1 : 0
+  app_id          = var.github_app_id
+  installation_id = var.github_app_installation_id
+  pem_file        = base64decode(var.github_app_private_key)
+}
+
 locals {
   environment        = "prod"
   github_environment = "production"
   namespace          = "fire-monitoring-prod"
   argocd_namespace   = "argocd"
 
-  manage_github_secrets  = (length(trimspace(var.github_app_id)) > 0 || length(trimspace(var.github_token)) > 0) && length(trimspace(var.github_repo)) > 0
+  manage_github_secrets = (
+    length(trimspace(var.github_app_id)) > 0 &&
+    length(trimspace(var.github_app_installation_id)) > 0 &&
+    length(trimspace(var.github_app_private_key)) > 0 &&
+    length(trimspace(var.github_owner)) > 0 &&
+    length(trimspace(var.github_repo)) > 0
+  )
   argocd_repo_url        = "https://github.com/${var.github_owner}/${var.github_repo}.git"
   argocd_server_internal = "argocd-server.${local.argocd_namespace}.svc.cluster.local"
   image_registry         = length(trimspace(var.github_owner)) > 0 && length(trimspace(var.github_repo)) > 0 ? "ghcr.io/${lower(var.github_owner)}/${lower(var.github_repo)}" : "ghcr.io/your-org/fire-monitoring-system"
@@ -202,7 +215,7 @@ resource "kubernetes_secret" "argocd_repo_credentials" {
   data = {
     url      = local.argocd_repo_url
     username = "x-access-token"
-    password = var.github_token
+    password = data.github_app_token.argocd_repo[0].token
   }
 
   type = "Opaque"

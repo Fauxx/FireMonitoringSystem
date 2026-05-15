@@ -42,16 +42,12 @@ jobs:
 
       - name: Terraform Format Check
         run: terraform -chdir=../../.. fmt -recursive -check
-        continue-on-error: true
 
       - name: Terraform Init (no backend)
         run: terraform init -backend=false
-        continue-on-error: true
 
       - name: Terraform Validate
         run: terraform validate
-        continue-on-error: true
 
       - name: Terraform Plan (read-only)
         run: terraform plan -input=false
-        continue-on-error: true

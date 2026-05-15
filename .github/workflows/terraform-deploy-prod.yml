@@ -24,7 +24,7 @@ on:
 
 concurrency:
   group: terraform-deploy-prod-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -32,6 +32,7 @@ permissions:
 
 jobs:
   deploy-prod:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.layer == 'all' || matrix.layer == inputs.layer }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
@@ -81,12 +82,19 @@ jobs:
           terraform fmt -check -recursive ../../..
           terraform validate
 
-          terraform plan -input=false -lock-timeout=300s -out=tfplan.binary || true
+          set +e
+          terraform plan -input=false -lock-timeout=300s -detailed-exitcode -out=tfplan.binary
+          exit_code=$?
+          set -e
+          if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
+            echo "Terraform plan failed with exit code ${exit_code}"
+            exit "${exit_code}"
+          fi
+
+          terraform show -no-color tfplan.binary > tfplan.txt
 
           if [ "${{ github.event.inputs.execution_mode }}" = "apply" ]; then
             terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
-          else
-            terraform show -no-color tfplan.binary > tfplan.txt || true
           fi
 
       - name: Upload artifacts

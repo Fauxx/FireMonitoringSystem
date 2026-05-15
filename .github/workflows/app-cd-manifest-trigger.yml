@@ -1,22 +1,16 @@
 name: App CD Manifest Trigger
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "infrastructure/k8s/**"
-      - ".github/workflows/app-cd-manifest-trigger.yml"
   pull_request:
     branches:
       - main
     paths:
-      - "infrastructure/k8s/**"
+      - "infrastructure/k8s/overlays/**"
       - ".github/workflows/app-cd-manifest-trigger.yml"
 
 concurrency:
   group: app-cd-manifest-trigger-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read

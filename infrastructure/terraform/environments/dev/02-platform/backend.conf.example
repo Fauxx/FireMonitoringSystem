@@ -1,0 +1,6 @@
+## Example backend.conf for dev/02-platform
+## This file should only contain the backend key and non-sensitive backend settings.
+## DO NOT add your Spaces access key/secret here. Provide those via environment variables
+## `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` or a shared credentials file.
+
+key = "dev/02-platform/terraform.tfstate"

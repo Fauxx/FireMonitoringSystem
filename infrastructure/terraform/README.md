@@ -16,7 +16,19 @@ This repository uses environment-only state splitting:
 - `environments/dev/terraform.tfstate`
 - `environments/prod/terraform.tfstate`
 
-`backend.conf` in each environment captures the key shape and backend settings contract.
+Backend config strategy:
+
+- Keep a shared, non-sensitive common backend config at `infrastructure/terraform/backend-common.conf` (example at `backend-common.conf.example`).
+- Keep environment-specific `backend.conf` files in each environment folder that provide the `key` for the state file (do NOT put access keys in these files).
+
+When initializing locally you can combine both files like:
+
+```bash
+cd infrastructure/terraform/environments/dev/02-platform
+terraform init -reconfigure \
+	-backend-config=../../../backend-common.conf \
+	-backend-config=backend.conf
+```
 
 ## Local init and plan
 

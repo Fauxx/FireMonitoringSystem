@@ -1,0 +1,18 @@
+github_owner      = "Fauxx"
+github_repository = "FireMonitoringSystem"
+
+remote_state_bucket = "tup-firemonitoring-state"
+infra_state_key     = "dev/01-infra/terraform.tfstate"
+
+# Plumbing (The "Where")
+remote_state_bucket   = "tup-firemonitoring-state"
+infra_state_key       = "dev/01-infra/terraform.tfstate"
+remote_state_endpoint = "sgp1.digitaloceanspaces.com"
+
+# Identity (The "What")
+github_repository = "FireMonitoringSystem"
+github_owner      = "Fauxx"
+argocd_server     = "argocd.fires.systems"
+# Optional: ArgoCD auth token (set if you want to populate ARGOCD_AUTH_TOKEN in GitHub)
+argocd_auth_token = ""
+remote_state_region = "us-east-1"

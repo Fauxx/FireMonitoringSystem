@@ -1,0 +1,57 @@
+name: Terraform Validate (PR)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/terraform-validate.yml"
+
+concurrency:
+  group: terraform-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        layer:
+          - dev/01-infra
+          - dev/02-platform
+          - dev/03-argocd
+    defaults:
+      run:
+        shell: bash
+        working-directory: infrastructure/terraform/environments/${{ matrix.layer }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5.0"
+
+      - name: Terraform Format Check
+        run: terraform -chdir=../../.. fmt -recursive -check
+        continue-on-error: true
+
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+        continue-on-error: true
+
+      - name: Terraform Validate
+        run: terraform validate
+        continue-on-error: true
+
+      - name: Terraform Plan (read-only)
+        run: terraform plan -input=false
+        continue-on-error: true

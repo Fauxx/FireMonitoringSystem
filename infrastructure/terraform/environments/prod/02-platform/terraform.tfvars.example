@@ -1,0 +1,5 @@
+remote_state_bucket   = "tup-firemonitoring-state"
+infra_state_key       = "dev/01-infra/terraform.tfstate"
+remote_state_region   = "us-east-1"
+remote_state_endpoint = "sgp1.digitaloceanspaces.com"
+argocd_server         = "https://argocd.fires.systems"

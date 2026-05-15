@@ -4,7 +4,8 @@ terraform {
   backend "s3" {} # Uses your backend-common.conf
 
   required_providers {
-    kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.30" }
+    kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
+    digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
   }
 }
 
@@ -14,11 +15,11 @@ terraform {
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    bucket              = var.remote_state_bucket
-    key                 = var.infra_state_key
-    region              = var.remote_state_region
-    endpoints           = { s3 = "https://${var.remote_state_endpoint}" }
-    use_path_style      = true
+    bucket                      = var.remote_state_bucket
+    key                         = var.infra_state_key
+    region                      = var.remote_state_region
+    endpoints                   = { s3 = "https://${var.remote_state_endpoint}" }
+    use_path_style              = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
@@ -26,13 +27,21 @@ data "terraform_remote_state" "infra" {
   }
 }
 
+data "digitalocean_kubernetes_cluster" "infra" {
+  name = var.cluster_name
+}
+
+provider "digitalocean" {
+  token = var.do_token
+}
+
 # -------------------------
 # Providers
 # -------------------------
 provider "kubernetes" {
-  host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-  token                  = data.terraform_remote_state.infra.outputs.cluster_token
-  cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
+  host                   = data.digitalocean_kubernetes_cluster.infra.endpoint
+  token                  = data.digitalocean_kubernetes_cluster.infra.kube_config[0].token
+  cluster_ca_certificate = base64decode(data.digitalocean_kubernetes_cluster.infra.kube_config[0].cluster_ca_certificate)
 }
 
 # -------------------------

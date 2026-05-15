@@ -21,6 +21,17 @@ variable "remote_state_endpoint" {
   default     = "sgp1.digitaloceanspaces.com"
 }
 
+variable "do_token" {
+  description = "DigitalOcean API token used to read the cluster configuration"
+  type        = string
+  sensitive   = true
+}
+
+variable "cluster_name" {
+  description = "Name of the DigitalOcean Kubernetes cluster"
+  type        = string
+}
+
 # -------------------------
 # GitOps Repo Settings
 # -------------------------

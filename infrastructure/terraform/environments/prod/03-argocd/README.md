@@ -12,6 +12,7 @@ This layer manages the ArgoCD `Application` (app-of-apps) and repository credent
 - `gitops_repo_apps_path` defaults to `infrastructure/k8s/overlays/prod`.
 - Terraform state key is `prod/03-argocd/terraform.tfstate`.
 - Use the `production` workflow for apply with required reviewers.
+- The layer reads cluster credentials using `do_token` and the infra `cluster_id` output.
 
 ## Setup Steps
 
@@ -24,6 +25,8 @@ base64 -w0 argocd-deploy-prod > /tmp/argocd-deploy-prod.b64
 
 2. Create `terraform.tfvars` (or set environment variables) using `terraform.tfvars.example`.
 
+  Make sure `do_token` is set so Terraform can fetch the current kubeconfig from DigitalOcean.
+
 3. Initialize & plan (example):
 
 ```bash
@@ -31,6 +34,7 @@ export AWS_ACCESS_KEY_ID="<SPACES_KEY>"
 export AWS_SECRET_ACCESS_KEY="<SPACES_SECRET>"
 export AWS_REGION="us-east-1"
 export AWS_EC2_METADATA_DISABLED=true
+export TF_VAR_do_token="<YOUR_DIGITALOCEAN_TOKEN>"
 
 cd infrastructure/terraform/environments/prod/03-argocd
 terraform init -reconfigure \

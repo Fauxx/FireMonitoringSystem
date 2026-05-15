@@ -13,6 +13,7 @@ This layer manages the ArgoCD Application (app-of-apps) and repository credentia
 1. **GitOps repository:** A separate Git repository (e.g., `gitops-repo`) containing Kustomize/Helm manifests in `apps/` folder
 2. **SSH deploy key:** Generate a read-only SSH key for ArgoCD to clone the GitOps repo
 3. **Terraform state:** Remote state in DigitalOcean Spaces (shared with `01-infra` and `02-platform`)
+4. **DigitalOcean token:** A `do_token` with read access to the cluster
 
 ## Setup Steps
 
@@ -45,10 +46,11 @@ remote_state_bucket     = "tup-firemonitoring-state"
 infra_state_key         = "dev/01-infra/terraform.tfstate"
 remote_state_region     = "us-east-1"
 remote_state_endpoint   = "sgp1.digitaloceanspaces.com"
+do_token                = "<YOUR_DIGITALOCEAN_TOKEN>"
 
 gitops_repo_url         = "git@github.com:YOUR_ORG/gitops-repo.git"
 gitops_repo_branch      = "main"
-gitops_repo_apps_path   = "apps"
+gitops_repo_apps_path   = "infrastructure/k8s/overlays/dev"
 gitops_repo_ssh_private_key = "base64-encode-of-private-key"  # base64 argocd-deploy
 ```
 
@@ -66,6 +68,7 @@ export AWS_ACCESS_KEY_ID="<YOUR_SPACES_KEY>"
 export AWS_SECRET_ACCESS_KEY="<YOUR_SPACES_SECRET>"
 export AWS_REGION="us-east-1"
 export AWS_EC2_METADATA_DISABLED=true
+export TF_VAR_do_token="<YOUR_DIGITALOCEAN_TOKEN>"
 
 terraform init -reconfigure \
   -backend-config=../../../backend-common.conf \

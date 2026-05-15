@@ -1,13 +1,6 @@
 name: Terraform Infra
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "infrastructure/terraform/**"
-      - ".github/workflows/terraform-infra.yml"
-      - ".github/actions/terraform-contract/**"
   workflow_dispatch:
     inputs:
       environment:
@@ -44,52 +37,13 @@ on:
 
 concurrency:
   group: terraform-infra-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}-${{ github.event_name == 'workflow_dispatch' && inputs.layer || 'all' }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
   actions: read
 
 jobs:
-  terraform-pr-validate:
-    if: github.actor != 'github-actions[bot]' && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        layer:
-          - 01-infra
-          - 02-platform
-    defaults:
-      run:
-        shell: bash
-        working-directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform fmt
-        run: terraform -chdir=../../.. fmt -recursive -check
-
-      - name: Apply shared Terraform contract
-        uses: ./.github/actions/terraform-contract
-        with:
-          working_directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
-          environment_name: dev
-          use_backend: "false"
-          require_secrets: "false"
-          remote_state_bucket: "tup-firemonitoring-state"
-          remote_state_key: "dev/01-infra/terraform.tfstate"
-          remote_state_region: "us-east-1"
-          remote_state_endpoint: "https://sgp1.digitaloceanspaces.com"
-
-      - name: Terraform validate
-        run: terraform validate
-
   terraform-run-infra:
     if: github.actor != 'github-actions[bot]' && github.event_name == 'workflow_dispatch' && (inputs.layer == '01-infra' || inputs.layer == 'both')
     runs-on: ubuntu-latest

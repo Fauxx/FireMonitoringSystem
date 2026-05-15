@@ -39,13 +39,18 @@ permissions:
 
 jobs:
   terraform-deploy:
+    # For workflow_dispatch, the `inputs.layer` controls which matrix entry runs.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.layer == 'all' || matrix.layer == inputs.layer }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     strategy:
       fail-fast: false
       matrix:
-        layer: ${{ github.event_name == 'workflow_dispatch' && (fromJson(format('["{0}"]', inputs.layer)) == 'all' ? fromJson('["01-infra", "02-platform", "03-argocd"]') : fromJson(format('["{0}"]', inputs.layer))) || fromJson('["01-infra", "02-platform", "03-argocd"]') }}
+        layer:
+          - 01-infra
+          - 02-platform
+          - 03-argocd
     defaults:
       run:
         shell: bash

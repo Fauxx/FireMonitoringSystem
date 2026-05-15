@@ -1,25 +1,31 @@
 variable "do_token" {
-  type      = string
-  sensitive = true
-  default   = ""
+  description = "DigitalOcean Personal Access Token"
+  type        = string
+  sensitive   = true
 }
 
 variable "region" {
-  type    = string
-  default = "sgp1"
+  description = "DigitalOcean region"
+  type        = string
+  default     = "sgp1"
 }
 
-variable "doks_version" {
-  type    = string
-  default = ""
+variable "root_domain" {
+  description = "The main domain for the project (e.g., fires.systems)"
+  type        = string
 }
 
-variable "doks_node_size" {
-  type    = string
-  default = "s-2vcpu-4gb"
+variable "cluster_name" {
+  description = "The name of the Kubernetes cluster"
+  type        = string
 }
 
-variable "doks_node_count" {
-  type    = number
-  default = 2
+variable "node_size" {
+  description = "Droplet size for the worker nodes"
+  type        = string
+}
+
+variable "node_count" {
+  description = "Number of worker nodes"
+  type        = number
 }

@@ -1,62 +1,38 @@
 variable "enabled" {
-  type = bool
+  description = "Enable or disable secret syncing"
+  type        = bool
+  default     = true
 }
 
 variable "github_repo" {
-  type = string
+  description = "The target GitHub repository name"
+  type        = string
 }
 
 variable "github_environment" {
-  type = string
-}
-
-variable "do_ssh_host" {
-  type = string
-}
-
-variable "do_ssh_host_fingerprint" {
-  type = string
+  description = "The GitHub environment (e.g., dev, prod)"
+  type        = string
 }
 
 variable "kubeconfig" {
-  type      = string
-  sensitive = true
-  default   = ""
+  description = "The raw kubeconfig content for the cluster"
+  type        = string
+  sensitive   = true
 }
 
-variable "do_ssh_private_key" {
-  type      = string
-  sensitive = true
-  default   = ""
+variable "do_token" {
+  description = "DigitalOcean API Token"
+  type        = string
+  sensitive   = true
 }
 
-variable "ghcr_deploy_username" {
-  type      = string
-  sensitive = true
-  default   = ""
+variable "cluster_id" {
+  description = "Optional cluster id from infra layer (used by automation)"
+  type        = string
+  default     = ""
 }
 
-variable "ghcr_deploy_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "github_app_id" {
-  type    = string
-  default = ""
-}
-
-variable "github_app_installation_id" {
-  type    = string
-  default = ""
-}
-
-variable "github_app_private_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
+# --- Optional Variables (Defaults to empty strings) ---
 
 variable "argocd_server" {
   type    = string
@@ -64,18 +40,32 @@ variable "argocd_server" {
 }
 
 variable "argocd_auth_token" {
+  type    = string
+  default = ""
+}
+
+variable "ghcr_deploy_username" {
+  type    = string
+  default = ""
+}
+
+variable "ghcr_deploy_token" {
+  type    = string
+  default = ""
+}
+
+variable "github_app_id" {
+  type    = string
+  default = ""
+}
+
+variable "github_app_private_key" {
   type      = string
-  sensitive = true
   default   = ""
+  sensitive = true
 }
 
-variable "do_ssh_port" {
+variable "github_app_installation_id" {
   type    = string
-  default = "22"
+  default = ""
 }
-
-variable "do_ssh_user" {
-  type    = string
-  default = "root"
-}
-

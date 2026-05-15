@@ -1,0 +1,136 @@
+name: Terraform Deploy (main)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/terraform/**"
+      - ".github/workflows/terraform-deploy.yml"
+      - ".github/scripts/mint-app-token.sh"
+  workflow_dispatch:
+    inputs:
+      layer:
+        description: "Terraform layer to deploy"
+        required: true
+        type: choice
+        options:
+          - 01-infra
+          - 02-platform
+          - 03-argocd
+          - all
+        default: all
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+        default: plan-only
+
+concurrency:
+  group: terraform-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  terraform-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ github.event_name == 'workflow_dispatch' && (fromJson(format('["{0}"]', inputs.layer)) == 'all' ? fromJson('["01-infra", "02-platform", "03-argocd"]') : fromJson(format('["{0}"]', inputs.layer))) || fromJson('["01-infra", "02-platform", "03-argocd"]') }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5.0"
+
+      - name: Mint GitHub App Installation Token
+        id: mint-token
+        env:
+          APP_ID: ${{ secrets.TF_VAR_github_app_id }}
+          INSTALLATION_ID: ${{ secrets.TF_VAR_github_app_installation_id }}
+          APP_KEY_B64: ${{ secrets.TF_VAR_github_app_private_key }}
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/mint-app-token.sh
+          .github/scripts/mint-app-token.sh
+
+      - name: Setup environment
+        env:
+          INSTALLATION_TOKEN: ${{ steps.mint-token.outputs.installation_token }}
+        run: |
+          echo "GITHUB_TOKEN=${INSTALLATION_TOKEN}" >> $GITHUB_ENV
+          echo "AWS_EC2_METADATA_DISABLED=true" >> $GITHUB_ENV
+
+      - name: Terraform Init and Deploy (dev/${{ matrix.layer }})
+        working-directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          terraform init -reconfigure \
+            -backend-config=../../../backend-common.conf \
+            -backend-config=backend.conf
+          terraform fmt -check -recursive ../../..
+          terraform validate
+
+      - name: Terraform Plan (dev/${{ matrix.layer }})
+        id: tfplan
+        working-directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          terraform plan -input=false -lock-timeout=300s -out=tfplan.binary
+          terraform show -no-color tfplan.binary > tfplan.txt
+          echo "plan_exit_code=0" >> $GITHUB_OUTPUT
+
+      - name: Terraform Apply (dev/${{ matrix.layer }})
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply')
+        working-directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+        run: terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
+
+      - name: Export Terraform Outputs
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply')
+        working-directory: infrastructure/terraform/environments/dev/${{ matrix.layer }}
+        run: terraform output -json > terraform-outputs.json
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-${{ github.run_id }}-${{ matrix.layer }}
+          path: |
+            infrastructure/terraform/environments/dev/${{ matrix.layer }}/tfplan.txt
+            infrastructure/terraform/environments/dev/${{ matrix.layer }}/terraform-outputs.json
+          retention-days: 7

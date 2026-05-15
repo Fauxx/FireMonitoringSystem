@@ -1,0 +1,104 @@
+name: Terraform Deploy (prod - manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      layer:
+        description: "Terraform layer to deploy"
+        required: true
+        type: choice
+        options:
+          - 01-infra
+          - 02-platform
+          - 03-argocd
+          - all
+        default: all
+      execution_mode:
+        description: "Execution mode"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+        default: plan-only
+
+concurrency:
+  group: terraform-deploy-prod-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson('["01-infra","02-platform","03-argocd"]') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.5.0"
+
+      - name: Mint GitHub App Installation Token
+        id: mint-token
+        env:
+          APP_ID: ${{ secrets.TF_VAR_github_app_id }}
+          INSTALLATION_ID: ${{ secrets.TF_VAR_github_app_installation_id }}
+          APP_KEY_B64: ${{ secrets.TF_VAR_github_app_private_key }}
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/mint-app-token.sh
+          .github/scripts/mint-app-token.sh
+
+      - name: Export token to env
+        run: echo "GITHUB_TOKEN=${{ steps.mint-token.outputs.installation_token }}" >> $GITHUB_ENV
+
+      - name: Init and Plan/Apply (prod)
+        working-directory: infrastructure/terraform/environments/prod/${{ matrix.layer }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          terraform init -reconfigure \
+            -backend-config=../../../backend-common.conf \
+            -backend-config=backend.conf
+
+          terraform fmt -check -recursive ../../..
+          terraform validate
+
+          terraform plan -input=false -lock-timeout=300s -out=tfplan.binary || true
+
+          if [ "${{ github.event.inputs.execution_mode }}" = "apply" ]; then
+            terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
+          else
+            terraform show -no-color tfplan.binary > tfplan.txt || true
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-prod-${{ github.run_id }}-${{ matrix.layer }}
+          path: |
+            infrastructure/terraform/environments/prod/${{ matrix.layer }}/tfplan.txt
+          retention-days: 7
+
+# Notes:
+# - This workflow is manual (workflow_dispatch) and the job uses the `production` environment.
+# - Configure the `production` environment in your repository settings to require reviewers/approvals.
+# - When the environment has required reviewers, starting this job will pause and require approval before the job runs.

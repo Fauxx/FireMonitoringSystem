@@ -1,6 +1,8 @@
-do_token = "PASTE_DO_TOKEN"
+# environments/dev/01-infra/terraform.tfvars
 
-region        = "sgp1"
-doks_version  = ""
-doks_node_size  = "s-2vcpu-4gb"
-doks_node_count = 2
+do_token     = "dop_v1_YOUR_ACTUAL_TOKEN_HERE"
+root_domain  = "fires.systems"
+region       = "sgp1"
+cluster_name = "fire-monitoring-dev"
+node_size    = "s-2vcpu-4gb"
+node_count   = 2

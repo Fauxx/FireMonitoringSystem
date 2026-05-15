@@ -1,12 +1,13 @@
 terraform {
   required_version = ">= 1.5.0"
 
+  # Secure Remote State Storage in DO Spaces
   backend "s3" {}
 
   required_providers {
     digitalocean = {
       source  = "digitalocean/digitalocean"
-      version = ">= 2.40.0"
+      version = "~> 2.34"
     }
   }
 }
@@ -15,52 +16,29 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-data "digitalocean_kubernetes_versions" "this" {}
-
-locals {
-  environment = "dev"
-  kubeconfig = yamlencode({
-    apiVersion      = "v1"
-    kind            = "Config"
-    current-context = digitalocean_kubernetes_cluster.this.name
-    clusters = [
-      {
-        name = digitalocean_kubernetes_cluster.this.name
-        cluster = {
-          server                     = digitalocean_kubernetes_cluster.this.endpoint
-          certificate-authority-data = digitalocean_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate
-        }
-      }
-    ]
-    contexts = [
-      {
-        name = digitalocean_kubernetes_cluster.this.name
-        context = {
-          cluster = digitalocean_kubernetes_cluster.this.name
-          user    = digitalocean_kubernetes_cluster.this.name
-        }
-      }
-    ]
-    users = [
-      {
-        name = digitalocean_kubernetes_cluster.this.name
-        user = {
-          token = digitalocean_kubernetes_cluster.this.kube_config[0].token
-        }
-      }
-    ]
-  })
+# 1. DOMAIN DELEGATION
+resource "digitalocean_domain" "fire_systems" {
+  name = var.root_domain
 }
 
+# 2. PRIVATE NETWORK (VPC)
+resource "digitalocean_vpc" "cluster_network" {
+  name     = "${var.cluster_name}-vpc"
+  region   = var.region
+  ip_range = "10.10.10.0/24"
+}
+
+# 3. PROVISION DOKS CLUSTER
 resource "digitalocean_kubernetes_cluster" "this" {
-  name    = "fire-monitoring-${local.environment}"
-  region  = var.region
-  version = var.doks_version != "" ? var.doks_version : data.digitalocean_kubernetes_versions.this.latest_version
+  name   = var.cluster_name
+  region = var.region
+  # Stable version slug for SGP1 region as of May 2026
+  version  = "1.35.1-do.6"
+  vpc_uuid = digitalocean_vpc.cluster_network.id
 
   node_pool {
-    name       = "default-pool"
-    size       = var.doks_node_size
-    node_count = var.doks_node_count
-    tags       = ["fire-monitoring", "iot", local.environment]
+    name       = "${var.cluster_name}-default-pool"
+    size       = var.node_size
+    node_count = var.node_count
   }
 }

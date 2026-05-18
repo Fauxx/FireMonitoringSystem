@@ -62,7 +62,7 @@ jobs:
     secrets: inherit
 
   # -------------------------------------------------------------
-  # 2. Main Branch Push or Manual Production-Gated Apply Phase
+  # 2. Main Branch Push or Manual Production-Gated Apply Phase ss
   # -------------------------------------------------------------
   deploy:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply')

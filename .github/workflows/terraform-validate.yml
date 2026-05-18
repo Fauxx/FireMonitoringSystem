@@ -36,6 +36,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~> 1.5.0"
+          terraform_wrapper: false
 
       - name: Terraform Format Check
         run: |
@@ -52,7 +53,7 @@ jobs:
             echo "::warning::terraform fmt reported formatting differences (exit 3). This is non-blocking for PR validation."
             exit 0
           fi
-          echo "terraform fmt failed with exit code $code"
+          echo "terraform fmt failed with unexpected exit code $code"
           exit "$code"
 
   terraform-validate:

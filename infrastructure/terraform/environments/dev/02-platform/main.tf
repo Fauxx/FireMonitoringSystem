@@ -31,19 +31,23 @@ data "terraform_remote_state" "infra" {
   }
 }
 
+data "digitalocean_kubernetes_cluster" "live" {
+  name = data.terraform_remote_state.infra.outputs.cluster_name
+}
+
 # -------------------------
 # Providers
 # -------------------------
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-  token                  = data.terraform_remote_state.infra.outputs.cluster_token
+  token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
 }
 
 provider "helm" {
   kubernetes {
     host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-    token                  = data.terraform_remote_state.infra.outputs.cluster_token
+    token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
     cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
   }
 }
@@ -60,6 +64,12 @@ provider "github" {
 # -------------------------
 # Platform Logic (ArgoCD)
 # -------------------------
+resource "kubernetes_namespace" "fire_monitoring_dev" {
+  metadata {
+    name = "fire-monitoring-dev"
+  }
+}
+
 resource "kubernetes_namespace" "argocd" {
   metadata {
     name = "argocd"
@@ -109,7 +119,7 @@ module "github_secrets" {
   # 1. Identity: Tells the module which repo and environment to target
   enabled            = true
   github_repo        = var.github_repository
-  github_environment = "dev" # <--- This is how it knows! (Use "prod" in your prod folder)
+  github_environment = "dev"
 
   # 2. Connection Data
   do_token   = var.do_token

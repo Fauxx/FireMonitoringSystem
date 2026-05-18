@@ -4,23 +4,24 @@ kind: Kustomization
 namespace: fire-monitoring-dev
 
 resources:
-  - ../../base
+- ../../base
 
-patchesStrategicMerge:
-  - ingress-patch.yaml
 
 images:
-  - name: api
-    newName: ghcr.io/fauxx/firemonitoringsystem/api
-    newTag: sha-000000000000
-  - name: etl-processor
-    newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-    newTag: sha-000000000000
-  - name: dashboard
-    newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-    newTag: sha-000000000000
+- name: api
+  newName: ghcr.io/fauxx/firemonitoringsystem/api
+  newTag: sha-000000000000
+- name: etl-processor
+  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
+  newTag: sha-000000000000
+- name: dashboard
+  newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
+  newTag: sha-000000000000
 
-commonLabels:
-  environment: dev
-  deployment-type: development
-
+labels:
+- includeSelectors: true
+  pairs:
+    deployment-type: development
+    environment: dev
+patches:
+- path: ingress-patch.yaml

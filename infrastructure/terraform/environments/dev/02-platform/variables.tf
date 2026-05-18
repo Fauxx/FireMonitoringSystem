@@ -88,3 +88,8 @@ variable "ghcr_deploy_token" {
   default     = ""
   description = "GHCR token for container registry access (optional)"
 }
+
+variable "cluster_name" {
+  type        = string
+  description = "The name of the DigitalOcean Kubernetes cluster"
+}

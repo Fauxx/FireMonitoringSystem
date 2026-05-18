@@ -50,4 +50,9 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan (read-only)
+        if: matrix.layer == 'dev/01-infra'
         run: terraform plan -input=false
+
+      - name: Skip plan for secret-dependent layers
+        if: matrix.layer != 'dev/01-infra'
+        run: echo "Skipping terraform plan for ${{ matrix.layer }} in PR validation; layer requires runtime secrets and remote dependencies."

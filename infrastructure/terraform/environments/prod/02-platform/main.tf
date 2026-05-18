@@ -142,3 +142,35 @@ resource "digitalocean_record" "argocd" {
   value  = data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
+
+# -------------------------
+# GitHub Handshake
+# -------------------------
+module "github_secrets" {
+  source = "../../../modules/github-secrets"
+
+  # 1. Identity: Tells the module which repo and environment to target
+  enabled            = length(trimspace(var.github_repository)) > 0
+  github_repo        = var.github_repository
+  github_environment = "production" # <--- Production environment
+
+  # 2. Connection Data
+  do_token   = var.do_token
+  cluster_id = data.terraform_remote_state.infra.outputs.cluster_id
+
+  # 3. Kubeconfig: Mapping the 'raw' output to the module's 'kubeconfig' input
+  kubeconfig = data.terraform_remote_state.infra.outputs.kubeconfig_raw
+
+  # 4. ArgoCD/DevOps Details
+  argocd_server     = "https://${digitalocean_record.argocd.fqdn}"
+  argocd_auth_token = var.argocd_auth_token
+
+  # 5. GitHub App Credentials (for CI/CD automation)
+  github_app_id              = var.github_app_id
+  github_app_installation_id = var.github_app_installation_id
+  github_app_private_key     = var.github_app_private_key
+
+  # 6. Container Registry Credentials (optional)
+  ghcr_deploy_username = var.ghcr_deploy_username
+  ghcr_deploy_token    = var.ghcr_deploy_token
+}

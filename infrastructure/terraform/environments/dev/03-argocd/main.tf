@@ -79,7 +79,31 @@ resource "kubernetes_manifest" "argocd_apps" {
 }
 
 # -------------------------
-# ArgoCD Repo Credential (SSH for GitOps repo access)
+# ArgoCD Repo Credential (HTTPS with GitHub Token)
+# -------------------------
+resource "kubernetes_secret" "argocd_repo_https" {
+  count = length(trimspace(var.github_token)) > 0 ? 1 : 0
+
+  metadata {
+    name      = "argocd-repo-creds"
+    namespace = "argocd"
+    labels = {
+      "argocd.argoproj.io/secret-type" = "repository"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    type     = "git"
+    url      = var.gitops_repo_url
+    username = var.github_username
+    password = var.github_token
+  }
+}
+
+# -------------------------
+# ArgoCD Repo Credential (SSH for GitOps repo access) - Optional
 # -------------------------
 resource "kubernetes_secret" "argocd_repo_ssh" {
   count = length(trimspace(var.gitops_repo_ssh_private_key)) > 0 ? 1 : 0

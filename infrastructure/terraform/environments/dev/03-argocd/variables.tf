@@ -59,3 +59,20 @@ variable "gitops_repo_ssh_private_key" {
   sensitive   = true
   default     = ""
 }
+
+# -------------------------
+# GitHub Authentication (HTTPS)
+# -------------------------
+
+variable "github_username" {
+  description = "GitHub username for HTTPS repo authentication (e.g., Fauxx)"
+  type        = string
+  default     = ""
+}
+
+variable "github_token" {
+  description = "GitHub PAT for HTTPS repo authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

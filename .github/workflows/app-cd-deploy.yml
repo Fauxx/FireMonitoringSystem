@@ -24,7 +24,7 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ inputs.environment == 'prod' && 'production' || 'development' }}
+    environment: ${{ inputs.environment == 'prod' && 'production' || 'dev' }}
     env:
       ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}

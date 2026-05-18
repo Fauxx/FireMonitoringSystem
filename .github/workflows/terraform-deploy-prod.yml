@@ -32,14 +32,13 @@ permissions:
 
 jobs:
   deploy-prod:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.layer == 'all' || matrix.layer == inputs.layer }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        layer: ${{ fromJson('["01-infra","02-platform","03-argocd"]') }}
+        layer: ${{ inputs.layer == 'all' && fromJson('["01-infra","02-platform","03-argocd"]') || fromJson(format('["{0}"]', inputs.layer)) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

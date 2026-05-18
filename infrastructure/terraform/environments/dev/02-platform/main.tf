@@ -121,4 +121,13 @@ module "github_secrets" {
   # 4. ArgoCD/DevOps Details
   argocd_server     = "https://${digitalocean_record.argocd.fqdn}"
   argocd_auth_token = var.argocd_auth_token
+
+  # 5. GitHub App Credentials (for CI/CD automation)
+  github_app_id              = var.github_app_id
+  github_app_installation_id = var.github_app_installation_id
+  github_app_private_key     = var.github_app_private_key
+
+  # 6. Container Registry Credentials (optional)
+  ghcr_deploy_username = var.ghcr_deploy_username
+  ghcr_deploy_token    = var.ghcr_deploy_token
 }

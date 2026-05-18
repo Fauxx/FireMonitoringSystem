@@ -52,3 +52,39 @@ variable "argocd_auth_token" {
   default     = ""
   description = "Optional ArgoCD auth token used for automation (set when available)"
 }
+
+# --- 5. GitHub App Credentials (Optional) ---
+variable "github_app_id" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "GitHub App ID for CI/CD automation (optional)"
+}
+
+variable "github_app_installation_id" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "GitHub App Installation ID for CI/CD automation (optional)"
+}
+
+variable "github_app_private_key" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "GitHub App private key (base64-encoded PEM) for CI/CD automation (optional)"
+}
+
+variable "ghcr_deploy_username" {
+  type        = string
+  sensitive   = false
+  default     = ""
+  description = "GHCR username for container registry access (optional)"
+}
+
+variable "ghcr_deploy_token" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "GHCR token for container registry access (optional)"
+}

@@ -1,5 +1,24 @@
+# Remote state config
 remote_state_bucket   = "tup-firemonitoring-state"
-infra_state_key       = "dev/01-infra/terraform.tfstate"
+infra_state_key       = "prod/01-infra/terraform.tfstate"
 remote_state_region   = "us-east-1"
 remote_state_endpoint = "sgp1.digitaloceanspaces.com"
-argocd_server         = "https://argocd.fires.systems"
+
+# ArgoCD endpoint
+argocd_server = "https://argocd-prod.fires.systems"
+
+# GitHub repo details (required for github_secrets module)
+github_repository = "FireMonitoringSystem"
+github_owner      = "Fauxx"
+
+# Optional: ArgoCD auth token
+argocd_auth_token = ""
+
+# GitHub App credentials (optional, for CI/CD automation; see GITOPS_SETUP.md)
+# github_app_id              = "<your-app-id>"
+# github_app_installation_id = "<your-installation-id>"
+# github_app_private_key     = "<base64-encoded-private-key>"
+
+# Container Registry credentials (optional)
+# ghcr_deploy_username = "<github-username>"
+# ghcr_deploy_token    = "<github-token>"

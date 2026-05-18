@@ -45,12 +45,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Check if only manifests changed
         id: check-paths
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin main:refs/remotes/origin/main --depth=1
             # For PRs, check if only infrastructure/k8s files changed
             changed_files=$(git diff --name-only origin/main...HEAD)
           else
@@ -216,8 +217,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Create dev overlay PR
         if: steps.dev-changes.outputs.changed == 'true'

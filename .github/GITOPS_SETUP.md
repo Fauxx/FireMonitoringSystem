@@ -18,9 +18,12 @@ Step 1 — Create GitHub App
 4. Save: App ID, Installation ID, and the private key PEM.
 
 Step 2 — Store secrets in GitHub (org or repo secrets)
-- `TF_VAR_github_app_id` = <app id>
-- `TF_VAR_github_app_installation_id` = <installation id>
-- `TF_VAR_github_app_private_key` = base64(PK.pem)
+- `TF_VAR_github_app_id` = <app id> (Terraform bootstrap only)
+- `TF_VAR_github_app_installation_id` = <installation id> (Terraform bootstrap only)
+- `TF_VAR_github_app_private_key` = base64(PK.pem) (Terraform bootstrap only)
+- `APP_ID` = <app id> (GitHub Actions environment secret for deployment workflows)
+- `APP_INSTALLATION_ID` = <installation id> (GitHub Actions environment secret for deployment workflows)
+- `APP_PRIVATE_KEY` = base64(PK.pem) (GitHub Actions environment secret for deployment workflows)
 - `TF_VAR_do_token` = DigitalOcean API token (Terraform uses this)
 - `TF_STATE_ACCESS_KEY` / `TF_STATE_SECRET_KEY` = DO Spaces keys
 - `GHCR_PAT` = token to push images (or use OIDC to GHCR)
@@ -48,6 +51,7 @@ PY
 
 Step 4 — Pass token into Terraform
 - In the workflow, set `GITHUB_TOKEN` or `TF_VAR_github_token` to the minted `installation_token` before running `terraform plan/apply` so the `github` provider uses the App identity.
+- For deployment workflows that only mint a short-lived token to create PRs, read `APP_ID` and `APP_PRIVATE_KEY` from the GitHub Actions environment secrets.
 
 Step 5 — Configure ArgoCD repo access (recommended: SSH deploy key)
 Recommended flow: give ArgoCD a read-only SSH deploy key for the GitOps repo.

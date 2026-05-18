@@ -50,19 +50,12 @@ jobs:
         with:
           terraform_version: "~> 1.5.0"
 
-      - name: Mint GitHub App Installation Token
-        id: mint-token
-        env:
-          APP_ID: ${{ secrets.APP_ID }}
-          INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          APP_KEY_B64: ${{ secrets.APP_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          chmod +x .github/scripts/mint-app-token.sh
-          .github/scripts/mint-app-token.sh
-
-      - name: Export token to env
-        run: echo "GITHUB_TOKEN=${{ steps.mint-token.outputs.installation_token }}" >> $GITHUB_ENV
+      - name: Generate GitHub App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Init and Plan/Apply (prod)
         working-directory: infrastructure/terraform/environments/prod/${{ matrix.layer }}
@@ -71,7 +64,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
           AWS_REGION: us-east-1
           TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         run: |
           set -euo pipefail
           terraform init -reconfigure \

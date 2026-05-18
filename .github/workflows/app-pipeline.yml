@@ -1,0 +1,47 @@
+name: "Application Continuous Integration & Deployment"
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/**'
+
+jobs:
+  # Stage 1: Code Verification & Container Compilation
+  build_and_test:
+    name: "Compile & Verify Microservices"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      # Add your existing build steps here (Docker build, linting, testing, etc.)
+      - name: Build Application Containers
+        run: |
+          echo "Simulating microservice docker builds..."
+
+  # Stage 2: Manifest GitOps Trigger
+  deploy_via_gitops:
+    name: "Update GitOps Manifest State"
+    needs: build_and_test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Generate App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # Add your existing image tag updating script/commands here
+      - name: Bump Kustomize Shas
+        run: |
+          echo "Updating deployment target tags to reference fresh build artifacts..."

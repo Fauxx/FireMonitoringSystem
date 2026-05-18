@@ -11,7 +11,7 @@ on:
       - "infrastructure/terraform/backend-common.conf"
       - "infrastructure/terraform/backend-common.conf.example"
       - ".github/workflows/terraform-deploy.yml"
-      - ".github/scripts/mint-app-token.sh"
+      
   workflow_dispatch:
     inputs:
       layer:
@@ -64,22 +64,15 @@ jobs:
         with:
           terraform_version: "~> 1.5.0"
 
-      - name: Mint GitHub App Installation Token
-        id: mint-token
-        env:
-          APP_ID: ${{ secrets.APP_ID }}
-          INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          APP_KEY_B64: ${{ secrets.APP_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          chmod +x .github/scripts/mint-app-token.sh
-          .github/scripts/mint-app-token.sh
+      - name: Generate GitHub App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Setup environment
-        env:
-          INSTALLATION_TOKEN: ${{ steps.mint-token.outputs.installation_token }}
+      - name: Disable EC2 metadata access
         run: |
-          echo "GITHUB_TOKEN=${INSTALLATION_TOKEN}" >> $GITHUB_ENV
           echo "AWS_EC2_METADATA_DISABLED=true" >> $GITHUB_ENV
 
       - name: Terraform Init and Deploy (dev/${{ matrix.layer }})
@@ -89,7 +82,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
           AWS_REGION: us-east-1
           TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         run: |
           set -euo pipefail
           terraform init -reconfigure \
@@ -106,7 +99,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
           AWS_REGION: us-east-1
           TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         run: |
           set -euo pipefail
           terraform plan -input=false -lock-timeout=300s -out=tfplan.binary
@@ -121,7 +114,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
           AWS_REGION: us-east-1
           TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ env.GITHUB_TOKEN }}
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         run: terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
 
       - name: Export Terraform Outputs

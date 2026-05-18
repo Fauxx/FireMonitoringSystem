@@ -28,7 +28,7 @@ locals {
 resource "github_actions_environment_secret" "kubeconfig_data" {
   count           = var.enabled ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "KUBECONFIG_DATA"
   value = var.kubeconfig
   depends_on      = [github_repository_environment.this]
@@ -38,7 +38,7 @@ resource "github_actions_environment_secret" "kubeconfig_data" {
 resource "github_actions_environment_secret" "do_token" {
   count           = var.enabled ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "DIGITALOCEAN_TOKEN"
   value = var.do_token
   depends_on      = [github_repository_environment.this]
@@ -48,7 +48,7 @@ resource "github_actions_environment_secret" "do_token" {
 resource "github_actions_environment_secret" "argocd_server" {
   count           = local.create_argocd_server ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "ARGOCD_SERVER"
   value = var.argocd_server
   depends_on      = [github_repository_environment.this]
@@ -57,7 +57,7 @@ resource "github_actions_environment_secret" "argocd_server" {
 resource "github_actions_environment_secret" "argocd_auth_token" {
   count           = local.create_argocd_token ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "ARGOCD_AUTH_TOKEN"
   value = var.argocd_auth_token
   depends_on      = [github_repository_environment.this]
@@ -67,7 +67,7 @@ resource "github_actions_environment_secret" "argocd_auth_token" {
 resource "github_actions_environment_secret" "ghcr_username" {
   count           = local.create_ghcr_username ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "GHCR_DEPLOY_USERNAME"
   value = var.ghcr_deploy_username
   depends_on      = [github_repository_environment.this]
@@ -76,7 +76,7 @@ resource "github_actions_environment_secret" "ghcr_username" {
 resource "github_actions_environment_secret" "ghcr_token" {
   count           = local.create_ghcr_token ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "GHCR_DEPLOY_TOKEN"
   value = var.ghcr_deploy_token
   depends_on      = [github_repository_environment.this]
@@ -86,7 +86,7 @@ resource "github_actions_environment_secret" "ghcr_token" {
 resource "github_actions_environment_secret" "github_app_id" {
   count           = local.create_github_app_id ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "APP_ID"
   value = var.github_app_id
   depends_on      = [github_repository_environment.this]
@@ -95,7 +95,7 @@ resource "github_actions_environment_secret" "github_app_id" {
 resource "github_actions_environment_secret" "github_app_installation_id" {
   count           = local.create_github_app_install_id ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "APP_INSTALLATION_ID"
   value = var.github_app_installation_id
   depends_on      = [github_repository_environment.this]
@@ -104,7 +104,7 @@ resource "github_actions_environment_secret" "github_app_installation_id" {
 resource "github_actions_environment_secret" "github_app_private_key" {
   count           = local.create_github_app_key ? 1 : 0
   repository      = var.github_repo
-  environment     = github_repository_environment.this[0].environment
+  environment     = var.github_environment
   secret_name     = "APP_PRIVATE_KEY"
   value = var.github_app_private_key
   depends_on      = [github_repository_environment.this]

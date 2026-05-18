@@ -1,6 +1,6 @@
 output "github_environment" {
   description = "The name of the GitHub environment configured"
-  value       = var.enabled ? github_repository_environment.this[0].environment : "none"
+  value       = var.enabled ? var.github_environment : "none"
 }
 
 output "secrets_synced" {

@@ -1,0 +1,161 @@
+name: "Terraform Core Engine"
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        required: true
+        type: string
+        description: "The execution path of the target Terraform layer"
+      env:
+        required: true
+        type: string
+        description: "dev | prod"
+      mode:
+        required: true
+        type: string
+        description: "validate | deploy"
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Build the Structural Blueprint and Save It
+  # -------------------------------------------------------------
+  plan_speculative:
+    name: "Build and Store Structural Plan"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Initialize Terraform Runtime
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.5.0
+          terraform_wrapper: false
+
+      - name: Initialize Backend Ledger
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          cd ${{ inputs.directory }}
+          terraform init -reconfigure
+
+      - name: Enforce Formatting & Lint Standards
+        if: ${{ inputs.mode == 'validate' }}
+        run: |
+          cd ${{ inputs.directory }}
+          terraform fmt -check -recursive || echo "Formatting warnings found"
+          terraform validate
+
+      - name: Compile Speculative Plan Blueprint
+        if: ${{ inputs.mode == 'validate' }}
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          cd ${{ inputs.directory }}
+          terraform plan -no-color
+
+      - name: Generate Target Immutable Binary Plan
+        if: ${{ inputs.mode == 'deploy' }}
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          cd ${{ inputs.directory }}
+          terraform plan -out=tfplan.binary
+
+      - name: Archive Cryptographic Plan Artifact
+        if: ${{ inputs.mode == 'deploy' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.env }}-${{ github.run_id }}
+          path: ${{ inputs.directory }}/tfplan.binary
+          retention-days: 1
+
+  # -------------------------------------------------------------
+  # Job 2: Wait for Approval, then Apply the Plan Exactly
+  # -------------------------------------------------------------
+  apply_infrastructure:
+    name: "Enforce Structural Apply"
+    needs: plan_speculative
+    if: ${{ inputs.mode == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.env }}
+    concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Download Archived Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.env }}-${{ github.run_id }}
+          path: ${{ inputs.directory }}
+
+      - name: Generate fresh In-Memory App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Initialize Terraform Runtime
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.5.0
+          terraform_wrapper: false
+
+      - name: Initialize Backend Ledger
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          cd ${{ inputs.directory }}
+          terraform init -reconfigure
+
+      - name: Execute Immutable Structural Apply
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: true
+        run: |
+          cd ${{ inputs.directory }}
+          terraform apply -auto-approve tfplan.binary

@@ -1,10 +1,10 @@
-name: Terraform Deploy (prod - manual)
+name: "Infrastructure Pipeline Orchestrator (Prod)"
 
 on:
   workflow_dispatch:
     inputs:
       layer:
-        description: "Terraform layer to deploy"
+        description: "Terraform layer to deploy to Production"
         required: true
         type: choice
         options:
@@ -31,74 +31,16 @@ permissions:
   actions: write
 
 jobs:
-  deploy-prod:
-    runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 45
+  deploy_prod:
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        layer: ${{ inputs.layer == 'all' && fromJson('["01-infra","02-platform","03-argocd"]') || fromJson(format('["{0}"]', inputs.layer)) }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.5.0"
-
-      - name: Generate GitHub App Token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Init and Plan/Apply (prod)
-        working-directory: infrastructure/terraform/environments/prod/${{ matrix.layer }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
-          AWS_REGION: us-east-1
-          TF_VAR_do_token: ${{ secrets.TF_VAR_do_token }}
-          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
-        run: |
-          set -euo pipefail
-          terraform init -reconfigure \
-            -backend-config=../../../backend-common.conf \
-            -backend-config=backend.conf
-
-          terraform fmt -check -recursive ../../..
-          terraform validate
-
-          set +e
-          terraform plan -input=false -lock-timeout=300s -detailed-exitcode -out=tfplan.binary
-          exit_code=$?
-          set -e
-          if [ "${exit_code}" -ne 0 ] && [ "${exit_code}" -ne 2 ]; then
-            echo "Terraform plan failed with exit code ${exit_code}"
-            exit "${exit_code}"
-          fi
-
-          terraform show -no-color tfplan.binary > tfplan.txt
-
-          if [ "${{ github.event.inputs.execution_mode }}" = "apply" ]; then
-            terraform apply -input=false -lock-timeout=300s -auto-approve tfplan.binary
-          fi
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-prod-${{ github.run_id }}-${{ matrix.layer }}
-          path: |
-            infrastructure/terraform/environments/prod/${{ matrix.layer }}/tfplan.txt
-          retention-days: 7
-
-# Notes:
-# - This workflow is manual (workflow_dispatch) and the job uses the `production` environment.
-# - Configure the `production` environment in your repository settings to require reviewers/approvals.
-# - When the environment has required reviewers, starting this job will pause and require approval before the job runs.
+        layer: ["01-infra", "02-platform", "03-argocd"]
+    # Drops unselected layers dynamically if you choose a specific one via UI
+    if: ${{ inputs.layer == 'all' || inputs.layer == matrix.layer }}
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/prod/${{ matrix.layer }}"
+      env: "prod" # Triggers the manual environment approval gate automatically!
+      mode: ${{ inputs.execution_mode == 'apply' && 'deploy' || 'validate' }}
+    secrets: inherit

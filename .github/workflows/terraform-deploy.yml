@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "infrastructure/terraform/environments/dev/**"
+      - "infrastructure/terraform/modules/**"
+      - "infrastructure/terraform/global/**"
+      - "infrastructure/terraform/backend-common.conf"
+      - "infrastructure/terraform/backend-common.conf.example"
       - ".github/workflows/terraform-deploy.yml"
       - ".github/scripts/mint-app-token.sh"
   workflow_dispatch:

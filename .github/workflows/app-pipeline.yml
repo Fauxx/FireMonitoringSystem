@@ -10,30 +10,62 @@ on:
     paths:
       - 'apps/**'
 
+# Give the workflow permission to push to your GitHub Container Registry (GHCR)
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  # Adjust 'fire-monitoring-api' to whatever your actual Docker image name should be
+  IMAGE_NAME: ${{ github.repository_owner }}/fire-monitoring-api
+
 jobs:
+  # -------------------------------------------------------------
   # Stage 1: Code Verification & Container Compilation
+  # -------------------------------------------------------------
   build_and_test:
     name: "Compile & Verify Microservices"
     runs-on: ubuntu-latest
+    outputs:
+      # Export the generated tag so the deployment job can use it
+      image_tag: ${{ steps.set_tag.outputs.tag }}
+      
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      # Add your existing build steps here (Docker build, linting, testing, etc.)
-      - name: Build Application Containers
-        run: |
-          echo "Simulating microservice docker builds..."
+      - name: Log in to the Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN is automatically provided by Actions, no secret setup needed
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set Image Tag (Git SHA)
+        id: set_tag
+        # Uses the first 7 characters of the Git commit SHA as the Docker tag
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Container
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/api # <-- UPDATE THIS to the folder containing your Dockerfile
+          push: ${{ github.event_name == 'push' }} # Only push to GHCR if merging to main
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  # -------------------------------------------------------------
   # Stage 2: Manifest GitOps Trigger
+  # -------------------------------------------------------------
   deploy_via_gitops:
     name: "Update GitOps Manifest State"
     needs: build_and_test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' # Only trigger deployments on actual merges/pushes to main
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
-
       - name: Generate App Token
         id: generate_token
         uses: actions/create-github-app-token@v1
@@ -41,7 +73,38 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      # Add your existing image tag updating script/commands here
-      - name: Bump Kustomize Shas
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          # Crucial: Check out the repo using the App Token. This allows the workflow 
+          # to push a new commit back to the repo, bypassing branch protections if needed.
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Bump Kustomize Image Tags
         run: |
-          echo "Updating deployment target tags to reference fresh build artifacts..."
+          # Navigate to your specific environment overlay
+          cd infrastructure/k8s/overlays/dev 
+          
+          # Tell Kustomize to swap the API image.
+          # IMPORTANT: Replace 'YOUR_ORIGINAL_IMAGE_NAME' with whatever image string 
+          # is currently written inside infrastructure/k8s/base/api/deployment.yaml
+          kustomize edit set image YOUR_ORIGINAL_IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build_and_test.outputs.image_tag }}
+
+      - name: Commit and Push Changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          # Only commit if Kustomize actually changed something
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(gitops): bump application image to ${{ needs.build_and_test.outputs.image_tag }}"
+            git push origin main
+            echo "GitOps manifest updated successfully."
+          else
+            echo "No manifest changes detected."
+          fi

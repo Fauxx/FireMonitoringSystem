@@ -74,6 +74,10 @@ jobs:
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
           TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+          # AUTOMATION FIX: Explicit contract actions mappings
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
+          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
       - name: Enforce Formatting & Lint Standards
         if: ${{ inputs.mode == 'validate' }}
@@ -98,6 +102,10 @@ jobs:
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
           TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+          # AUTOMATION FIX: Explicit contract actions mappings
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
+          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
       - name: Generate Target Immutable Binary Plan
         if: ${{ inputs.mode == 'deploy' }}
@@ -115,6 +123,10 @@ jobs:
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
           TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+          # AUTOMATION FIX: Explicit contract actions mappings
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
+          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
       - name: Archive Cryptographic Plan Artifact
         if: ${{ inputs.mode == 'deploy' }}
@@ -188,6 +200,10 @@ jobs:
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
           TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+          # AUTOMATION FIX: Explicit contract actions mappings
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
+          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
       - name: Execute Immutable Structural Apply
         run: |
@@ -204,3 +220,7 @@ jobs:
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
           TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+          # AUTOMATION FIX: Explicit contract actions mappings
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
+          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"

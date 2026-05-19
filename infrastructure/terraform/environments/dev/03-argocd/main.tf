@@ -64,7 +64,9 @@ resource "kubernetes_manifest" "argocd_apps" {
       }
       destination = {
         server    = "https://kubernetes.default.svc"
-        namespace = "fire-monitoring-dev"
+        # Note: If this App of Apps is just generating OTHER ArgoCD Application YAMLs, 
+        # it is safer to leave this destination namespace as "argocd".
+        namespace = "fire-monitoring-dev" 
       }
       syncPolicy = {
         automated = {
@@ -75,7 +77,11 @@ resource "kubernetes_manifest" "argocd_apps" {
     }
   }
 
-  depends_on = []
+  # FORCE TERRAFORM TO WAIT FOR CREDENTIALS
+  depends_on = [
+    kubernetes_secret.argocd_repo_https,
+    kubernetes_secret.argocd_repo_ssh
+  ]
 }
 
 # -------------------------

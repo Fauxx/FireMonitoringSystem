@@ -45,7 +45,6 @@ jobs:
           terraform_version: ~> 1.5.0
           terraform_wrapper: false
 
-      # --- REPLACED RAW RECONFIGURE WITH THE CONTRACT ACTION ---
       - name: Execute Contract (Init & Validate Environment)
         uses: ./.github/actions/terraform-contract
         with:
@@ -53,18 +52,28 @@ jobs:
           environment_name: ${{ inputs.env }}
           use_backend: "true"
           require_secrets: "true"
-          do_token: ${{ secrets.TF_VAR_do_token }}
+          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}
           github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          # Pass Space/S3 Backend credentials dynamically
-          backend_bucket: "fire-monitoring-tfstate" # Update to match your actual bucket naming convention
+          backend_bucket: "fire-monitoring-tfstate"
           backend_region: "us-east-1"
           backend_key: "dev/${{ inputs.directory }}/terraform.tfstate"
-          backend_endpoint: "sgp1.digitaloceanspaces.com" # Deduced from your context string "do-sgp1"
+          backend_endpoint: "sgp1.digitaloceanspaces.com"
           backend_access_key:  ${{ secrets.TF_STATE_ACCESS_KEY }}
           backend_secret_key:  ${{ secrets.TF_STATE_SECRET_KEY }}
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
 
       - name: Enforce Formatting & Lint Standards
         if: ${{ inputs.mode == 'validate' }}
@@ -78,12 +87,34 @@ jobs:
         run: |
           cd ${{ inputs.directory }}
           terraform plan -no-color
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
 
       - name: Generate Target Immutable Binary Plan
         if: ${{ inputs.mode == 'deploy' }}
         run: |
           cd ${{ inputs.directory }}
           terraform plan -out=tfplan.binary
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
 
       - name: Archive Cryptographic Plan Artifact
         if: ${{ inputs.mode == 'deploy' }}
@@ -128,7 +159,6 @@ jobs:
           terraform_version: ~> 1.5.0
           terraform_wrapper: false
 
-      # --- REPLACED RAW RECONFIGURE WITH THE CONTRACT ACTION ---
       - name: Execute Contract (Init & Validate Environment)
         uses: ./.github/actions/terraform-contract
         with:
@@ -136,7 +166,7 @@ jobs:
           environment_name: ${{ inputs.env }}
           use_backend: "true"
           require_secrets: "true"
-          do_token: ${{ secrets.TF_VAR_do_token }}
+          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}
@@ -147,8 +177,30 @@ jobs:
           backend_endpoint: "sgp1.digitaloceanspaces.com"
           backend_access_key:  ${{ secrets.TF_STATE_ACCESS_KEY }}
           backend_secret_key:  ${{ secrets.TF_STATE_SECRET_KEY }}
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          sm_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
 
       - name: Execute Immutable Structural Apply
         run: |
           cd ${{ inputs.directory }}
           terraform apply -auto-approve tfplan.binary
+        env:
+          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repository: ${{ github.event.repository.name }}
+          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}

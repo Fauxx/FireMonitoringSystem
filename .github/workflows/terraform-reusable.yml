@@ -51,7 +51,7 @@ jobs:
           working_directory: ${{ inputs.directory }}
           environment_name: ${{ inputs.env }}
           use_backend: "true"
-          require_secrets: "true"
+          require_secrets: "false"
           do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
@@ -177,7 +177,7 @@ jobs:
           working_directory: ${{ inputs.directory }}
           environment_name: ${{ inputs.env }}
           use_backend: "true"
-          require_secrets: "true"
+          require_secrets: "false"
           do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}

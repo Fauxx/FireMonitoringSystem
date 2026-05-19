@@ -30,7 +30,7 @@ resource "github_actions_environment_secret" "kubeconfig_data" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "KUBECONFIG_DATA"
-  value = var.kubeconfig
+  plaintext_value = var.kubeconfig
   depends_on      = [github_repository_environment.this]
 }
 
@@ -40,7 +40,7 @@ resource "github_actions_environment_secret" "do_token" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "DIGITALOCEAN_TOKEN"
-  value = var.do_token
+  plaintext_value = var.do_token
   depends_on      = [github_repository_environment.this]
 }
 
@@ -50,7 +50,7 @@ resource "github_actions_environment_secret" "argocd_server" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "ARGOCD_SERVER"
-  value = var.argocd_server
+  plaintext_value = var.argocd_server
   depends_on      = [github_repository_environment.this]
 }
 
@@ -59,7 +59,7 @@ resource "github_actions_environment_secret" "argocd_auth_token" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "ARGOCD_AUTH_TOKEN"
-  value = var.argocd_auth_token
+  plaintext_value = var.argocd_auth_token
   depends_on      = [github_repository_environment.this]
 }
 
@@ -69,7 +69,7 @@ resource "github_actions_environment_secret" "ghcr_username" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "GHCR_DEPLOY_USERNAME"
-  value = var.ghcr_deploy_username
+  plaintext_value = var.ghcr_deploy_username
   depends_on      = [github_repository_environment.this]
 }
 
@@ -78,7 +78,7 @@ resource "github_actions_environment_secret" "ghcr_token" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "GHCR_DEPLOY_TOKEN"
-  value = var.ghcr_deploy_token
+  plaintext_value = var.ghcr_deploy_token
   depends_on      = [github_repository_environment.this]
 }
 
@@ -88,7 +88,7 @@ resource "github_actions_environment_secret" "github_app_id" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "APP_ID"
-  value = var.github_app_id
+  plaintext_value = var.github_app_id
   depends_on      = [github_repository_environment.this]
 }
 
@@ -97,7 +97,7 @@ resource "github_actions_environment_secret" "github_app_installation_id" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "APP_INSTALLATION_ID"
-  value = var.github_app_installation_id
+  plaintext_value = var.github_app_installation_id
   depends_on      = [github_repository_environment.this]
 }
 
@@ -106,6 +106,8 @@ resource "github_actions_environment_secret" "github_app_private_key" {
   repository      = var.github_repo
   environment     = var.github_environment
   secret_name     = "APP_PRIVATE_KEY"
-  value = var.github_app_private_key
+  
+  plaintext_value = replace(var.github_app_private_key, "\\n", "\n")
+  
   depends_on      = [github_repository_environment.this]
 }

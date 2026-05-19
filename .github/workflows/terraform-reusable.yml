@@ -72,6 +72,8 @@ jobs:
           TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
           TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
           TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
 
       - name: Enforce Formatting & Lint Standards
         if: ${{ inputs.mode == 'validate' }}
@@ -177,7 +179,7 @@ jobs:
           backend_secret_key:  ${{ secrets.TF_STATE_SECRET_KEY }}
         env:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          sm_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_owner: ${{ github.repository_owner }}
           TF_VAR_github_repository: ${{ github.event.repository.name }}
           TF_VAR_github_app_id: ${{ secrets.APP_ID }}
           TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}

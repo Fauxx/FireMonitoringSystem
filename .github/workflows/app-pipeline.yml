@@ -1,6 +1,7 @@
 name: "Application Continuous Integration & Deployment"
 
 on:
+  workflow_dispatch: # 1. FIX: Added manual trigger button
   pull_request:
     branches: [ main ]
     paths:
@@ -12,15 +13,14 @@ on:
       - 'apps/**'
       - '.github/workflows/app-pipeline.yml'
 
-# Give the workflow permission to push to your GitHub Container Registry (GHCR)
 permissions:
   contents: write
   packages: write
 
 env:
   REGISTRY: ghcr.io
-  # Adjust 'fire-monitoring-api' to whatever your actual Docker image name should be
-  IMAGE_NAME: ${{ github.repository_owner }}/fire-monitoring-api
+  # 2. FIX: Hardcoded lowercase 'fauxx' to prevent Docker build crashes
+  IMAGE_NAME: fauxx/firemonitoringsystem/api
 
 jobs:
   # -------------------------------------------------------------
@@ -30,7 +30,6 @@ jobs:
     name: "Compile & Verify Microservices"
     runs-on: ubuntu-latest
     outputs:
-      # Export the generated tag so the deployment job can use it
       image_tag: ${{ steps.set_tag.outputs.tag }}
       
     steps:
@@ -42,19 +41,18 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          # GITHUB_TOKEN is automatically provided by Actions, no secret setup needed
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Image Tag (Git SHA)
         id: set_tag
-        # Uses the first 7 characters of the Git commit SHA as the Docker tag
         run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Build and Push Container
         uses: docker/build-push-action@v5
         with:
-          context: ./apps/api # <-- UPDATE THIS to the folder containing your Dockerfile
-          push: ${{ github.event_name == 'push' }} # Only push to GHCR if merging to main
+          context: ./apps/api 
+          # Allow push on manual workflow_dispatch as well
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} 
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
@@ -65,8 +63,12 @@ jobs:
   deploy_via_gitops:
     name: "Update GitOps Manifest State"
     needs: build_and_test
-    if: github.event_name == 'push' # Only trigger deployments on actual merges/pushes to main
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    
+    # 3. FIX: Link this job to your dev environment so it can read APP_ID
+    environment: dev 
+    
     steps:
       - name: Generate App Token
         id: generate_token
@@ -78,8 +80,6 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v4
         with:
-          # Crucial: Check out the repo using the App Token. This allows the workflow 
-          # to push a new commit back to the repo, bypassing branch protections if needed.
           token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup Kustomize
@@ -87,13 +87,10 @@ jobs:
 
       - name: Bump Kustomize Image Tags
         run: |
-          # Navigate to your specific environment overlay
           cd infrastructure/k8s/overlays/dev 
           
-          # Tell Kustomize to swap the API image.
-          # IMPORTANT: Replace 'YOUR_ORIGINAL_IMAGE_NAME' with whatever image string 
-          # is currently written inside infrastructure/k8s/base/api/deployment.yaml
-          kustomize edit set image YOUR_ORIGINAL_IMAGE_NAME=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build_and_test.outputs.image_tag }}
+          # 4. FIX: Replaced placeholder with the exact string from your k8s deployment.yaml
+          kustomize edit set image ghcr.io/fauxx/firemonitoringsystem/api:sha-000000000000=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build_and_test.outputs.image_tag }}
 
       - name: Commit and Push Changes
         run: |
@@ -102,7 +99,6 @@ jobs:
           
           git add .
           
-          # Only commit if Kustomize actually changed something
           if ! git diff --staged --quiet; then
             git commit -m "chore(gitops): bump application image to ${{ needs.build_and_test.outputs.image_tag }}"
             git push origin main

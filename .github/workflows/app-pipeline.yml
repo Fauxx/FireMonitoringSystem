@@ -5,10 +5,12 @@ on:
     branches: [ main ]
     paths:
       - 'apps/**'
+      - '.github/workflows/app-pipeline.yml'
   push:
     branches: [ main ]
     paths:
       - 'apps/**'
+      - '.github/workflows/app-pipeline.yml'
 
 # Give the workflow permission to push to your GitHub Container Registry (GHCR)
 permissions:

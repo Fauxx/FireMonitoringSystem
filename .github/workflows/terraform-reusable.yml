@@ -31,8 +31,8 @@ jobs:
       TF_VAR_github_app_id: ${{ secrets.APP_ID }}
       TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
       TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-      TF_VAR_ssh_key_ids: "not-required-by-kubernetes-cluster"
-      TF_VAR_do_ssh_host_fingerprint: "not-required-by-kubernetes-cluster"
+      TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+      TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
       TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
       TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
       GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
@@ -58,7 +58,10 @@ jobs:
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}
+          github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
           github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
           backend_bucket: "tup-firemonitoring-state"
           backend_region: "us-east-1"
           backend_key: "${{ inputs.env }}/${{ inputs.directory }}/terraform.tfstate"

@@ -118,8 +118,8 @@ module "github_secrets" {
   github_environment         = var.github_environment
 
   # FIX: Change 'github_repo' to 'github_repository' to match the module input name!
-  github_repository          = var.github_repository
-  github_app_id              = var.github_app_id
-  github_app_installation_id = var.github_app_installation_id
-  github_app_private_key     = var.github_app_private_key
+  github_repository           = var.github_repository
+  github_app_id               = var.github_app_id
+  github_app_installation_id  = var.github_app_installation_id
+  github_app_private_key      = var.github_app_private_key
 }

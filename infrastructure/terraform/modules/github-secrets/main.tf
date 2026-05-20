@@ -39,5 +39,5 @@ resource "github_actions_environment_secret" "github_app_private_key" {
   repository      = var.github_repository
   environment     = github_repository_environment.this.environment
   secret_name     = "APP_PRIVATE_KEY"
-  plaintext_value = replace(var.github_app_private_key, "\\n", "\n")
+  value           = var.github_app_private_key
 }

@@ -71,14 +71,14 @@ variable "github_app_installation_id" {
   description = "The application installation mapping ID pointing to your target repository space."
 }
 
-variable "github_app_private_key" {
-  type        = string
-  sensitive   = true
-  description = "The cryptographic, base64-encoded PEM private key utilized by your workflows to authorize short-lived pipeline runner sessions."
-}
-
 variable "github_environment" {
   type        = string
   default     = "dev"
   description = "The target deployment stage profile container slot inside GitHub (e.g., dev, prod)."
+}
+
+variable "github_app_private_key" {
+  description = "The raw GitHub App private key"
+  type        = string
+  sensitive   = true
 }

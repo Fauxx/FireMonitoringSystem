@@ -21,7 +21,7 @@ variable "github_app_installation_id" {
 }
 
 variable "github_app_private_key" {
+  description = "The raw GitHub App private key"
   type        = string
   sensitive   = true
-  description = "The cryptographic PEM private key content used to authenticate pipeline action runs."
 }

@@ -53,15 +53,15 @@ jobs:
           working_directory: ${{ inputs.directory }}
           environment_name: ${{ inputs.env }}
           use_backend: "true"
-          require_secrets: "false"
+          require_secrets: "true"
           do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}
           github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          backend_bucket: "fire-monitoring-tfstate"
+          backend_bucket: "tup-firemonitoring-state"
           backend_region: "us-east-1"
-          backend_key: "dev/${{ inputs.directory }}/terraform.tfstate"
+          backend_key: "${{ inputs.env }}/${{ inputs.directory }}/terraform.tfstate"
           backend_endpoint: "sgp1.digitaloceanspaces.com"
           backend_access_key: ${{ secrets.TF_STATE_ACCESS_KEY }}
           backend_secret_key: ${{ secrets.TF_STATE_SECRET_KEY }}

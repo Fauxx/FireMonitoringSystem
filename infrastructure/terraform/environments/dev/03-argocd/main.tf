@@ -1,10 +1,26 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  backend "s3" {} # Automatically leverages your backend-common.conf
+  backend "s3" {
+    endpoints = {
+      s3 = "https://sgp1.digitaloceanspaces.com"
+    }
+
+    bucket = "tup-firemonitoring-state"
+    key    = "dev/03-argocd/terraform.tfstate"
+    region = "us-east-1"
+
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+
+    use_path_style = true
+  }
 
   required_providers {
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.30" }
+    local      = { source = "hashicorp/local",      version = "~> 2.2" }
   }
 }
 
@@ -29,7 +45,16 @@ data "terraform_remote_state" "infra" {
 # ------------------------------------------------------------------------------
 # Provider Initialization (Pure Dynamic State Inversion)
 # ------------------------------------------------------------------------------
+resource "local_file" "kubeconfig" {
+  # Write the raw kubeconfig from Layer 01 infra state into a local file for provider use
+  content  = data.terraform_remote_state.infra.outputs.kubeconfig_raw
+  filename = "${path.module}/.kubeconfig"
+  file_permission = "0600"
+}
+
 provider "kubernetes" {
+  config_path = local_file.kubeconfig.filename
+  # Keep explicit host/token as a fallback if kubeconfig is not present/valid
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   token                  = data.terraform_remote_state.infra.outputs.cluster_token
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)

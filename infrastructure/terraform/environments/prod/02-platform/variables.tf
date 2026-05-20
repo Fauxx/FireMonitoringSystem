@@ -2,6 +2,8 @@ variable "remote_state_bucket" {
   type = string
 }
 
+
+
 variable "remote_state_region" {
   type    = string
   default = "us-east-1"

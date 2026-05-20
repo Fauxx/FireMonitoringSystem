@@ -1,11 +1,27 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  backend "s3" {} # Uses your backend-common.conf
+  backend "s3" {
+    endpoints = {
+      s3 = "https://sgp1.digitaloceanspaces.com"
+    }
+
+    bucket = "tup-firemonitoring-state"
+    key    = "prod/03-argocd/terraform.tfstate"
+    region = "us-east-1"
+
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+
+    use_path_style = true
+  }
 
   required_providers {
     kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
     digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
+    local        = { source = "hashicorp/local",      version = "~> 2.2" }
   }
 }
 
@@ -27,6 +43,12 @@ data "terraform_remote_state" "infra" {
   }
 }
 
+resource "local_file" "kubeconfig" {
+  content  = data.terraform_remote_state.infra.outputs.kubeconfig_raw
+  filename = "${path.module}/.kubeconfig"
+  file_permission = "0600"
+}
+
 data "digitalocean_kubernetes_cluster" "infra" {
   name = var.cluster_name
 }
@@ -39,6 +61,7 @@ provider "digitalocean" {
 # Providers
 # -------------------------
 provider "kubernetes" {
+  config_path = local_file.kubeconfig.filename
   host                   = data.digitalocean_kubernetes_cluster.infra.endpoint
   token                  = data.digitalocean_kubernetes_cluster.infra.kube_config[0].token
   cluster_ca_certificate = base64decode(data.digitalocean_kubernetes_cluster.infra.kube_config[0].cluster_ca_certificate)

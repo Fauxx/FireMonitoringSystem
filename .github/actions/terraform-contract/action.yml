@@ -341,12 +341,7 @@ runs:
             -backend-config="region=${BACKEND_REGION}" \
             -backend-config="endpoint=${BACKEND_ENDPOINT}" \
             -backend-config="access_key=${BACKEND_ACCESS_KEY}" \
-            -backend-config="secret_key=${BACKEND_SECRET_KEY}" \
-            -backend-config="skip_credentials_validation=true" \
-            -backend-config="skip_metadata_api_check=true" \
-            -backend-config="skip_region_validation=true" \
-            -backend-config="skip_requesting_account_id=true" \
-            -backend-config="use_path_style=true"
+            -backend-config="secret_key=${BACKEND_SECRET_KEY}"
         else
           terraform init -backend=false -input=false
         fi

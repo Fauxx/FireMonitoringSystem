@@ -7,7 +7,7 @@ terraform {
     }
 
     bucket = "tup-firemonitoring-state"
-    key    = "dev/02-k8s-core/terraform.tfstate"
+    key    = "prod/02-platform/terraform.tfstate"
     region = "us-east-1"
 
     skip_credentials_validation = true

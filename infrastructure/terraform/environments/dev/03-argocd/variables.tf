@@ -2,6 +2,7 @@
 # 1. REMOTE STATE DISCOVERY (LAYER 1 INTERFACE)
 # ==============================================================================
 
+
 variable "remote_state_bucket" {
   type        = string
   description = "The name of the DigitalOcean Space bucket holding Layer 1 state data."

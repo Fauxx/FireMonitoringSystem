@@ -1,31 +1,13 @@
+# ==============================================================================
+# 1. STATE & BACKEND PLUMBING (Configured via CLI/Backend Files)
+# ==============================================================================
 terraform {
-  required_version = ">= 1.5.0"
-
-  backend "s3" {
-    endpoints = {
-      s3 = "https://sgp1.digitaloceanspaces.com"
-    }
-
-    bucket = "tup-firemonitoring-state"
-    key    = "dev/03-argocd/terraform.tfstate"
-    region = "us-east-1"
-
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_region_validation      = true
-    skip_requesting_account_id  = true
-
-    use_path_style = true
-  }
-
-  required_providers {
-    kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.30" }
-    local      = { source = "hashicorp/local",      version = "~> 2.2" }
-  }
+  backend "s3" {}
+  # Inherits global required_providers universally via your versions.tf symlink!
 }
 
 # ------------------------------------------------------------------------------
-# Remote State Discovery (Reading Cluster Access from Layer 1)
+# Remote State Discovery (SGP1 Space State Bucket)
 # ------------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
   backend = "s3"
@@ -42,28 +24,31 @@ data "terraform_remote_state" "infra" {
   }
 }
 
-# ------------------------------------------------------------------------------
-# Provider Initialization (Pure Dynamic State Inversion)
-# ------------------------------------------------------------------------------
-resource "local_file" "kubeconfig" {
-  # Write the raw kubeconfig from Layer 01 infra state into a local file for provider use
-  content  = data.terraform_remote_state.infra.outputs.kubeconfig_raw
-  filename = "${path.module}/.kubeconfig"
-  file_permission = "0600"
+# FIX: Fetch fresh, dynamic credentials to bypass short-lived token expiration
+data "digitalocean_kubernetes_cluster" "live" {
+  name = data.terraform_remote_state.infra.outputs.cluster_name
+}
+
+# ==============================================================================
+# 2. DYNAMIC PROVIDER INITIALIZATION (Pure Dynamic State Inversion)
+# ==============================================================================
+
+provider "digitalocean" {
+  token = var.do_token
 }
 
 provider "kubernetes" {
-  config_path = local_file.kubeconfig.filename
-  # Keep explicit host/token as a fallback if kubeconfig is not present/valid
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-  token                  = data.terraform_remote_state.infra.outputs.cluster_token
+  # ALIGNED: Uses the live, auto-refreshing token instead of stale static state output
+  token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
 }
 
-# ------------------------------------------------------------------------------
-# ArgoCD Repository Credentials Configuration (The GitHub App Handshake)
-# ------------------------------------------------------------------------------
-resource "kubernetes_secret" "argocd_github_app_creds" {
+# ==============================================================================
+# 3. ARGOCD REPOSITORY CREDENTIALS CONFIGURATION (The GitHub App Handshake)
+# ==============================================================================
+# ALIGNED: Swapped to kubernetes_secret_v1 to clear the deprecation warning
+resource "kubernetes_secret_v1" "argocd_github_app_creds" {
   metadata {
     name      = "repo-github-app-creds"
     namespace = "argocd"
@@ -83,9 +68,9 @@ resource "kubernetes_secret" "argocd_github_app_creds" {
   }
 }
 
-# ------------------------------------------------------------------------------
-# The Root Application (App-of-Apps Pattern Deployment)
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# 4. THE ROOT APPLICATION (App-of-Apps Pattern Deployment)
+# ==============================================================================
 resource "kubernetes_manifest" "argocd_apps" {
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -114,5 +99,5 @@ resource "kubernetes_manifest" "argocd_apps" {
     }
   }
 
-  depends_on = [kubernetes_secret.argocd_github_app_creds]
+  depends_on = [kubernetes_secret_v1.argocd_github_app_creds]
 }

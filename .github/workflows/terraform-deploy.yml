@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       layer:
-        description: "Terraform layer to deploy"
+        description: "Target layer to execute (Applies to manual execution modes)"
         required: true
         type: choice
         options:
@@ -28,7 +28,7 @@ on:
           - all
         default: all
       execution_mode:
-        description: "Execution mode"
+        description: "Execution execution track"
         required: true
         type: choice
         options:
@@ -45,11 +45,11 @@ permissions:
   actions: write
 
 jobs:
-  # -------------------------------------------------------------
-  # 1. Pull Request Gated Speculative Validation Phase
-  # -------------------------------------------------------------
+  # ==============================================================================
+  # LAYER 1: VALIDATE (Runs concurrently for fast PR status checks)
+  # ==============================================================================
   validate:
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'plan-only')
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'plan-only' && inputs.layer == 'all')
     strategy:
       fail-fast: true
       matrix:
@@ -61,18 +61,54 @@ jobs:
       mode: "validate"
     secrets: inherit
 
-  # -------------------------------------------------------------
-  # 2. Main Branch Push or Manual Production-Gated Apply Phase ss
-  # -------------------------------------------------------------
-  deploy:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply')
-    strategy:
-      fail-fast: true
-      matrix:
-        layer: ["01-infra", "02-platform", "03-argocd"]
+  # ==============================================================================
+  # LAYER 2: SEQUENTIAL DEPLOYMENT (Prevents state cross-talk & data race loops)
+  # ==============================================================================
+  
+  deploy_infra:
+    name: "Deploy: Infrastructure Layer (01)"
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && 
+       inputs.execution_mode == 'apply' && 
+       (inputs.layer == '01-infra' || inputs.layer == 'all'))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
-      directory: "infrastructure/terraform/environments/dev/${{ matrix.layer }}"
+      directory: "infrastructure/terraform/environments/dev/01-infra"
+      env: "dev"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_platform:
+    name: "Deploy: Platform Core Layer (02)"
+    needs: deploy_infra
+    # Aligned status tracking: Runs on direct main branch merges or targeted manual override runs
+    if: |
+      always() &&
+      (github.event_name == 'push' && needs.deploy_infra.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && 
+       inputs.execution_mode == 'apply' && 
+       (inputs.layer == '02-platform' || inputs.layer == 'all'))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/dev/02-platform"
+      env: "dev"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_argocd:
+    name: "Deploy: GitOps ArgoCD Layer (03)"
+    needs: deploy_platform
+    # Aligned status tracking: Ensures upstream dependencies match execution parameters safely
+    if: |
+      always() &&
+      (github.event_name == 'push' && needs.deploy_platform.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && 
+       inputs.execution_mode == 'apply' && 
+       (inputs.layer == '03-argocd' || inputs.layer == 'all'))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/dev/03-argocd"
       env: "dev"
       mode: "deploy"
     secrets: inherit

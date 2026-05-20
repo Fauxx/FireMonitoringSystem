@@ -1,19 +1,10 @@
+# ==============================================================================
+# 1. STATE & BACKEND PLUMBING (Configured via CLI/Backend Files)
+# ==============================================================================
 terraform {
-  backend "s3" {
-    bucket                      = "tup-firemonitoring-state"
-    key                         = "dev/02-platform/terraform.tfstate"
-    region                      = "us-east-1"
-    endpoints = {
-      s3 = "https://sgp1.digitaloceanspaces.com"
-    }
-    skip_credentials_validation = true
-    skip_metadata_api_check     = true
-    skip_region_validation      = true
-    
-    # ADD THESE HERE instead of passing them in the CLI
-    skip_requesting_account_id  = true
-    use_path_style              = true
-  }
+  backend "s3" {}
+  # required_providers block is completely removed from here because 
+  # it's inherited universally from your symlinked versions.tf!
 }
 
 # ------------------------------------------------------------------------------
@@ -38,9 +29,9 @@ data "digitalocean_kubernetes_cluster" "live" {
   name = data.terraform_remote_state.infra.outputs.cluster_name
 }
 
-# ------------------------------------------------------------------------------
-# Provider Initializations
-# ------------------------------------------------------------------------------
+# ==============================================================================
+# 2. DYNAMIC PROVIDER CONFIGURATIONS (Evaluated at Runtime)
+# ==============================================================================
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
@@ -64,16 +55,16 @@ provider "github" {
   owner = var.github_owner
 }
 
-# ------------------------------------------------------------------------------
-# Platform Core Engine (Local Helm Deployments)
-# ------------------------------------------------------------------------------
-resource "kubernetes_namespace" "fire_monitoring_dev" {
+# ==============================================================================
+# 3. PLATFORM ENGINE LOGIC (Namespaces & Resources)
+# ==============================================================================
+resource "kubernetes_namespace_v1" "fire_monitoring_dev" {
   metadata {
     name = "fire-monitoring-dev"
   }
 }
 
-resource "kubernetes_namespace" "argocd" {
+resource "kubernetes_namespace_v1" "argocd" {
   metadata {
     name = "argocd"
   }
@@ -83,7 +74,7 @@ resource "helm_release" "argocd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  namespace  = kubernetes_namespace.argocd.metadata[0].name
+  namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
 
   values = [yamlencode({
     server = {
@@ -94,10 +85,10 @@ resource "helm_release" "argocd" {
   })]
 }
 
-data "kubernetes_service" "argocd_server" {
+data "kubernetes_service_v1" "argocd_server" {
   metadata {
     name      = "argocd-server"
-    namespace = kubernetes_namespace.argocd.metadata[0].name
+    namespace = kubernetes_namespace_v1.argocd.metadata[0].name
   }
   depends_on = [helm_release.argocd]
 }
@@ -109,25 +100,20 @@ resource "digitalocean_record" "argocd" {
   domain = data.terraform_remote_state.infra.outputs.domain_name
   type   = "A"
   name   = "argocd"
-  value  = data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].ip
+  value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
-
 # ------------------------------------------------------------------------------
-# Pull-Based GitOps Handshake Module Caller (Fully Aligned & Dynamic)
+# Pull-Based GitOps Handshake Module Caller
 # ------------------------------------------------------------------------------
 module "github_secrets" {
   source = "../../../modules/github-secrets"
 
-  # Dynamic environment assignment
-  github_environment         = var.github_environment
-
-  # FIX: Change 'github_repo' to 'github_repository' to match the module input name!
+  github_environment          = var.github_environment
   github_repository           = var.github_repository
   github_app_id               = var.github_app_id
   github_app_installation_id  = var.github_app_installation_id
   github_app_private_key      = var.github_app_private_key
   github_app_state_access_key = var.github_app_state_access_key
   github_app_state_secret_key = var.github_app_state_secret_key
-
 }

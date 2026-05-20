@@ -21,7 +21,6 @@ terraform {
   required_providers {
     kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
     digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
-    local        = { source = "hashicorp/local",      version = "~> 2.2" }
   }
 }
 
@@ -43,12 +42,6 @@ data "terraform_remote_state" "infra" {
   }
 }
 
-resource "local_file" "kubeconfig" {
-  content  = data.terraform_remote_state.infra.outputs.kubeconfig_raw
-  filename = "${path.module}/.kubeconfig"
-  file_permission = "0600"
-}
-
 data "digitalocean_kubernetes_cluster" "infra" {
   name = var.cluster_name
 }
@@ -61,7 +54,6 @@ provider "digitalocean" {
 # Providers
 # -------------------------
 provider "kubernetes" {
-  config_path = local_file.kubeconfig.filename
   host                   = data.digitalocean_kubernetes_cluster.infra.endpoint
   token                  = data.digitalocean_kubernetes_cluster.infra.kube_config[0].token
   cluster_ca_certificate = base64decode(data.digitalocean_kubernetes_cluster.infra.kube_config[0].cluster_ca_certificate)

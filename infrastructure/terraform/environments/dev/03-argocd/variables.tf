@@ -2,7 +2,6 @@
 # 1. REMOTE STATE DISCOVERY (LAYER 1 INTERFACE)
 # ==============================================================================
 
-
 variable "remote_state_bucket" {
   type        = string
   description = "The name of the DigitalOcean Space bucket holding Layer 1 state data."
@@ -25,13 +24,17 @@ variable "remote_state_endpoint" {
   description = "Regional API server link for DigitalOcean Spaces."
 }
 
-
 variable "do_token" {
   type        = string
   sensitive   = true
   description = "Your personal DigitalOcean API bearer token used by doctl authentication."
 }
 
+variable "cluster_name" {
+  type        = string
+  default     = "do-sgp1-fire-monitoring-dev"
+  description = "The identity name of your live DOKS cluster."
+}
 
 # ==============================================================================
 # 2. GITOPS REPOSITORY TARGET CONTEXT
@@ -39,15 +42,17 @@ variable "do_token" {
 
 variable "gitops_repo_url" {
   type        = string
-  description = "The full HTTPS URL of your target GitOps repository (e.g., https://github.com/owner/repo)."
+  description = "The full HTTPS URL of your target GitOps repository."
 }
 
+# CHANGED: Synced with your configuration names to prevent 'null' dropping
 variable "gitops_repo_branch" {
   type        = string
   default     = "dev-zet"
   description = "The dedicated repository branch tracking your development manifests."
 }
 
+# CHANGED: Synced with your configuration names to prevent 'null' dropping
 variable "gitops_repo_apps_path" {
   type        = string
   default     = "infrastructure/argocd/root"

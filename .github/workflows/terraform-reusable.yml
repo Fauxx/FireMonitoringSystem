@@ -23,7 +23,6 @@ jobs:
     environment: ${{ inputs.env }}
     concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
 
-    # GLOBAL JOB ENV: This applies to ALL steps, keeping the file clean
     env:
       TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
@@ -40,6 +39,13 @@ jobs:
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
+
+      # FIX 1: Explicitly force symlink health during runtime before execution contract
+      - name: Re-link Global Provider Truths
+        run: |
+          cd ${{ inputs.directory }}
+          rm -f versions.tf
+          ln -s ../../../global/versions.tf versions.tf
 
       - name: Initialize Terraform Runtime
         uses: hashicorp/setup-terraform@v3
@@ -62,12 +68,6 @@ jobs:
           github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
           ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
           do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          backend_bucket: "tup-firemonitoring-state"
-          backend_region: "us-east-1"
-          backend_key: "${{ inputs.env }}/${{ inputs.directory }}/terraform.tfstate"
-          backend_endpoint: "sgp1.digitaloceanspaces.com"
-          backend_access_key: ${{ secrets.TF_STATE_ACCESS_KEY }}
-          backend_secret_key: ${{ secrets.TF_STATE_SECRET_KEY }}
 
       - name: Plan/Format/Validate
         if: ${{ inputs.mode == 'validate' }}
@@ -81,15 +81,7 @@ jobs:
         if: ${{ inputs.mode == 'deploy' }}
         run: |
           cd ${{ inputs.directory }}
-          terraform plan -out=tfplan.binary
-
-      - name: Archive Cryptographic Plan
-        if: ${{ inputs.mode == 'deploy' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ inputs.env }}-${{ github.run_id }}
-          path: ${{ inputs.directory }}/tfplan.binary
-          retention-days: 1
+          terraform plan -no-color -out=tfplan.binary
 
   apply_infrastructure:
     name: "Apply Structural Plan"
@@ -98,12 +90,49 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.env }}
     env:
+      # FIX 2: Pass ALL necessary provider tokens to the apply environment block as well!
       TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repository: ${{ github.event.repository.name }}
+      TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+      TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
       TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+      TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+      TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # FIX 1: Reinforce the symlink on the secondary runner
+      - name: Re-link Global Provider Truths
+        run: |
+          cd ${{ inputs.directory }}
+          rm -f versions.tf
+          ln -s ../../../global/versions.tf versions.tf
+
+      - name: Initialize Terraform Runtime
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.5.0
+          terraform_wrapper: false
+
+      # FIX 3: Re-execute the backend hook so this runner can open the state communications
+      - name: Execute Contract (Backend Initialization)
+        uses: ./.github/actions/terraform-contract
+        with:
+          working_directory: ${{ inputs.directory }}
+          environment_name: ${{ inputs.env }}
+          use_backend: "true"
+          require_secrets: "true"
+          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          github_owner: ${{ github.repository_owner }}
+          github_repo: ${{ github.event.repository.name }}
+          github_app_id: ${{ secrets.APP_ID }}
+          github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
+          do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
 
       - name: Download Archived Plan
         uses: actions/download-artifact@v4
@@ -114,5 +143,4 @@ jobs:
       - name: Execute Immutable Apply
         run: |
           cd ${{ inputs.directory }}
-          # The contract action already initialized the backend; just apply the binary
           terraform apply -auto-approve tfplan.binary

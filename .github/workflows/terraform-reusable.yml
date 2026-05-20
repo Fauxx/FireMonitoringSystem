@@ -17,27 +17,29 @@ on:
         description: "validate | deploy"
 
 jobs:
-  # -------------------------------------------------------------
-  # Job 1: Build the Structural Blueprint and Save It
-  # -------------------------------------------------------------
-  plan_speculative:
-    name: "Build and Store Structural Plan"
+  terraform_pipeline:
+    name: "Terraform Pipeline Execution"
     runs-on: ubuntu-latest
-
     environment: ${{ inputs.env }}
-    
+    concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
+
+    # GLOBAL JOB ENV: This applies to ALL steps, keeping the file clean
+    env:
+      TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repository: ${{ github.event.repository.name }}
+      TF_VAR_github_app_id: ${{ secrets.APP_ID }}
+      TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+      TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+      TF_VAR_ssh_key_ids: "not-required-by-kubernetes-cluster"
+      TF_VAR_do_ssh_host_fingerprint: "not-required-by-kubernetes-cluster"
+      TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
+      TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
+      GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate App Token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Initialize Terraform Runtime
         uses: hashicorp/setup-terraform@v3
@@ -45,7 +47,7 @@ jobs:
           terraform_version: ~> 1.5.0
           terraform_wrapper: false
 
-      - name: Execute Contract (Init & Validate Environment)
+      - name: Execute Contract (Init & Validate)
         uses: ./.github/actions/terraform-contract
         with:
           working_directory: ${{ inputs.directory }}
@@ -61,74 +63,24 @@ jobs:
           backend_region: "us-east-1"
           backend_key: "dev/${{ inputs.directory }}/terraform.tfstate"
           backend_endpoint: "sgp1.digitaloceanspaces.com"
-          backend_access_key:  ${{ secrets.TF_STATE_ACCESS_KEY }}
-          backend_secret_key:  ${{ secrets.TF_STATE_SECRET_KEY }}
-        env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_github_owner: ${{ github.repository_owner }}
-          TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
-          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
-          # AUTOMATION FIX: Explicit contract actions mappings
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
-          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
+          backend_access_key: ${{ secrets.TF_STATE_ACCESS_KEY }}
+          backend_secret_key: ${{ secrets.TF_STATE_SECRET_KEY }}
 
-      - name: Enforce Formatting & Lint Standards
+      - name: Plan/Format/Validate
         if: ${{ inputs.mode == 'validate' }}
         run: |
           cd ${{ inputs.directory }}
-          terraform fmt -check -recursive || echo "Formatting warnings found"
+          terraform fmt -check -recursive
           terraform validate
-
-      - name: Compile Speculative Plan Blueprint
-        if: ${{ inputs.mode == 'validate' }}
-        run: |
-          cd ${{ inputs.directory }}
           terraform plan -no-color
-        env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_github_owner: ${{ github.repository_owner }}
-          TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
-          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
-          # AUTOMATION FIX: Explicit contract actions mappings
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
-          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
-      - name: Generate Target Immutable Binary Plan
+      - name: Generate Immutable Plan
         if: ${{ inputs.mode == 'deploy' }}
         run: |
           cd ${{ inputs.directory }}
           terraform plan -out=tfplan.binary
-        env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_github_owner: ${{ github.repository_owner }}
-          TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
-          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
-          # AUTOMATION FIX: Explicit contract actions mappings
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
-          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
 
-      - name: Archive Cryptographic Plan Artifact
+      - name: Archive Cryptographic Plan
         if: ${{ inputs.mode == 'deploy' }}
         uses: actions/upload-artifact@v4
         with:
@@ -136,91 +88,28 @@ jobs:
           path: ${{ inputs.directory }}/tfplan.binary
           retention-days: 1
 
-  # -------------------------------------------------------------
-  # Job 2: Wait for Approval, then Apply the Plan Exactly
-  # -------------------------------------------------------------
   apply_infrastructure:
-    name: "Enforce Structural Apply"
-    needs: plan_speculative
+    name: "Apply Structural Plan"
+    needs: terraform_pipeline
     if: ${{ inputs.mode == 'deploy' }}
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.env }}
-    concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
+    environment: ${{ inputs.env }}
+    env:
+      TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
 
     steps:
-      - name: Checkout Codebase
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Archived Plan Artifact
+      - name: Download Archived Plan
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ inputs.env }}-${{ github.run_id }}
           path: ${{ inputs.directory }}
 
-      - name: Generate fresh In-Memory App Token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Initialize Terraform Runtime
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ~> 1.5.0
-          terraform_wrapper: false
-
-      - name: Execute Contract (Init & Validate Environment)
-        uses: ./.github/actions/terraform-contract
-        with:
-          working_directory: ${{ inputs.directory }}
-          environment_name: ${{ inputs.env }}
-          use_backend: "true"
-          require_secrets: "false"
-          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          github_owner: ${{ github.repository_owner }}
-          github_repo: ${{ github.event.repository.name }}
-          github_app_id: ${{ secrets.APP_ID }}
-          github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          backend_bucket: "fire-monitoring-tfstate"
-          backend_region: "us-east-1"
-          backend_key: "dev/${{ inputs.directory }}/terraform.tfstate"
-          backend_endpoint: "sgp1.digitaloceanspaces.com"
-          backend_access_key:  ${{ secrets.TF_STATE_ACCESS_KEY }}
-          backend_secret_key:  ${{ secrets.TF_STATE_SECRET_KEY }}
-        env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_github_owner: ${{ github.repository_owner }}
-          TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
-          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
-          # AUTOMATION FIX: Explicit contract actions mappings
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
-          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"
-
-      - name: Execute Immutable Structural Apply
+      - name: Execute Immutable Apply
         run: |
           cd ${{ inputs.directory }}
+          # The contract action already initialized the backend; just apply the binary
           terraform apply -auto-approve tfplan.binary
-        env:
-          TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          TF_VAR_github_owner: ${{ github.repository_owner }}
-          TF_VAR_github_repository: ${{ github.event.repository.name }}
-          TF_VAR_github_app_id: ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
-          TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
-          TF_VAR_ghcr_deploy_username: ${{ secrets.GHCR_DEPLOY_USERNAME }}
-          TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
-          # AUTOMATION FIX: Explicit contract actions mappings
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-          SSH_KEY_IDS: "not-required-by-kubernetes-cluster"
-          DO_SSH_HOST_FINGERPRINT: "not-required-by-kubernetes-cluster"

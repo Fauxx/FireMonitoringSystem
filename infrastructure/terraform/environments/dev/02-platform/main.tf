@@ -1,13 +1,15 @@
 terraform {
-  required_version = ">= 1.5.0"
-
-  backend "s3" {} # Leverages your backend-common.conf
-
-  required_providers {
-    kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
-    helm         = { source = "hashicorp/helm", version = "~> 2.13" }
-    digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
-    github       = { source = "integrations/github", version = "~> 6.0" }
+  backend "s3" {
+    bucket                      = "fire-monitoring-tfstate"
+    region                      = "us-east-1"
+    endpoint                    = "https://sgp1.digitaloceanspaces.com"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    
+    # ADD THESE HERE instead of passing them in the CLI
+    skip_requesting_account_id  = true
+    use_path_style              = true
   }
 }
 

@@ -122,4 +122,7 @@ module "github_secrets" {
   github_app_id               = var.github_app_id
   github_app_installation_id  = var.github_app_installation_id
   github_app_private_key      = var.github_app_private_key
+  github_app_state_access_key = var.github_app_state_access_key
+  github_app_state_secret_key = var.github_app_state_secret_key
+
 }

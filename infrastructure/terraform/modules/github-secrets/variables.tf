@@ -25,3 +25,15 @@ variable "github_app_private_key" {
   type        = string
   sensitive   = true
 }
+
+variable "github_app_state_secret_key" {
+  description = "TF Do Spaces"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_app_state_access_key" {
+  description = "The DO space access "
+  type        = string
+  sensitive   = true
+}

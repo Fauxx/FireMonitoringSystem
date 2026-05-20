@@ -41,3 +41,19 @@ resource "github_actions_environment_secret" "github_app_private_key" {
   secret_name     = "APP_PRIVATE_KEY"
   value           = var.github_app_private_key
 }
+
+resource "github_actions_environment_secret" "github_app_state_access_key" {
+  repository      = var.github_repository
+  environment     = github_repository_environment.this.environment
+  secret_name     = "TF_STATE_ACCESS_KEY"
+  value           = var.github_app_private_key
+}
+
+resource "github_actions_environment_secret" "github_app_state_secret_key" {
+  repository      = var.github_repository
+  environment     = github_repository_environment.this.environment
+  secret_name     = "TF_STATE_SECRET_KEY"
+  value           = var.github_app_private_key
+}
+
+

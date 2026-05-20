@@ -1,7 +1,7 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  backend "s3" {} # Uses your backend-common.conf
+  backend "s3" {} # Leverages your backend-common.conf
 
   required_providers {
     kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
@@ -11,19 +11,17 @@ terraform {
   }
 }
 
-# -------------------------
-# Remote State (Pulling from DO Space)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Remote State Discovery (SGP1 Space State Bucket)
+# ------------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    # Remote state location (DigitalOcean Spaces, S3 compatible)
-    bucket = var.remote_state_bucket
-    key    = var.infra_state_key
-    # Spaces is S3-compatible (not AWS STS), so disable AWS account validations.
-    region                  = var.remote_state_region
-    endpoints               = { s3 = "https://${var.remote_state_endpoint}" }
-    use_path_style          = true
+    bucket                      = var.remote_state_bucket
+    key                         = var.infra_state_key
+    region                      = var.remote_state_region
+    endpoints                   = { s3 = "https://${var.remote_state_endpoint}" }
+    use_path_style              = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
@@ -35,9 +33,9 @@ data "digitalocean_kubernetes_cluster" "live" {
   name = data.terraform_remote_state.infra.outputs.cluster_name
 }
 
-# -------------------------
-# Providers
-# -------------------------
+# ------------------------------------------------------------------------------
+# Provider Initializations
+# ------------------------------------------------------------------------------
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
@@ -61,9 +59,9 @@ provider "github" {
   owner = var.github_owner
 }
 
-# -------------------------
-# Platform Logic (ArgoCD)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Platform Core Engine (Local Helm Deployments)
+# ------------------------------------------------------------------------------
 resource "kubernetes_namespace" "fire_monitoring_dev" {
   metadata {
     name = "fire-monitoring-dev"
@@ -99,45 +97,29 @@ data "kubernetes_service" "argocd_server" {
   depends_on = [helm_release.argocd]
 }
 
-# -------------------------
-# DNS (Pulled from Infra)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Networking & Route Mapping
+# ------------------------------------------------------------------------------
 resource "digitalocean_record" "argocd" {
-  domain = data.terraform_remote_state.infra.outputs.domain_name # <--- Pulled from Space
+  domain = data.terraform_remote_state.infra.outputs.domain_name
   type   = "A"
   name   = "argocd"
   value  = data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
 
-# -------------------------
-# GitHub Handshake
-# -------------------------
+# ------------------------------------------------------------------------------
+# Pull-Based GitOps Handshake Module Caller (Fully Aligned & Dynamic)
+# ------------------------------------------------------------------------------
 module "github_secrets" {
   source = "../../../modules/github-secrets"
 
-  # 1. Identity: Tells the module which repo and environment to target
-  enabled            = true
-  github_repo        = var.github_repository
-  github_environment = "dev"
+  # Dynamic environment assignment
+  github_environment         = var.github_environment
 
-  # 2. Connection Data
-  do_token   = var.do_token
-  cluster_id = data.terraform_remote_state.infra.outputs.cluster_id
-
-  # 3. Kubeconfig: Mapping the 'raw' output to the module's 'kubeconfig' input
-  kubeconfig = data.terraform_remote_state.infra.outputs.kubeconfig_raw
-
-  # 4. ArgoCD/DevOps Details
-  argocd_server     = "https://${digitalocean_record.argocd.fqdn}"
-  argocd_auth_token = var.argocd_auth_token
-
-  # 5. GitHub App Credentials (for CI/CD automation)
+  # FIX: Change 'github_repo' to 'github_repository' to match the module input name!
+  github_repository          = var.github_repository
   github_app_id              = var.github_app_id
   github_app_installation_id = var.github_app_installation_id
   github_app_private_key     = var.github_app_private_key
-
-  # 6. Container Registry Credentials (optional)
-  ghcr_deploy_username = var.ghcr_deploy_username
-  ghcr_deploy_token    = var.ghcr_deploy_token
 }

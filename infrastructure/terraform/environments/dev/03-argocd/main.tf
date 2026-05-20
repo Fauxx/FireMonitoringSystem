@@ -1,17 +1,16 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  backend "s3" {} # Uses your backend-common.conf
+  backend "s3" {} # Automatically leverages your backend-common.conf
 
   required_providers {
-    kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
-    digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
+    kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.30" }
   }
 }
 
-# -------------------------
-# Remote State (Pulling from DO Space)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Remote State Discovery (Reading Cluster Access from Layer 1)
+# ------------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
@@ -27,26 +26,41 @@ data "terraform_remote_state" "infra" {
   }
 }
 
-data "digitalocean_kubernetes_cluster" "infra" {
-  name = var.cluster_name
-}
-
-provider "digitalocean" {
-  token = var.do_token
-}
-
-# -------------------------
-# Providers
-# -------------------------
+# ------------------------------------------------------------------------------
+# Provider Initialization (Pure Dynamic State Inversion)
+# ------------------------------------------------------------------------------
 provider "kubernetes" {
-  host                   = data.digitalocean_kubernetes_cluster.infra.endpoint
-  token                  = data.digitalocean_kubernetes_cluster.infra.kube_config[0].token
-  cluster_ca_certificate = base64decode(data.digitalocean_kubernetes_cluster.infra.kube_config[0].cluster_ca_certificate)
+  host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
+  token                  = data.terraform_remote_state.infra.outputs.cluster_token
+  cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
 }
 
-# -------------------------
-# ArgoCD App-of-Apps
-# -------------------------
+# ------------------------------------------------------------------------------
+# ArgoCD Repository Credentials Configuration (The GitHub App Handshake)
+# ------------------------------------------------------------------------------
+resource "kubernetes_secret" "argocd_github_app_creds" {
+  metadata {
+    name      = "repo-github-app-creds"
+    namespace = "argocd"
+    labels = {
+      "argocd.argoproj.io/secret-type" = "repository"
+    }
+  }
+
+  type = "Opaque"
+
+  data = {
+    type                      = "git"
+    url                       = var.gitops_repo_url
+    githubAppID               = var.github_app_id
+    githubAppIDInstallationID = var.github_app_installation_id
+    githubAppPrivateKey       = replace(var.github_app_private_key, "\\n", "\n")
+  }
+}
+
+# ------------------------------------------------------------------------------
+# The Root Application (App-of-Apps Pattern Deployment)
+# ------------------------------------------------------------------------------
 resource "kubernetes_manifest" "argocd_apps" {
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"
@@ -64,9 +78,7 @@ resource "kubernetes_manifest" "argocd_apps" {
       }
       destination = {
         server    = "https://kubernetes.default.svc"
-        # Note: If this App of Apps is just generating OTHER ArgoCD Application YAMLs, 
-        # it is safer to leave this destination namespace as "argocd".
-        namespace = "fire-monitoring-dev" 
+        namespace = "argocd"
       }
       syncPolicy = {
         automated = {
@@ -77,56 +89,5 @@ resource "kubernetes_manifest" "argocd_apps" {
     }
   }
 
-  # FORCE TERRAFORM TO WAIT FOR CREDENTIALS
-  depends_on = [
-    kubernetes_secret.argocd_repo_https,
-    kubernetes_secret.argocd_repo_ssh
-  ]
-}
-
-# -------------------------
-# ArgoCD Repo Credential (HTTPS with GitHub Token)
-# -------------------------
-resource "kubernetes_secret" "argocd_repo_https" {
-  count = length(trimspace(var.github_token)) > 0 ? 1 : 0
-
-  metadata {
-    name      = "argocd-repo-creds"
-    namespace = "argocd"
-    labels = {
-      "argocd.argoproj.io/secret-type" = "repository"
-    }
-  }
-
-  type = "Opaque"
-
-  data = {
-    type     = "git"
-    url      = var.gitops_repo_url
-    username = var.github_username
-    password = var.github_token
-  }
-}
-
-# -------------------------
-# ArgoCD Repo Credential (SSH for GitOps repo access) - Optional
-# -------------------------
-resource "kubernetes_secret" "argocd_repo_ssh" {
-  count = length(trimspace(var.gitops_repo_ssh_private_key)) > 0 ? 1 : 0
-
-  metadata {
-    name      = "argocd-repo-ssh"
-    namespace = "argocd"
-    labels = {
-      "argocd.argoproj.io/secret-type" = "repository"
-    }
-  }
-
-  type = "Opaque"
-
-  data = {
-    type          = "git"
-    url           = var.gitops_repo_url
-    sshPrivateKey = var.gitops_repo_ssh_private_key
-  }
+  depends_on = [kubernetes_secret.argocd_github_app_creds]
 }

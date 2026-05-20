@@ -1,96 +1,84 @@
-# --- 1. Cloud Authentication ---
+# ==============================================================================
+# 1. CLOUD & API AUTHENTICATION
+# ==============================================================================
+
 variable "do_token" {
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
+  description = "DigitalOcean personal access token used to authenticate provider API calls for managing platform DNS and cluster lookups."
 }
 
 variable "github_token" {
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
+  description = "Personal access token used by the GitHub provider to authenticate and modify repository environments."
 }
 
-# --- 2. Remote State Plumbing (Discovery) ---
+# ==============================================================================
+# 2. REMOTE STATE PLUMBING (DISCOVERY)
+# ==============================================================================
+
 variable "remote_state_bucket" {
   type        = string
-  description = "The name of your DO Space where state is kept"
+  description = "The name of the DigitalOcean Space S3-compatible bucket where your Layer 01 infrastructure state is stored."
 }
 
 variable "infra_state_key" {
   type        = string
-  description = "The path to the Layer 01 state file (e.g., dev/01-infra/terraform.tfstate)"
+  description = "The direct object path to your infrastructure state artifact (e.g., dev/01-infra/terraform.tfstate)."
 }
 
 variable "remote_state_region" {
-  type    = string
-  default = "us-east-1" # DigitalOcean Spaces requires this for S3 compatibility
+  type        = string
+  default     = "us-east-1"
+  description = "The AWS S3 emulation region identifier required by DigitalOcean Spaces for API compatibility."
 }
 
 variable "remote_state_endpoint" {
-  type    = string
-  default = "sgp1.digitaloceanspaces.com"
+  type        = string
+  default     = "sgp1.digitaloceanspaces.com"
+  description = "The regional endpoint URL for your active DigitalOcean Spaces storage space."
 }
 
-# --- 3. GitHub Project Context ---
+# ==============================================================================
+# 3. GITHUB PROJECT CONTEXT
+# ==============================================================================
+
 variable "github_owner" {
-  type    = string
-  default = "Fauxx"
+  type        = string
+  default     = "Fauxx"
+  description = "The target owner/organization name hosting the project code on GitHub."
 }
 
 variable "github_repository" {
-  type = string
-}
-
-# --- 4. Platform Configuration ---
-variable "argocd_server" {
   type        = string
-  description = "The FQDN for ArgoCD (e.g., argocd.fires.systems)"
+  description = "The name of the specific GitHub code repository managing the target environment."
 }
 
-variable "argocd_auth_token" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Optional ArgoCD auth token used for automation (set when available)"
-}
+# ==============================================================================
+# 4. RUNNER VALIDATION HANDSHAKE (MINIMAL APPS AUTH)
+# ==============================================================================
 
-# --- 5. GitHub App Credentials (Optional) ---
 variable "github_app_id" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App ID for CI/CD automation (optional)"
+  description = "The unique numerical identifier of your custom GitHub App utilized by speculative workflows."
 }
 
 variable "github_app_installation_id" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App Installation ID for CI/CD automation (optional)"
+  description = "The application installation mapping ID pointing to your target repository space."
 }
 
 variable "github_app_private_key" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App private key (base64-encoded PEM) for CI/CD automation (optional)"
+  description = "The cryptographic, base64-encoded PEM private key utilized by your workflows to authorize short-lived pipeline runner sessions."
 }
 
-variable "ghcr_deploy_username" {
+variable "github_environment" {
   type        = string
-  sensitive   = false
-  default     = ""
-  description = "GHCR username for container registry access (optional)"
+  default     = "dev"
+  description = "The target deployment stage profile container slot inside GitHub (e.g., dev, prod)."
 }
-
-variable "ghcr_deploy_token" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "GHCR token for container registry access (optional)"
-}
-
-variable "cluster_name" {
-  type        = string
-  description = "The name of the DigitalOcean Kubernetes cluster"
-}
-

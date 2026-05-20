@@ -1,71 +1,27 @@
-variable "enabled" {
-  description = "Enable or disable secret syncing"
-  type        = bool
-  default     = true
-}
-
-variable "github_repo" {
-  description = "The target GitHub repository name"
+variable "github_repository" {
   type        = string
+  description = "The target GitHub repository name where the environments are configured."
 }
 
 variable "github_environment" {
-  description = "The GitHub environment (e.g., dev, prod)"
   type        = string
-}
-
-variable "kubeconfig" {
-  description = "The raw kubeconfig content for the cluster"
-  type        = string
-  sensitive   = true
-}
-
-variable "do_token" {
-  description = "DigitalOcean API Token"
-  type        = string
-  sensitive   = true
-}
-
-variable "cluster_id" {
-  description = "Optional cluster id from infra layer (used by automation)"
-  type        = string
-  default     = ""
-}
-
-# --- Optional Variables (Defaults to empty strings) ---
-
-variable "argocd_server" {
-  type    = string
-  default = ""
-}
-
-variable "argocd_auth_token" {
-  type    = string
-  default = ""
-}
-
-variable "ghcr_deploy_username" {
-  type    = string
-  default = ""
-}
-
-variable "ghcr_deploy_token" {
-  type    = string
-  default = ""
+  description = "The target environment context slot (e.g., dev, prod) within GitHub."
 }
 
 variable "github_app_id" {
-  type    = string
-  default = ""
-}
-
-variable "github_app_private_key" {
-  type      = string
-  default   = ""
-  sensitive = true
+  type        = string
+  sensitive   = true
+  description = "The unique numerical identification string of your custom GitHub App."
 }
 
 variable "github_app_installation_id" {
-  type    = string
-  default = ""
+  type        = string
+  sensitive   = true
+  description = "The application installation mapping ID pointing to your target repository space."
+}
+
+variable "github_app_private_key" {
+  type        = string
+  sensitive   = true
+  description = "The cryptographic PEM private key content used to authenticate pipeline action runs."
 }

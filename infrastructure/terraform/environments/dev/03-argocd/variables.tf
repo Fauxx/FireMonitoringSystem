@@ -1,78 +1,76 @@
+# ==============================================================================
+# 1. REMOTE STATE DISCOVERY (LAYER 1 INTERFACE)
+# ==============================================================================
+
 variable "remote_state_bucket" {
-  description = "S3 bucket for remote state (DigitalOcean Spaces)"
   type        = string
+  description = "The name of the DigitalOcean Space bucket holding Layer 1 state data."
 }
 
 variable "infra_state_key" {
-  description = "Remote state key for infra layer"
   type        = string
-  default     = "dev/01-infra/terraform.tfstate"
+  description = "The storage path mapping back to your infrastructure state file."
 }
 
 variable "remote_state_region" {
-  description = "S3 region for remote state"
   type        = string
   default     = "us-east-1"
+  description = "S3 compatibility region code used by DigitalOcean Spaces."
 }
 
 variable "remote_state_endpoint" {
-  description = "S3 endpoint for remote state (e.g., sgp1.digitaloceanspaces.com)"
   type        = string
   default     = "sgp1.digitaloceanspaces.com"
+  description = "Regional API server link for DigitalOcean Spaces."
 }
+
 
 variable "do_token" {
-  description = "DigitalOcean API token used to read the cluster configuration"
   type        = string
   sensitive   = true
+  description = "Your personal DigitalOcean API bearer token used by doctl authentication."
 }
 
-variable "cluster_name" {
-  description = "Name of the DigitalOcean Kubernetes cluster"
-  type        = string
-}
 
-# -------------------------
-# GitOps Repo Settings
-# -------------------------
+# ==============================================================================
+# 2. GITOPS REPOSITORY TARGET CONTEXT
+# ==============================================================================
 
 variable "gitops_repo_url" {
-  description = "GitOps repository URL (e.g., git@github.com:org/gitops-repo.git)"
   type        = string
+  description = "The full HTTPS URL of your target GitOps repository (e.g., https://github.com/owner/repo)."
 }
 
 variable "gitops_repo_branch" {
-  description = "Target branch in GitOps repo"
   type        = string
-  default     = "main"
+  default     = "dev-zet"
+  description = "The dedicated repository branch tracking your development manifests."
 }
 
 variable "gitops_repo_apps_path" {
-  description = "Path to applications in GitOps repo"
   type        = string
-  default     = "apps"
+  default     = "infrastructure/argocd/root"
+  description = "The internal file path inside the repository where the App-of-Apps manifests sit."
 }
 
-variable "gitops_repo_ssh_private_key" {
-  description = "SSH private key for ArgoCD repo access (base64-encoded PEM)"
+# ==============================================================================
+# 3. CRYPTOGRAPHIC PASSPORT PRIMITIVES (SENSITIVE)
+# ==============================================================================
+
+variable "github_app_id" {
   type        = string
   sensitive   = true
-  default     = ""
+  description = "The global identification string assigned to your custom GitHub App."
 }
 
-# -------------------------
-# GitHub Authentication (HTTPS)
-# -------------------------
-
-variable "github_username" {
-  description = "GitHub username for HTTPS repo authentication (e.g., Fauxx)"
-  type        = string
-  default     = ""
-}
-
-variable "github_token" {
-  description = "GitHub PAT for HTTPS repo authentication"
+variable "github_app_installation_id" {
   type        = string
   sensitive   = true
-  default     = ""
+  description = "The target deployment context mapping ID inside your repository settings."
+}
+
+variable "github_app_private_key" {
+  type        = string
+  sensitive   = true
+  description = "The private PEM key content used locally by the cluster to request hourly tokens."
 }

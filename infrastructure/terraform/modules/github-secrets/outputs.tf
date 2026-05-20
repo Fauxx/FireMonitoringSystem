@@ -1,13 +1,13 @@
 output "github_environment" {
-  description = "The name of the GitHub environment configured"
-  value       = var.enabled ? var.github_environment : "none"
+  value       = github_repository_environment.this.environment
+  description = "The target GitHub environment profile name where the deployment validation gates are synchronized."
 }
 
 output "secrets_synced" {
-  description = "List of core secrets successfully pushed"
-  value = compact([
-    var.enabled ? "KUBECONFIG_DATA" : "",
-    var.enabled ? "DIGITALOCEAN_TOKEN" : "",
-    local.create_argocd_server ? "ARGOCD_SERVER" : ""
-  ])
+  value = [
+    "APP_ID",
+    "APP_INSTALLATION_ID",
+    "APP_PRIVATE_KEY"
+  ]
+  description = "A clean list of cryptographic GitHub App key names that were securely synchronized into the environment cloud vault."
 }

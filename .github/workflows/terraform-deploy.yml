@@ -53,10 +53,17 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        layer: ["01-infra", "02-platform", "03-argocd"]
+        include:
+          - layer: "01-infra"
+            layer_kind: "infra"
+          - layer: "02-platform"
+            layer_kind: "platform"
+          - layer: "03-argocd"
+            layer_kind: "gitops"
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/${{ matrix.layer }}"
+      layer_kind: ${{ matrix.layer_kind }}
       env: "dev"
       mode: "validate"
     secrets: inherit
@@ -75,6 +82,7 @@ jobs:
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/01-infra"
+      layer_kind: "infra"
       env: "dev"
       mode: "deploy"
     secrets: inherit
@@ -92,6 +100,7 @@ jobs:
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/02-platform"
+      layer_kind: "platform"
       env: "dev"
       mode: "deploy"
     secrets: inherit
@@ -109,6 +118,7 @@ jobs:
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/03-argocd"
+      layer_kind: "gitops"
       env: "dev"
       mode: "deploy"
     secrets: inherit

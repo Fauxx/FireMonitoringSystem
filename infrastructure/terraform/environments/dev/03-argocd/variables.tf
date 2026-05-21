@@ -55,7 +55,7 @@ variable "gitops_repo_branch" {
 # CHANGED: Synced with your configuration names to prevent 'null' dropping
 variable "gitops_repo_apps_path" {
   type        = string
-  default     = "infrastructure/argocd/root"
+  default     = "infrastructure/k8s/overlays/dev"
   description = "The internal file path inside the repository where the App-of-Apps manifests sit."
 }
 

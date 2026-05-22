@@ -26,12 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.env }}
     concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
-    permissions:
-      contents: read
-      id-token: write
-      environments: write
-      secrets: write
-      actions: write
 
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}

@@ -63,4 +63,58 @@ resource "github_actions_environment_secret" "do_token" {
   value        = var.do_token
 }
 
+# ==============================================================================
+# 3. ENVIRONMENT VARIABLES (Non-Sensitive)
+# ==============================================================================
+
+resource "github_actions_environment_variable" "root_domain" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "ROOT_DOMAIN"
+  value         = var.root_domain
+}
+
+resource "github_actions_environment_variable" "cluster_name" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "CLUSTER_NAME"
+  value         = var.cluster_name
+}
+
+resource "github_actions_environment_variable" "node_size" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "NODE_SIZE"
+  value         = var.node_size
+}
+
+resource "github_actions_environment_variable" "node_count" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "NODE_COUNT"
+  value         = tostring(var.node_count)
+}
+
+resource "github_actions_environment_variable" "remote_state_bucket" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "REMOTE_STATE_BUCKET"
+  value         = var.remote_state_bucket
+}
+
+resource "github_actions_environment_variable" "infra_state_key" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "INFRA_STATE_KEY"
+  value         = var.infra_state_key
+}
+
+resource "github_actions_environment_variable" "gitops_repo_url" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "GITOPS_REPO_URL"
+  value         = var.gitops_repo_url
+}
+
+
 

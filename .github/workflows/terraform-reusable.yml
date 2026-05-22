@@ -46,7 +46,17 @@ jobs:
       TF_VAR_ghcr_deploy_token: ${{ secrets.GHCR_DEPLOY_TOKEN }}
       GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
 
+      # --- Streamlined Infrastructure Truths (Injected via Bootstrap) ---
+      TF_VAR_root_domain: ${{ vars.ROOT_DOMAIN }}
+      TF_VAR_cluster_name: ${{ vars.CLUSTER_NAME }}
+      TF_VAR_node_size: ${{ vars.NODE_SIZE }}
+      TF_VAR_node_count: ${{ vars.NODE_COUNT }}
+      TF_VAR_remote_state_bucket: ${{ vars.REMOTE_STATE_BUCKET }}
+      TF_VAR_infra_state_key: ${{ vars.INFRA_STATE_KEY }}
+      TF_VAR_gitops_repo_url: ${{ vars.GITOPS_REPO_URL }}
+
     steps:
+
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
@@ -116,6 +126,15 @@ jobs:
       TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
       TF_VAR_ssh_key_ids: ${{ secrets.SSH_KEY_IDS }}
       TF_VAR_do_ssh_host_fingerprint: ${{ secrets.DO_SSH_HOST_FINGERPRINT }}
+
+      # --- Streamlined Infrastructure Truths (Injected via Bootstrap) ---
+      TF_VAR_root_domain: ${{ vars.ROOT_DOMAIN }}
+      TF_VAR_cluster_name: ${{ vars.CLUSTER_NAME }}
+      TF_VAR_node_size: ${{ vars.NODE_SIZE }}
+      TF_VAR_node_count: ${{ vars.NODE_COUNT }}
+      TF_VAR_remote_state_bucket: ${{ vars.REMOTE_STATE_BUCKET }}
+      TF_VAR_infra_state_key: ${{ vars.INFRA_STATE_KEY }}
+      TF_VAR_gitops_repo_url: ${{ vars.GITOPS_REPO_URL }}
 
     steps:
       - name: Checkout

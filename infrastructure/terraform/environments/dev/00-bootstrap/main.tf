@@ -40,6 +40,15 @@ module "github_secrets" {
   github_app_state_access_key = var.github_app_state_access_key
   github_app_state_secret_key = var.github_app_state_secret_key
   do_token                    = var.do_token
+
+  # New streamlined truth injection
+  root_domain         = var.root_domain
+  cluster_name        = var.cluster_name
+  node_size           = var.node_size
+  node_count          = var.node_count
+  remote_state_bucket = var.remote_state_bucket
+  infra_state_key     = var.infra_state_key
+  gitops_repo_url     = var.gitops_repo_url
 }
 
 # ------------------------------------------------------------------------------

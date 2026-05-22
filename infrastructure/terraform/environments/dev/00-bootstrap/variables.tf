@@ -63,3 +63,45 @@ variable "github_app_state_secret_key" {
   description = "S3-compatible Secret Access Key for state storage authorization."
   sensitive   = true
 }
+
+# --- Infrastructure Truths ---
+variable "root_domain" {
+  type        = string
+  description = "The root domain managed by DigitalOcean"
+}
+
+variable "cluster_name" {
+  type        = string
+  description = "The name of the Kubernetes cluster"
+}
+
+variable "node_size" {
+  type        = string
+  default     = "s-1vcpu-2gb"
+  description = "Droplet size for the worker nodes"
+}
+
+variable "node_count" {
+  type        = number
+  default     = 2
+  description = "Number of worker nodes"
+}
+
+# --- State Plumbing ---
+variable "remote_state_bucket" {
+  type        = string
+  default     = "tup-firemonitoring-state"
+  description = "DigitalOcean Space name for state storage"
+}
+
+variable "infra_state_key" {
+  type        = string
+  default     = "dev/01-infra/terraform.tfstate"
+  description = "Path to infra state"
+}
+
+# --- GitOps ---
+variable "gitops_repo_url" {
+  type        = string
+  description = "The full HTTPS URL of your target GitOps repository."
+}

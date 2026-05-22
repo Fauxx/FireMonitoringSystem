@@ -1,7 +1,22 @@
 terraform {
   required_version = ">= 1.5.0"
 
-  backend "s3" {} # Uses your backend-common.conf
+  backend "s3" {
+    endpoints = {
+      s3 = "https://sgp1.digitaloceanspaces.com"
+    }
+
+    bucket = "tup-firemonitoring-state"
+    key    = "prod/03-argocd/terraform.tfstate"
+    region = "us-east-1"
+
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+
+    use_path_style = true
+  }
 
   required_providers {
     kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
@@ -18,12 +33,11 @@ data "terraform_remote_state" "infra" {
     bucket                      = var.remote_state_bucket
     key                         = var.infra_state_key
     region                      = var.remote_state_region
-    endpoints                   = { s3 = "https://${var.remote_state_endpoint}" }
-    use_path_style              = true
+    endpoint                    = "https://${var.remote_state_endpoint}"
+    force_path_style            = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
-    skip_requesting_account_id  = true
   }
 }
 

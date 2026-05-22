@@ -3,13 +3,6 @@ terraform {
 
   # Secure Remote State Storage in DO Spaces
   backend "s3" {}
-
-  required_providers {
-    digitalocean = {
-      source  = "digitalocean/digitalocean"
-      version = "~> 2.34"
-    }
-  }
 }
 
 provider "digitalocean" {
@@ -17,15 +10,13 @@ provider "digitalocean" {
 }
 
 # 1. DOMAIN DELEGATION
-resource "digitalocean_domain" "fire_systems" {
+data "digitalocean_domain" "fire_systems" {
   name = var.root_domain
 }
 
 # 2. PRIVATE NETWORK (VPC)
-resource "digitalocean_vpc" "cluster_network" {
-  name     = "${var.cluster_name}-vpc"
-  region   = var.region
-  ip_range = "10.10.10.0/24"
+data "digitalocean_vpc" "cluster_network" {
+  name = "${var.cluster_name}-vpc"
 }
 
 # 3. PROVISION DOKS CLUSTER
@@ -33,8 +24,8 @@ resource "digitalocean_kubernetes_cluster" "this" {
   name   = var.cluster_name
   region = var.region
   # Stable version slug for SGP1 region as of May 2026
-  version  = "1.35.1-do.6"
-  vpc_uuid = digitalocean_vpc.cluster_network.id
+  version  = "1.35.5-do.0"
+  vpc_uuid = data.digitalocean_vpc.cluster_network.id
 
   node_pool {
     name       = "${var.cluster_name}-default-pool"

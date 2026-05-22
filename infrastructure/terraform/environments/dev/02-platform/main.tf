@@ -1,33 +1,24 @@
+# ==============================================================================
+# 1. STATE & BACKEND PLUMBING (Configured via CLI/Backend Files)
+# ==============================================================================
 terraform {
-  required_version = ">= 1.5.0"
-
-  backend "s3" {} # Uses your backend-common.conf
-
-  required_providers {
-    kubernetes   = { source = "hashicorp/kubernetes", version = "~> 2.30" }
-    helm         = { source = "hashicorp/helm", version = "~> 2.13" }
-    digitalocean = { source = "digitalocean/digitalocean", version = "~> 2.34" }
-    github       = { source = "integrations/github", version = "~> 6.0" }
-  }
+  backend "s3" {}
 }
 
-# -------------------------
-# Remote State (Pulling from DO Space)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Remote State Discovery (SGP1 Space State Bucket - Reading from 01-infra!)
+# ------------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    # Remote state location (DigitalOcean Spaces, S3 compatible)
-    bucket = var.remote_state_bucket
-    key    = var.infra_state_key
-    # Spaces is S3-compatible (not AWS STS), so disable AWS account validations.
-    region                  = var.remote_state_region
-    endpoints               = { s3 = "https://${var.remote_state_endpoint}" }
-    use_path_style          = true
+    bucket                      = var.remote_state_bucket
+    key                         = var.infra_state_key
+    region                      = var.remote_state_region
+    endpoint                    = "https://${var.remote_state_endpoint}"
+    force_path_style            = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
-    skip_requesting_account_id  = true
   }
 }
 
@@ -35,9 +26,9 @@ data "digitalocean_kubernetes_cluster" "live" {
   name = data.terraform_remote_state.infra.outputs.cluster_name
 }
 
-# -------------------------
-# Providers
-# -------------------------
+# ==============================================================================
+# 2. DYNAMIC PROVIDER CONFIGURATIONS (Evaluated at Runtime)
+# ==============================================================================
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
@@ -56,21 +47,16 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-provider "github" {
-  token = var.github_token
-  owner = var.github_owner
-}
-
-# -------------------------
-# Platform Logic (ArgoCD)
-# -------------------------
-resource "kubernetes_namespace" "fire_monitoring_dev" {
+# ==============================================================================
+# 3. PLATFORM ENGINE LOGIC (Namespaces & Resources)
+# ==============================================================================
+resource "kubernetes_namespace_v1" "fire_monitoring_dev" {
   metadata {
     name = "fire-monitoring-dev"
   }
 }
 
-resource "kubernetes_namespace" "argocd" {
+resource "kubernetes_namespace_v1" "argocd" {
   metadata {
     name = "argocd"
   }
@@ -80,64 +66,80 @@ resource "helm_release" "argocd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  namespace  = kubernetes_namespace.argocd.metadata[0].name
+  namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
 
   values = [yamlencode({
     server = {
-      service = { type = "LoadBalancer" }
+      replicas = 2 # Increases UI concurrency and stops UI connection hangs
+      service  = { type = "LoadBalancer" }
+      resources = {
+        limits   = { cpu = "500m", memory = "512Mi" }
+        requests = { cpu = "100m", memory = "256Mi" }
+      }
     }
-    controller = { replicas = 2 }
-    redis      = { enabled = true }
+    repoServer = {
+      # Grants dedicated horsepower for generating application manifest diffs quickly
+      resources = {
+        limits   = { cpu = "1000m", memory = "1Gi" }
+        requests = { cpu = "250m", memory = "256Mi" }
+      }
+    }
+    controller = {
+      replicas = 2 # Fast cluster sync execution state
+      resources = {
+        limits   = { cpu = "1000m", memory = "1Gi" }
+        requests = { cpu = "500m", memory = "512Mi" }
+      }
+    }
+    redis = {
+      enabled = true
+      # Protects Redis cache state from hitting Out-Of-Memory (OOM) tracking walls
+      resources = {
+        limits   = { cpu = "500m", memory = "512Mi" }
+        requests = { cpu = "100m", memory = "128Mi" }
+      }
+    }
   })]
 }
 
-data "kubernetes_service" "argocd_server" {
+data "kubernetes_service_v1" "argocd_server" {
   metadata {
     name      = "argocd-server"
-    namespace = kubernetes_namespace.argocd.metadata[0].name
+    namespace = kubernetes_namespace_v1.argocd.metadata[0].name
   }
   depends_on = [helm_release.argocd]
 }
 
-# -------------------------
-# DNS (Pulled from Infra)
-# -------------------------
+# ------------------------------------------------------------------------------
+# Networking & Route Mapping
+# ------------------------------------------------------------------------------
 resource "digitalocean_record" "argocd" {
-  domain = data.terraform_remote_state.infra.outputs.domain_name # <--- Pulled from Space
+  domain = data.terraform_remote_state.infra.outputs.domain_name
   type   = "A"
   name   = "argocd"
-  value  = data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].ip
+  value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
 
-# -------------------------
-# GitHub Handshake
-# -------------------------
-module "github_secrets" {
-  source = "../../../modules/github-secrets"
+# ------------------------------------------------------------------------------
+# 4. SHARED APPLICATION SECRETS (Injected from CI runtime)
+# ------------------------------------------------------------------------------
+resource "kubernetes_secret_v1" "fire_monitoring_secrets" {
+  metadata {
+    name      = "fire-monitoring-secrets"
+    namespace = kubernetes_namespace_v1.fire_monitoring_dev.metadata[0].name
+  }
 
-  # 1. Identity: Tells the module which repo and environment to target
-  enabled            = true
-  github_repo        = var.github_repository
-  github_environment = "dev"
+  data = {
+    # We pass the PEM key here; K8s will handle the multi-line string correctly in the base64 payload.
+    # This allows the API/ETL to mount it as a file later.
+    "github-app-private-key.pem" = var.github_app_private_key
+    "github-app-id"              = var.github_app_id
+    "github-app-installation-id" = var.github_app_installation_id
 
-  # 2. Connection Data
-  do_token   = var.do_token
-  cluster_id = data.terraform_remote_state.infra.outputs.cluster_id
+    # Also include the database URL for shared connectivity
+    "DATABASE_URL" = "postgresql://fireuser:changeme@db:5432/fire_monitoring"
+  }
 
-  # 3. Kubeconfig: Mapping the 'raw' output to the module's 'kubeconfig' input
-  kubeconfig = data.terraform_remote_state.infra.outputs.kubeconfig_raw
-
-  # 4. ArgoCD/DevOps Details
-  argocd_server     = "https://${digitalocean_record.argocd.fqdn}"
-  argocd_auth_token = var.argocd_auth_token
-
-  # 5. GitHub App Credentials (for CI/CD automation)
-  github_app_id              = var.github_app_id
-  github_app_installation_id = var.github_app_installation_id
-  github_app_private_key     = var.github_app_private_key
-
-  # 6. Container Registry Credentials (optional)
-  ghcr_deploy_username = var.ghcr_deploy_username
-  ghcr_deploy_token    = var.ghcr_deploy_token
+  type = "Opaque"
 }

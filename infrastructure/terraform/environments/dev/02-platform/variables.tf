@@ -1,95 +1,69 @@
-# --- 1. Cloud Authentication ---
+# ==============================================================================
+# 1. CLOUD & API AUTHENTICATION
+# ==============================================================================
+
 variable "do_token" {
-  type      = string
-  sensitive = true
+  type        = string
+  sensitive   = true
+  description = "DigitalOcean personal access token used to authenticate provider API calls for managing platform DNS and cluster lookups."
 }
 
-variable "github_token" {
-  type      = string
-  sensitive = true
-}
+# ==============================================================================
+# 2. REMOTE STATE PLUMBING (DISCOVERY)
+# ==============================================================================
 
-# --- 2. Remote State Plumbing (Discovery) ---
 variable "remote_state_bucket" {
   type        = string
-  description = "The name of your DO Space where state is kept"
+  description = "The name of the DigitalOcean Space S3-compatible bucket where your Layer 01 infrastructure state is stored."
 }
 
 variable "infra_state_key" {
   type        = string
-  description = "The path to the Layer 01 state file (e.g., dev/01-infra/terraform.tfstate)"
+  description = "The direct object path to your infrastructure state artifact (e.g., dev/01-infra/terraform.tfstate)."
 }
 
 variable "remote_state_region" {
-  type    = string
-  default = "us-east-1" # DigitalOcean Spaces requires this for S3 compatibility
+  type        = string
+  default     = "us-east-1"
+  description = "The AWS S3 emulation region identifier required by DigitalOcean Spaces for API compatibility."
 }
 
 variable "remote_state_endpoint" {
-  type    = string
-  default = "sgp1.digitaloceanspaces.com"
-}
-
-# --- 3. GitHub Project Context ---
-variable "github_owner" {
-  type    = string
-  default = "Fauxx"
-}
-
-variable "github_repository" {
-  type = string
-}
-
-# --- 4. Platform Configuration ---
-variable "argocd_server" {
   type        = string
-  description = "The FQDN for ArgoCD (e.g., argocd.fires.systems)"
+  default     = "sgp1.digitaloceanspaces.com"
+  description = "The regional endpoint URL for your active DigitalOcean Spaces storage space."
 }
 
-variable "argocd_auth_token" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Optional ArgoCD auth token used for automation (set when available)"
-}
+# ==============================================================================
+# 3. GITHUB APP RUNTIME INJECTION (CI CONTRACT INPUTS)
+# ==============================================================================
 
-# --- 5. GitHub App Credentials (Optional) ---
 variable "github_app_id" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App ID for CI/CD automation (optional)"
+  description = "The GitHub App ID injected by CI for platform-level GitHub integrations."
 }
 
 variable "github_app_installation_id" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App Installation ID for CI/CD automation (optional)"
+  description = "The GitHub App installation ID injected by CI for environment-scoped operations."
 }
 
 variable "github_app_private_key" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GitHub App private key (base64-encoded PEM) for CI/CD automation (optional)"
+  description = "The GitHub App private key content injected at runtime by the contract action."
 }
 
-variable "ghcr_deploy_username" {
-  type        = string
-  sensitive   = false
-  default     = ""
-  description = "GHCR username for container registry access (optional)"
-}
-
-variable "ghcr_deploy_token" {
+variable "github_app_state_access_key" {
   type        = string
   sensitive   = true
-  default     = ""
-  description = "GHCR token for container registry access (optional)"
+  description = "Remote state access key injected by CI runtime contract for platform layer workflows."
 }
 
-variable "cluster_name" {
+variable "github_app_state_secret_key" {
   type        = string
-  description = "The name of the DigitalOcean Kubernetes cluster"
+  sensitive   = true
+  description = "Remote state secret key injected by CI runtime contract for platform layer workflows."
 }

@@ -1,71 +1,75 @@
-variable "enabled" {
-  description = "Enable or disable secret syncing"
-  type        = bool
-  default     = true
-}
-
-variable "github_repo" {
-  description = "The target GitHub repository name"
+variable "github_repository" {
   type        = string
+  description = "The target GitHub repository name where the environments are configured."
 }
 
 variable "github_environment" {
-  description = "The GitHub environment (e.g., dev, prod)"
   type        = string
+  description = "The target environment context slot (e.g., dev, prod) within GitHub."
 }
 
-variable "kubeconfig" {
-  description = "The raw kubeconfig content for the cluster"
+variable "github_app_id" {
+  type        = string
+  sensitive   = true
+  description = "The unique numerical identification string of your custom GitHub App."
+}
+
+variable "github_app_installation_id" {
+  type        = string
+  sensitive   = true
+  description = "The application installation mapping ID pointing to your target repository space."
+}
+
+variable "github_app_private_key" {
+  description = "The raw GitHub App private key"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_app_state_secret_key" {
+  description = "TF Do Spaces"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_app_state_access_key" {
+  description = "The DO space access "
   type        = string
   sensitive   = true
 }
 
 variable "do_token" {
-  description = "DigitalOcean API Token"
-  type        = string
-  sensitive   = true
-}
-
-variable "cluster_id" {
-  description = "Optional cluster id from infra layer (used by automation)"
-  type        = string
-  default     = ""
-}
-
-# --- Optional Variables (Defaults to empty strings) ---
-
-variable "argocd_server" {
-  type    = string
-  default = ""
-}
-
-variable "argocd_auth_token" {
-  type    = string
-  default = ""
-}
-
-variable "ghcr_deploy_username" {
-  type    = string
-  default = ""
-}
-
-variable "ghcr_deploy_token" {
-  type    = string
-  default = ""
-}
-
-variable "github_app_id" {
-  type    = string
-  default = ""
-}
-
-variable "github_app_private_key" {
   type      = string
-  default   = ""
   sensitive = true
 }
 
-variable "github_app_installation_id" {
-  type    = string
-  default = ""
+# --- Infrastructure Variables ---
+variable "root_domain" {
+  type = string
+}
+
+variable "cluster_name" {
+  type = string
+}
+
+variable "node_size" {
+  type = string
+}
+
+variable "node_count" {
+  type = string
+}
+
+# --- State Plumbing ---
+variable "remote_state_bucket" {
+  type = string
+}
+
+variable "infra_state_key" {
+  type = string
+}
+
+# --- GitOps ---
+variable "gitops_repo_url" {
+  type = string
 }

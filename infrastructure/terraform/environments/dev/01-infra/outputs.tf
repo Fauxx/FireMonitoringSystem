@@ -1,6 +1,6 @@
 output "domain_name" {
   description = "The root domain managed by DigitalOcean"
-  value       = digitalocean_domain.fire_systems.name
+  value       = data.digitalocean_domain.fire_systems.name
 }
 
 output "cluster_id" {
@@ -32,7 +32,7 @@ output "cluster_ca_certificate" {
 
 output "vpc_id" {
   description = "The ID of the VPC created for this cluster"
-  value       = digitalocean_vpc.cluster_network.id
+  value       = data.digitalocean_vpc.cluster_network.id
 }
 
 output "kubeconfig_raw" {

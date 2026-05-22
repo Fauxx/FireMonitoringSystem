@@ -10,6 +10,10 @@ inputs:
     description: Environment directory name (dev/prod)
     required: false
     default: dev
+  layer_kind:
+    description: Layer profile (infra, platform, gitops)
+    required: false
+    default: infra
   use_backend:
     description: Whether to initialize configured backend
     required: false
@@ -81,30 +85,6 @@ inputs:
     description: GHCR container registry token
     required: false
     default: ""
-  backend_bucket:
-    description: Terraform backend bucket name
-    required: false
-    default: ""
-  backend_region:
-    description: Terraform backend region
-    required: false
-    default: ""
-  backend_key:
-    description: Terraform backend key for current environment
-    required: false
-    default: ""
-  backend_endpoint:
-    description: S3-compatible backend endpoint
-    required: false
-    default: ""
-  backend_access_key:
-    description: Backend access key
-    required: false
-    default: ""
-  backend_secret_key:
-    description: Backend secret key
-    required: false
-    default: ""
 
   remote_state_bucket:
     description: Remote state bucket name
@@ -163,64 +143,59 @@ runs:
           exit 1
         fi
 
-    - name: Enforce DigitalOcean backend shape
-      shell: bash
-      working-directory: ${{ inputs.working_directory }}
-      env:
-        USE_BACKEND: ${{ inputs.use_backend }}
-        BACKEND_ENDPOINT: ${{ inputs.backend_endpoint }}
-      run: |
-        set -euo pipefail
-        if [ "${USE_BACKEND}" = "true" ] && [ -n "${BACKEND_ENDPOINT}" ]; then
-          if [[ "${BACKEND_ENDPOINT}" != *"digitaloceanspaces.com"* ]]; then
-            echo "backend_endpoint must target DigitalOcean Spaces (digitaloceanspaces.com) when use_backend=true"
-            exit 1
-          fi
-        fi
-
     - name: Verify bootstrap vs post-provision secrets
       if: ${{ inputs.require_secrets == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working_directory }}
       env:
-        DO_TOKEN: ${{ inputs.do_token }}
-        GITHUB_OWNER: ${{ inputs.github_owner }}
-        GITHUB_REPO: ${{ inputs.github_repo }}
+        LAYER_KIND: ${{ inputs.layer_kind }}
+        DO_TOKEN_INPUT: ${{ inputs.do_token }}
+        DO_TOKEN_INHERITED: ${{ env.DO_TOKEN }}
+        TF_VAR_DO_TOKEN: ${{ env.TF_VAR_do_token }}
+        TF_STATE_ACCESS_KEY: ${{ env.TF_STATE_ACCESS_KEY }}
+        TF_STATE_SECRET_KEY: ${{ env.TF_STATE_SECRET_KEY }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
         GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
         GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
-        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
-        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
-        SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
-        DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
-        DO_SSH_HOST: ${{ inputs.do_ssh_host }}
-        DO_SSH_PORT: ${{ inputs.do_ssh_port }}
-        DO_SSH_USER: ${{ inputs.do_ssh_user }}
       run: |
         set -euo pipefail
 
+        effective_do_token="${DO_TOKEN_INPUT:-}"
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${DO_TOKEN_INHERITED:-}"
+        fi
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${TF_VAR_DO_TOKEN:-}"
+        fi
+        export DO_TOKEN="${effective_do_token}"
+
+        case "${LAYER_KIND}" in
+          bootstrap)
+            required_vars=("DO_TOKEN" "TF_STATE_ACCESS_KEY" "TF_STATE_SECRET_KEY")
+            ;;
+          infra)
+            required_vars=("DO_TOKEN")
+            ;;
+          platform)
+            required_vars=("DO_TOKEN" "GITHUB_APP_ID" "GITHUB_APP_INSTALLATION_ID" "GITHUB_APP_PRIVATE_KEY" "TF_STATE_ACCESS_KEY" "TF_STATE_SECRET_KEY")
+            ;;
+          gitops)
+            required_vars=("DO_TOKEN" "GITHUB_APP_ID" "GITHUB_APP_INSTALLATION_ID" "GITHUB_APP_PRIVATE_KEY")
+            ;;
+          *)
+            echo "Unknown layer_kind '${LAYER_KIND}'"
+            exit 1
+            ;;
+        esac
+
         missing_bootstrap=()
-        [ -n "${DO_TOKEN}" ] || missing_bootstrap+=("TF_VAR_do_token")
-        [ -n "${GITHUB_OWNER}" ] || missing_bootstrap+=("TF_VAR_github_owner")
-        [ -n "${GITHUB_REPO}" ] || missing_bootstrap+=("TF_VAR_github_repo")
-        [ -n "${GITHUB_APP_ID}" ] || missing_bootstrap+=("TF_VAR_github_app_id")
-        [ -n "${GITHUB_APP_INSTALLATION_ID}" ] || missing_bootstrap+=("TF_VAR_github_app_installation_id")
-        [ -n "${GITHUB_APP_PRIVATE_KEY}" ] || missing_bootstrap+=("TF_VAR_github_app_private_key")
-        [ -n "${SSH_KEY_IDS}" ] || missing_bootstrap+=("TF_VAR_ssh_key_ids")
-        [ -n "${DO_SSH_HOST_FINGERPRINT}" ] || missing_bootstrap+=("TF_VAR_do_ssh_host_fingerprint")
+        for required_var in "${required_vars[@]}"; do
+          [ -n "${!required_var:-}" ] || missing_bootstrap+=("${required_var}")
+        done
 
         if [ "${#missing_bootstrap[@]}" -gt 0 ]; then
-          printf 'Missing bootstrap-required secret(s): %s\n' "${missing_bootstrap[*]}"
+          printf 'Missing bootstrap-required secret(s) for %s: %s\n' "${LAYER_KIND}" "${missing_bootstrap[*]}"
           exit 1
-        fi
-
-        missing_post=()
-        [ -n "${DO_SSH_HOST}" ] || missing_post+=("DO_SSH_HOST")
-        [ -n "${DO_SSH_PORT}" ] || missing_post+=("DO_SSH_PORT")
-        [ -n "${DO_SSH_USER}" ] || missing_post+=("DO_SSH_USER")
-
-        if [ "${#missing_post[@]}" -gt 0 ]; then
-          printf 'Post-provision secret(s) not initialized yet (allowed for clean-slate simulation): %s\n' "${missing_post[*]}" >&2
         fi
 
     - name: Build runtime tfvars
@@ -228,22 +203,18 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       env:
         REQUIRE_SECRETS: ${{ inputs.require_secrets }}
-        DO_TOKEN: ${{ inputs.do_token }}
-        GITHUB_OWNER: ${{ inputs.github_owner }}
-        GITHUB_REPO: ${{ inputs.github_repo }}
+        LAYER_KIND: ${{ inputs.layer_kind }}
+        DO_TOKEN_INPUT: ${{ inputs.do_token }}
+        DO_TOKEN_INHERITED: ${{ env.DO_TOKEN }}
+        TF_VAR_DO_TOKEN: ${{ env.TF_VAR_do_token }}
+        TF_STATE_ACCESS_KEY: ${{ env.TF_STATE_ACCESS_KEY }}
+        TF_STATE_SECRET_KEY: ${{ env.TF_STATE_SECRET_KEY }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
         GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
         GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
-        GHCR_DEPLOY_USERNAME: ${{ inputs.ghcr_deploy_username }}
-        GHCR_DEPLOY_TOKEN: ${{ inputs.ghcr_deploy_token }}
-        ARGOCD_SERVER: ${{ inputs.argocd_server }}
-        ARGOCD_AUTH_TOKEN: ${{ inputs.argocd_auth_token }}
-        SSH_KEY_IDS: ${{ inputs.ssh_key_ids }}
-        DO_SSH_HOST_FINGERPRINT: ${{ inputs.do_ssh_host_fingerprint }}
         REMOTE_STATE_BUCKET: ${{ inputs.remote_state_bucket }}
         REMOTE_STATE_KEY: ${{ inputs.remote_state_key }}
         REMOTE_STATE_REGION: ${{ inputs.remote_state_region }}
-        REMOTE_STATE_ENDPOINT: ${{ inputs.remote_state_endpoint }}
         REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION: ${{ inputs.remote_state_skip_credentials_validation }}
         REMOTE_STATE_SKIP_METADATA_API_CHECK: ${{ inputs.remote_state_skip_metadata_api_check }}
         REMOTE_STATE_SKIP_REGION_VALIDATION: ${{ inputs.remote_state_skip_region_validation }}
@@ -251,60 +222,56 @@ runs:
         REMOTE_STATE_USE_PATH_STYLE: ${{ inputs.remote_state_use_path_style }}
       run: |
         set -euo pipefail
-        rm -f terraform.tfvars runtime.auto.tfvars
+        rm -f runtime.auto.tfvars
+
+        effective_do_token="${DO_TOKEN_INPUT:-}"
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${DO_TOKEN_INHERITED:-}"
+        fi
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${TF_VAR_DO_TOKEN:-}"
+        fi
+        export DO_TOKEN="${effective_do_token}"
 
         if [ "${REQUIRE_SECRETS}" = "true" ]; then
-          {
-            printf 'require_secrets = true\n'
-            printf 'do_token     = "%s"\n' "${DO_TOKEN}"
-            printf 'github_owner = "%s"\n' "${GITHUB_OWNER}"
-            printf 'github_repo  = "%s"\n' "${GITHUB_REPO}"
-            if [ -n "${GITHUB_APP_ID}" ]; then
-              printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
-            fi
-            if [ -n "${GITHUB_APP_INSTALLATION_ID}" ]; then
-              printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
-            fi
-            if [ -n "${GITHUB_APP_PRIVATE_KEY}" ]; then
-              printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
-            fi
-            if [ -n "${GHCR_DEPLOY_USERNAME}" ]; then
-              printf 'ghcr_deploy_username = "%s"\n' "${GHCR_DEPLOY_USERNAME}"
-            fi
-            if [ -n "${GHCR_DEPLOY_TOKEN}" ]; then
-              printf 'ghcr_deploy_token = "%s"\n' "${GHCR_DEPLOY_TOKEN}"
-            fi
-            if [ -n "${ARGOCD_SERVER}" ]; then
-              printf 'argocd_server = "%s"\n' "${ARGOCD_SERVER}"
-            fi
-            if [ -n "${ARGOCD_AUTH_TOKEN}" ]; then
-              printf 'argocd_auth_token = "%s"\n' "${ARGOCD_AUTH_TOKEN}"
-            fi
-            printf 'ssh_key_ids  = %s\n' "${SSH_KEY_IDS}"
-            printf 'do_ssh_host_fingerprint = "%s"\n' "${DO_SSH_HOST_FINGERPRINT}"
-          } > runtime.auto.tfvars
-        else
-          printf 'require_secrets = false\n' > runtime.auto.tfvars
-        fi
-
-        if [ -n "${REMOTE_STATE_BUCKET}" ]; then
-          {
-            printf 'remote_state_bucket = "%s"\n' "${REMOTE_STATE_BUCKET}"
-            if [ -n "${REMOTE_STATE_KEY}" ]; then
-              printf 'remote_state_key = "%s"\n' "${REMOTE_STATE_KEY}"
-            fi
-            if [ -n "${REMOTE_STATE_REGION}" ]; then
-              printf 'remote_state_region = "%s"\n' "${REMOTE_STATE_REGION}"
-            fi
-            if [ -n "${REMOTE_STATE_ENDPOINT}" ]; then
-              printf 'remote_state_endpoint = "%s"\n' "${REMOTE_STATE_ENDPOINT}"
-            fi
-            printf 'remote_state_skip_credentials_validation = %s\n' "${REMOTE_STATE_SKIP_CREDENTIALS_VALIDATION}"
-            printf 'remote_state_skip_metadata_api_check = %s\n' "${REMOTE_STATE_SKIP_METADATA_API_CHECK}"
-            printf 'remote_state_skip_region_validation = %s\n' "${REMOTE_STATE_SKIP_REGION_VALIDATION}"
-            printf 'remote_state_skip_requesting_account_id = %s\n' "${REMOTE_STATE_SKIP_REQUESTING_ACCOUNT_ID}"
-            printf 'remote_state_use_path_style = %s\n' "${REMOTE_STATE_USE_PATH_STYLE}"
-          } >> runtime.auto.tfvars
+          case "${LAYER_KIND}" in
+            infra)
+              {
+                printf 'do_token = "%s"\n' "${DO_TOKEN}"
+              } > runtime.auto.tfvars
+              ;;
+            platform)
+              {
+                printf 'do_token = "%s"\n' "${DO_TOKEN}"
+                printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
+                printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
+                printf 'github_app_state_access_key = "%s"\n' "${TF_STATE_ACCESS_KEY}"
+                printf 'github_app_state_secret_key = "%s"\n' "${TF_STATE_SECRET_KEY}"
+              } > runtime.auto.tfvars
+              ;;
+            gitops)
+              {
+                printf 'do_token = "%s"\n' "${DO_TOKEN}"
+                printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
+                printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
+              } > runtime.auto.tfvars
+              ;;
+            bootstrap)
+              {
+                printf 'do_token = "%s"\n' "${DO_TOKEN}"
+                printf 'github_app_state_access_key = "%s"\n' "${TF_STATE_ACCESS_KEY}"
+                printf 'github_app_state_secret_key = "%s"\n' "${TF_STATE_SECRET_KEY}"
+                printf 'state_bucket_name = "%s"\n' "${TF_VAR_remote_state_bucket}"
+              } > runtime.auto.tfvars
+              ;;
+            *)
+              echo "Unknown layer_kind '${LAYER_KIND}'"
+              exit 1
+              ;;
+          esac
+          
+          # Clean up the generated file formatting so strict CI checks pass
+          terraform fmt runtime.auto.tfvars || true
         fi
 
     - name: Terraform init
@@ -312,41 +279,25 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       env:
         USE_BACKEND: ${{ inputs.use_backend }}
-        BACKEND_BUCKET: ${{ inputs.backend_bucket }}
-        BACKEND_REGION: ${{ inputs.backend_region }}
-        BACKEND_KEY: ${{ inputs.backend_key }}
-        BACKEND_ENDPOINT: ${{ inputs.backend_endpoint }}
-        BACKEND_ACCESS_KEY: ${{ inputs.backend_access_key }}
-        BACKEND_SECRET_KEY: ${{ inputs.backend_secret_key }}
       run: |
         set -euo pipefail
+        common_backend_config="../../../backend-common.conf"
+        layer_backend_config="backend.conf"
 
-        if [ "${USE_BACKEND}" = "true" ]; then
-          missing_backend=()
-          [ -n "${BACKEND_BUCKET}" ] || missing_backend+=("TF_STATE_BUCKET")
-          [ -n "${BACKEND_REGION}" ] || missing_backend+=("TF_STATE_REGION")
-          [ -n "${BACKEND_KEY}" ] || missing_backend+=("backend_key (derived from TF_STATE_KEY_PREFIX)")
-          [ -n "${BACKEND_ENDPOINT}" ] || missing_backend+=("TF_STATE_ENDPOINT")
-          [ -n "${BACKEND_ACCESS_KEY}" ] || missing_backend+=("TF_STATE_ACCESS_KEY")
-          [ -n "${BACKEND_SECRET_KEY}" ] || missing_backend+=("TF_STATE_SECRET_KEY")
+        if [ "${USE_BACKEND:-true}" = "true" ]; then
+          if [ ! -f "${common_backend_config}" ]; then
+            echo "Missing shared backend config: ${common_backend_config}"
+            exit 1
+          fi
 
-          if [ "${#missing_backend[@]}" -gt 0 ]; then
-            printf 'Missing backend config secret(s): %s\n' "${missing_backend[*]}"
+          if [ ! -f "${layer_backend_config}" ]; then
+            echo "Missing layer backend config: ${layer_backend_config}"
             exit 1
           fi
 
           terraform init -reconfigure -input=false \
-            -backend-config="bucket=${BACKEND_BUCKET}" \
-            -backend-config="key=${BACKEND_KEY}" \
-            -backend-config="region=${BACKEND_REGION}" \
-            -backend-config="endpoint=${BACKEND_ENDPOINT}" \
-            -backend-config="access_key=${BACKEND_ACCESS_KEY}" \
-            -backend-config="secret_key=${BACKEND_SECRET_KEY}" \
-            -backend-config="skip_credentials_validation=true" \
-            -backend-config="skip_metadata_api_check=true" \
-            -backend-config="skip_region_validation=true" \
-            -backend-config="skip_requesting_account_id=true" \
-            -backend-config="use_path_style=true"
+            -backend-config="${common_backend_config}" \
+            -backend-config="${layer_backend_config}"
         else
           terraform init -backend=false -input=false
         fi

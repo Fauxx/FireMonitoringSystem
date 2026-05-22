@@ -1,4 +1,4 @@
-name: "Infrastructure Pipeline Orchestrator (Dev)"
+name: "Infrastructure Pipeline Orchestrator"
 
 on:
   pull_request:
@@ -16,6 +16,14 @@ on:
       - ".github/actions/**"
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Target environment to execute (Applies to manual execution modes)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
       layer:
         description: "Target layer to execute (Applies to manual execution modes)"
         required: true
@@ -36,7 +44,7 @@ on:
         default: plan-only
 
 concurrency:
-  group: terraform-deploy-dev-${{ github.ref }}
+  group: terraform-deploy-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -92,8 +100,8 @@ jobs:
   # ==============================================================================
 
   deploy_bootstrap:
-    name: "Deploy: Bootstrap Layer (00)"
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && (inputs.layer == '00-bootstrap' || inputs.layer == 'all'))
+    name: "Deploy Dev: Bootstrap Layer (00)"
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'dev' && (inputs.layer == '00-bootstrap' || inputs.layer == 'all'))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/00-bootstrap"
@@ -103,9 +111,9 @@ jobs:
     secrets: inherit
 
   deploy_infra:
-    name: "Deploy: Infrastructure Layer (01)"
+    name: "Deploy Dev: Infrastructure Layer (01)"
     needs: deploy_bootstrap
-    if: always() && (github.event_name == 'push' && (needs.deploy_bootstrap.result == 'success' || needs.deploy_bootstrap.result == 'skipped')) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && (inputs.layer == '01-infra' || inputs.layer == 'all'))
+    if: (always() && (github.event_name == 'push' && (needs.deploy_bootstrap.result == 'success' || needs.deploy_bootstrap.result == 'skipped'))) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'dev' && (inputs.layer == '01-infra' || inputs.layer == 'all'))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/01-infra"
@@ -115,9 +123,9 @@ jobs:
     secrets: inherit
 
   deploy_platform:
-    name: "Deploy: Platform Core Layer (02)"
+    name: "Deploy Dev: Platform Core Layer (02)"
     needs: deploy_infra
-    if: always() && (github.event_name == 'push' && (needs.deploy_infra.result == 'success' || needs.deploy_infra.result == 'skipped')) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && (inputs.layer == '02-platform' || inputs.layer == 'all'))
+    if: (always() && (github.event_name == 'push' && (needs.deploy_infra.result == 'success' || needs.deploy_infra.result == 'skipped'))) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'dev' && (inputs.layer == '02-platform' || inputs.layer == 'all'))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/02-platform"
@@ -127,13 +135,49 @@ jobs:
     secrets: inherit
 
   deploy_argocd:
-    name: "Deploy: GitOps ArgoCD Layer (03)"
+    name: "Deploy Dev: GitOps ArgoCD Layer (03)"
     needs: deploy_platform
-    if: always() && (github.event_name == 'push' && (needs.deploy_platform.result == 'success' || needs.deploy_platform.result == 'skipped')) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && (inputs.layer == '03-argocd' || inputs.layer == 'all'))
+    if: (always() && (github.event_name == 'push' && (needs.deploy_platform.result == 'success' || needs.deploy_platform.result == 'skipped'))) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'dev' && (inputs.layer == '03-argocd' || inputs.layer == 'all'))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/dev/03-argocd"
       layer_kind: "gitops"
       env: "dev"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_prod_infra:
+    name: "Deploy Prod: Infrastructure Layer (01)"
+    needs: deploy_argocd
+    if: (always() && (github.event_name == 'push' && (needs.deploy_argocd.result == 'success' || needs.deploy_argocd.result == 'skipped'))) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '01-infra' || inputs.layer == 'all'))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/prod/01-infra"
+      layer_kind: "infra"
+      env: "prod"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_prod_platform:
+    name: "Deploy Prod: Platform Core Layer (02)"
+    needs: deploy_prod_infra
+    if: (always() && ((github.event_name == 'push' && (needs.deploy_prod_infra.result == 'success' || needs.deploy_prod_infra.result == 'skipped')) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '02-platform' || inputs.layer == 'all'))))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/prod/02-platform"
+      layer_kind: "platform"
+      env: "prod"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_prod_argocd:
+    name: "Deploy Prod: GitOps ArgoCD Layer (03)"
+    needs: deploy_prod_platform
+    if: (always() && ((github.event_name == 'push' && (needs.deploy_prod_platform.result == 'success' || needs.deploy_prod_platform.result == 'skipped')) || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '03-argocd' || inputs.layer == 'all'))))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/prod/03-argocd"
+      layer_kind: "gitops"
+      env: "prod"
       mode: "deploy"
     secrets: inherit

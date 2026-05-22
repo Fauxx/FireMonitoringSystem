@@ -104,6 +104,15 @@ jobs:
           cd ${{ inputs.directory }}
           terraform plan -no-color -out=tfplan.binary
 
+      - name: Upload Immutable Plan
+        if: ${{ inputs.mode == 'deploy' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.env }}-${{ github.run_id }}
+          path: ${{ inputs.directory }}/tfplan.binary
+          if-no-files-found: error
+          retention-days: 1
+
   apply_infrastructure:
     name: "Apply Structural Plan"
     needs: terraform_pipeline

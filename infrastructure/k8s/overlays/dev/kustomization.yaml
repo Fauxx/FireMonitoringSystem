@@ -10,13 +10,13 @@ resources:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: sha-000000000000
-- name: etl-processor
-  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: sha-000000000000
+  newTag: 3c4651f
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: sha-000000000000
+  newTag: 3c4651f
+- name: etl-processor
+  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
+  newTag: 3c4651f
 
 labels:
 - includeSelectors: true

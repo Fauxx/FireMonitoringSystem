@@ -42,9 +42,10 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
+  id-token: write
   environments: write
   secrets: write
+  actions: write
 
 jobs:
   # ==============================================================================
@@ -75,22 +76,6 @@ jobs:
   # ==============================================================================
   # LAYER 2: SEQUENTIAL DEPLOYMENT (Prevents state cross-talk & data race loops)
   # ==============================================================================
-  
-  deploy_infra:
-    name: "Deploy: Infrastructure Layer (01)"
-    needs: deploy_bootstrap
-    if: |
-      github.event_name == 'push' || 
-      (github.event_name == 'workflow_dispatch' && 
-       inputs.execution_mode == 'apply' && 
-       (inputs.layer == '01-infra' || inputs.layer == 'all'))
-    uses: ./.github/workflows/terraform-reusable.yml
-    with:
-      directory: "infrastructure/terraform/environments/dev/01-infra"
-      layer_kind: "infra"
-      env: "dev"
-      mode: "deploy"
-    secrets: inherit
 
   deploy_bootstrap:
     name: "Deploy: Bootstrap Layer (00)"
@@ -107,13 +92,30 @@ jobs:
       mode: "deploy"
     secrets: inherit
 
+  deploy_infra:
+    name: "Deploy: Infrastructure Layer (01)"
+    needs: deploy_bootstrap
+    if: |
+      always() &&
+      (github.event_name == 'push' && (needs.deploy_bootstrap.result == 'success' || needs.deploy_bootstrap.result == 'skipped')) || 
+      (github.event_name == 'workflow_dispatch' && 
+       inputs.execution_mode == 'apply' && 
+       (inputs.layer == '01-infra' || inputs.layer == 'all'))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/dev/01-infra"
+      layer_kind: "infra"
+      env: "dev"
+      mode: "deploy"
+    secrets: inherit
+
   deploy_platform:
     name: "Deploy: Platform Core Layer (02)"
     needs: deploy_infra
     # Aligned status tracking: Runs on direct main branch merges or targeted manual override runs
     if: |
       always() &&
-      (github.event_name == 'push' && needs.deploy_infra.result == 'success') ||
+      (github.event_name == 'push' && (needs.deploy_infra.result == 'success' || needs.deploy_infra.result == 'skipped')) ||
       (github.event_name == 'workflow_dispatch' && 
        inputs.execution_mode == 'apply' && 
        (inputs.layer == '02-platform' || inputs.layer == 'all'))
@@ -131,7 +133,7 @@ jobs:
     # Aligned status tracking: Ensures upstream dependencies match execution parameters safely
     if: |
       always() &&
-      (github.event_name == 'push' && needs.deploy_platform.result == 'success') ||
+      (github.event_name == 'push' && (needs.deploy_platform.result == 'success' || needs.deploy_platform.result == 'skipped')) ||
       (github.event_name == 'workflow_dispatch' && 
        inputs.execution_mode == 'apply' && 
        (inputs.layer == '03-argocd' || inputs.layer == 'all'))

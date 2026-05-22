@@ -117,6 +117,12 @@ jobs:
     if: ${{ inputs.mode == 'deploy' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+      environments: write
+      secrets: write
+      actions: write
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}

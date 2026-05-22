@@ -268,6 +268,9 @@ runs:
               exit 1
               ;;
           esac
+          
+          # Clean up the generated file formatting so strict CI checks pass
+          terraform fmt runtime.auto.tfvars || true
         fi
 
     - name: Terraform init

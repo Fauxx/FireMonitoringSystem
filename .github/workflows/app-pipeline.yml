@@ -18,16 +18,18 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # 2. FIX: Hardcoded lowercase 'fauxx' to prevent Docker build crashes
-  IMAGE_NAME: fauxx/firemonitoringsystem/api
 
 jobs:
   # -------------------------------------------------------------
   # Stage 1: Code Verification & Container Compilation
   # -------------------------------------------------------------
   build_and_test:
-    name: "Compile & Verify Microservices"
+    name: "Compile & Verify ${{ matrix.service }}"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [api, dashboard, etl-processor]
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
       
@@ -49,12 +51,12 @@ jobs:
       - name: Build and Push Container
         uses: docker/build-push-action@v5
         with:
-          context: ./apps/api 
+          context: ./apps/${{ matrix.service }}
           # Allow push on manual workflow_dispatch as well
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} 
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${{ matrix.service }}:${{ steps.set_tag.outputs.tag }}
+            ${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${{ matrix.service }}:latest
 
   # -------------------------------------------------------------
   # Stage 2: Manifest GitOps Trigger
@@ -87,21 +89,21 @@ jobs:
       - name: Bump Kustomize Image Tags
         run: |
           cd infrastructure/k8s/overlays/dev 
-          
-          # 4. FIX: Replaced placeholder with the exact string from your k8s deployment.yaml
-          kustomize edit set image ghcr.io/fauxx/firemonitoringsystem/api:sha-000000000000=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
 
-      - name: Commit and Push Changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add .
-          
-          if ! git diff --staged --quiet; then
-            git commit -m "chore(gitops): bump application image to ${{ needs.build_and_test.outputs.image_tag }}"
-            git push origin main
-            echo "GitOps manifest updated successfully."
-          else
-            echo "No manifest changes detected."
-          fi
+      - name: Create Pull Request for GitOps bump
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          commit-message: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
+          title: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
+          body: |
+            Bumps Kubernetes manifest image tags for dev environment to:
+            - API: `${{ needs.build_and_test.outputs.image_tag }}`
+            - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
+            - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
+          branch: "gitops-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
+          base: main
+          delete-branch: true

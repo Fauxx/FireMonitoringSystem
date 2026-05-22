@@ -121,3 +121,26 @@ resource "digitalocean_record" "argocd" {
   value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
+
+# ------------------------------------------------------------------------------
+# 4. SHARED APPLICATION SECRETS (Injected from CI runtime)
+# ------------------------------------------------------------------------------
+resource "kubernetes_secret_v1" "fire_monitoring_secrets" {
+  metadata {
+    name      = "fire-monitoring-secrets"
+    namespace = kubernetes_namespace_v1.fire_monitoring_dev.metadata[0].name
+  }
+
+  data = {
+    # We pass the PEM key here; K8s will handle the multi-line string correctly in the base64 payload.
+    # This allows the API/ETL to mount it as a file later.
+    "github-app-private-key.pem" = var.github_app_private_key
+    "github-app-id"              = var.github_app_id
+    "github-app-installation-id" = var.github_app_installation_id
+    
+    # Also include the database URL for shared connectivity
+    "DATABASE_URL"               = "postgresql://fireuser:changeme@db:5432/fire_monitoring"
+  }
+
+  type = "Opaque"
+}

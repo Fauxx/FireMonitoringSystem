@@ -245,7 +245,6 @@ runs:
                 printf 'do_token = "%s"\n' "${DO_TOKEN}"
                 printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
                 printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
-                printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
                 printf 'github_app_state_access_key = "%s"\n' "${TF_STATE_ACCESS_KEY}"
                 printf 'github_app_state_secret_key = "%s"\n' "${TF_STATE_SECRET_KEY}"
               } > runtime.auto.tfvars
@@ -255,7 +254,6 @@ runs:
                 printf 'do_token = "%s"\n' "${DO_TOKEN}"
                 printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
                 printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
-                printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
               } > runtime.auto.tfvars
               ;;
             bootstrap)

@@ -32,6 +32,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
       TF_STATE_ACCESS_KEY: ${{ secrets.TF_STATE_ACCESS_KEY }}
       TF_STATE_SECRET_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      SPACES_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      SPACES_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
       DO_TOKEN: ${{ secrets.DO_TOKEN }}
       TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
       TF_VAR_github_token: ${{ github.token }}
@@ -122,8 +124,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      environments: write
-      secrets: write
       actions: write
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.TF_STATE_ACCESS_KEY }}
@@ -136,7 +136,6 @@ jobs:
       DO_TOKEN: ${{ secrets.DO_TOKEN }}
       # FIX 2: Pass ALL necessary provider tokens to the apply environment block as well!
       TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-      TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repository: ${{ github.event.repository.name }}
       TF_VAR_github_app_id: ${{ secrets.APP_ID }}
@@ -182,6 +181,8 @@ jobs:
       # FIX 3: Re-execute the backend hook so this runner can open the state communications
       - name: Execute Contract (Backend Initialization)
         uses: ./.github/actions/terraform-contract
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         with:
           working_directory: ${{ inputs.directory }}
           environment_name: ${{ inputs.env }}
@@ -204,6 +205,8 @@ jobs:
           path: ${{ inputs.directory }}
 
       - name: Execute Immutable Apply
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
         run: |
           cd ${{ inputs.directory }}
-          terraform apply -auto-approve tfplan.binarypprove tfplan.binary
+          terraform apply -auto-approve tfplan.binary

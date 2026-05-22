@@ -10,6 +10,16 @@ metadata:
     nginx.ingress.kubernetes.io/limit-rps: "100"
 spec:
   rules:
+    - host: argocd.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
     - http:
         paths:
           - path: /

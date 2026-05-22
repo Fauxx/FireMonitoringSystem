@@ -20,6 +20,17 @@ spec:
         - protocol: TCP
           port: 8081
 
+    # Allow from Nginx Ingress Controller namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+
     # Allow from monitoring namespace if present
     - from:
         - namespaceSelector:

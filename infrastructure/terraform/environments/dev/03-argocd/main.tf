@@ -15,11 +15,13 @@ data "terraform_remote_state" "infra" {
     bucket                      = var.remote_state_bucket
     key                         = var.infra_state_key
     region                      = var.remote_state_region
-    endpoint                    = "https://${var.remote_state_endpoint}"
-    force_path_style            = true
+    endpoints                   = { s3 = "https://${var.remote_state_endpoint}" }
+    use_path_style              = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
   }
 }
 

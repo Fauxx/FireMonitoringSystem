@@ -27,7 +27,7 @@ resources:
   - node-exporter/daemonset.yaml
   - cadvisor/daemonset.yaml
   - alloy/daemonset.yaml
-  - ingress/ingress.yaml
+  - ingress
 
 generatorOptions:
   disableNameSuffixHash: true

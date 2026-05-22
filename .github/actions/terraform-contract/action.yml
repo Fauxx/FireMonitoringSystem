@@ -149,14 +149,30 @@ runs:
       working-directory: ${{ inputs.working_directory }}
       env:
         LAYER_KIND: ${{ inputs.layer_kind }}
-        DO_TOKEN: ${{ inputs.do_token }}
+        DO_TOKEN_INPUT: ${{ inputs.do_token }}
+        DO_TOKEN_INHERITED: ${{ env.DO_TOKEN }}
+        TF_VAR_DO_TOKEN: ${{ env.TF_VAR_do_token }}
+        TF_STATE_ACCESS_KEY: ${{ env.TF_STATE_ACCESS_KEY }}
+        TF_STATE_SECRET_KEY: ${{ env.TF_STATE_SECRET_KEY }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
         GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
         GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
       run: |
         set -euo pipefail
 
+        effective_do_token="${DO_TOKEN_INPUT:-}"
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${DO_TOKEN_INHERITED:-}"
+        fi
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${TF_VAR_DO_TOKEN:-}"
+        fi
+        export DO_TOKEN="${effective_do_token}"
+
         case "${LAYER_KIND}" in
+          bootstrap)
+            required_vars=("DO_TOKEN" "TF_STATE_ACCESS_KEY" "TF_STATE_SECRET_KEY")
+            ;;
           infra)
             required_vars=("DO_TOKEN")
             ;;
@@ -188,7 +204,11 @@ runs:
       env:
         REQUIRE_SECRETS: ${{ inputs.require_secrets }}
         LAYER_KIND: ${{ inputs.layer_kind }}
-        DO_TOKEN: ${{ inputs.do_token }}
+        DO_TOKEN_INPUT: ${{ inputs.do_token }}
+        DO_TOKEN_INHERITED: ${{ env.DO_TOKEN }}
+        TF_VAR_DO_TOKEN: ${{ env.TF_VAR_do_token }}
+        TF_STATE_ACCESS_KEY: ${{ env.TF_STATE_ACCESS_KEY }}
+        TF_STATE_SECRET_KEY: ${{ env.TF_STATE_SECRET_KEY }}
         GITHUB_APP_ID: ${{ inputs.github_app_id }}
         GITHUB_APP_INSTALLATION_ID: ${{ inputs.github_app_installation_id }}
         GITHUB_APP_PRIVATE_KEY: ${{ inputs.github_app_private_key }}
@@ -203,6 +223,15 @@ runs:
       run: |
         set -euo pipefail
         rm -f runtime.auto.tfvars
+
+        effective_do_token="${DO_TOKEN_INPUT:-}"
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${DO_TOKEN_INHERITED:-}"
+        fi
+        if [ -z "${effective_do_token}" ]; then
+          effective_do_token="${TF_VAR_DO_TOKEN:-}"
+        fi
+        export DO_TOKEN="${effective_do_token}"
 
         if [ "${REQUIRE_SECRETS}" = "true" ]; then
           case "${LAYER_KIND}" in
@@ -227,6 +256,13 @@ runs:
                 printf 'github_app_id = "%s"\n' "${GITHUB_APP_ID}"
                 printf 'github_app_installation_id = "%s"\n' "${GITHUB_APP_INSTALLATION_ID}"
                 printf 'github_app_private_key = "%s"\n' "${GITHUB_APP_PRIVATE_KEY}"
+              } > runtime.auto.tfvars
+              ;;
+            bootstrap)
+              {
+                printf 'do_token = "%s"\n' "${DO_TOKEN}"
+                printf 'github_app_state_access_key = "%s"\n' "${TF_STATE_ACCESS_KEY}"
+                printf 'github_app_state_secret_key = "%s"\n' "${TF_STATE_SECRET_KEY}"
               } > runtime.auto.tfvars
               ;;
             *)

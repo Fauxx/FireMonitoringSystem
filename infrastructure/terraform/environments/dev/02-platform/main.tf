@@ -3,12 +3,10 @@
 # ==============================================================================
 terraform {
   backend "s3" {}
-  # required_providers block is completely removed from here because 
-  # it's inherited universally from your symlinked versions.tf!
 }
 
 # ------------------------------------------------------------------------------
-# Remote State Discovery (SGP1 Space State Bucket)
+# Remote State Discovery (SGP1 Space State Bucket - Reading from 01-infra!)
 # ------------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
   backend = "s3"
@@ -50,11 +48,6 @@ provider "digitalocean" {
   token = var.do_token
 }
 
-provider "github" {
-  token = var.github_token
-  owner = var.github_owner
-}
-
 # ==============================================================================
 # 3. PLATFORM ENGINE LOGIC (Namespaces & Resources)
 # ==============================================================================
@@ -78,10 +71,35 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode({
     server = {
-      service = { type = "LoadBalancer" }
+      replicas = 2 # Increases UI concurrency and stops UI connection hangs
+      service  = { type = "LoadBalancer" }
+      resources = {
+        limits   = { cpu = "500m", memory = "512Mi" }
+        requests = { cpu = "100m", memory = "256Mi" }
+      }
     }
-    controller = { replicas = 2 }
-    redis      = { enabled = true }
+    repoServer = {
+      # Grants dedicated horsepower for generating application manifest diffs quickly
+      resources = {
+        limits   = { cpu = "1000m", memory = "1Gi" }
+        requests = { cpu = "250m", memory = "256Mi" }
+      }
+    }
+    controller = {
+      replicas = 2 # Fast cluster sync execution state
+      resources = {
+        limits   = { cpu = "1000m", memory = "1Gi" }
+        requests = { cpu = "500m", memory = "512Mi" }
+      }
+    }
+    redis = {
+      enabled = true
+      # Protects Redis cache state from hitting Out-Of-Memory (OOM) tracking walls
+      resources = {
+        limits   = { cpu = "500m", memory = "512Mi" }
+        requests = { cpu = "100m", memory = "128Mi" }
+      }
+    }
   })]
 }
 
@@ -102,18 +120,4 @@ resource "digitalocean_record" "argocd" {
   name   = "argocd"
   value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
-}
-# ------------------------------------------------------------------------------
-# Pull-Based GitOps Handshake Module Caller
-# ------------------------------------------------------------------------------
-module "github_secrets" {
-  source = "../../../modules/github-secrets"
-
-  github_environment          = var.github_environment
-  github_repository           = var.github_repository
-  github_app_id               = var.github_app_id
-  github_app_installation_id  = var.github_app_installation_id
-  github_app_private_key      = var.github_app_private_key
-  github_app_state_access_key = var.github_app_state_access_key
-  github_app_state_secret_key = var.github_app_state_secret_key
 }

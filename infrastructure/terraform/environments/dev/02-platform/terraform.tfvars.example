@@ -1,26 +1,13 @@
-github_owner      = "Fauxx"
-github_repository = "FireMonitoringSystem"
-
-remote_state_bucket = "tup-firemonitoring-state"
-infra_state_key     = "dev/01-infra/terraform.tfstate"
-
 # Plumbing (The "Where")
 remote_state_bucket   = "tup-firemonitoring-state"
 infra_state_key       = "dev/01-infra/terraform.tfstate"
 remote_state_endpoint = "sgp1.digitaloceanspaces.com"
 
 # Identity (The "What")
-github_repository = "FireMonitoringSystem"
-github_owner      = "Fauxx"
 argocd_server     = "argocd.fires.systems"
 # Optional: ArgoCD auth token (set if you want to populate ARGOCD_AUTH_TOKEN in GitHub)
 argocd_auth_token = ""
 remote_state_region = "us-east-1"
-
-# GitHub App credentials (optional, for CI/CD automation; see GITOPS_SETUP.md)
-# github_app_id              = "<your-app-id>"
-# github_app_installation_id = "<your-installation-id>"
-# github_app_private_key     = "<base64-encoded-private-key>" # base64 your PEM file
 
 # Container Registry credentials (optional)
 # ghcr_deploy_username = "<github-username>"

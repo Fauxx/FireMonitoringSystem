@@ -32,7 +32,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
       TF_STATE_ACCESS_KEY: ${{ secrets.TF_STATE_ACCESS_KEY }}
       TF_STATE_SECRET_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
-      TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      DO_TOKEN: ${{ secrets.DO_TOKEN }}
+      TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
       TF_VAR_github_token: ${{ github.token }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repository: ${{ github.event.repository.name }}
@@ -70,7 +71,7 @@ jobs:
           layer_kind: ${{ inputs.layer_kind }}
           use_backend: "true"
           require_secrets: "true"
-          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          do_token: ${{ secrets.DO_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}
@@ -104,8 +105,9 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
       TF_STATE_ACCESS_KEY: ${{ secrets.TF_STATE_ACCESS_KEY }}
       TF_STATE_SECRET_KEY: ${{ secrets.TF_STATE_SECRET_KEY }}
+      DO_TOKEN: ${{ secrets.DO_TOKEN }}
       # FIX 2: Pass ALL necessary provider tokens to the apply environment block as well!
-      TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
       TF_VAR_github_token: ${{ github.token }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repository: ${{ github.event.repository.name }}
@@ -141,7 +143,7 @@ jobs:
           layer_kind: ${{ inputs.layer_kind }}
           use_backend: "true"
           require_secrets: "true"
-          do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          do_token: ${{ secrets.DO_TOKEN }}
           github_owner: ${{ github.repository_owner }}
           github_repo: ${{ github.event.repository.name }}
           github_app_id: ${{ secrets.APP_ID }}

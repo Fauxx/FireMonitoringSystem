@@ -56,4 +56,11 @@ resource "github_actions_environment_secret" "github_app_state_secret_key" {
   value           = var.github_app_state_secret_key
 }
 
+resource "github_actions_environment_secret" "do_token" {
+  repository   = var.github_repository
+  environment  = github_repository_environment.this.environment
+  secret_name  = "DO_TOKEN"
+  value        = var.do_token
+}
+
 

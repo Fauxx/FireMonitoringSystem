@@ -37,3 +37,8 @@ variable "github_app_state_access_key" {
   type        = string
   sensitive   = true
 }
+
+variable "do_token" {
+  type      = string
+  sensitive = true
+}

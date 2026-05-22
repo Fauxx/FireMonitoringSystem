@@ -54,6 +54,8 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          - layer: "00-bootstrap"
+            layer_kind: "bootstrap"
           - layer: "01-infra"
             layer_kind: "infra"
           - layer: "02-platform"
@@ -74,6 +76,7 @@ jobs:
   
   deploy_infra:
     name: "Deploy: Infrastructure Layer (01)"
+    needs: deploy_bootstrap
     if: |
       github.event_name == 'push' || 
       (github.event_name == 'workflow_dispatch' && 
@@ -83,6 +86,21 @@ jobs:
     with:
       directory: "infrastructure/terraform/environments/dev/01-infra"
       layer_kind: "infra"
+      env: "dev"
+      mode: "deploy"
+    secrets: inherit
+
+  deploy_bootstrap:
+    name: "Deploy: Bootstrap Layer (00)"
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && 
+       inputs.execution_mode == 'apply' && 
+       (inputs.layer == '00-bootstrap' || inputs.layer == 'all'))
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/dev/00-bootstrap"
+      layer_kind: "bootstrap"
       env: "dev"
       mode: "deploy"
     secrets: inherit

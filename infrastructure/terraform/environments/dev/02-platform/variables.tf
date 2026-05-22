@@ -8,12 +8,6 @@ variable "do_token" {
   description = "DigitalOcean personal access token used to authenticate provider API calls for managing platform DNS and cluster lookups."
 }
 
-variable "github_token" {
-  type        = string
-  sensitive   = true
-  description = "Personal access token used by the GitHub provider to authenticate and modify repository environments."
-}
-
 # ==============================================================================
 # 2. REMOTE STATE PLUMBING (DISCOVERY)
 # ==============================================================================
@@ -41,56 +35,35 @@ variable "remote_state_endpoint" {
 }
 
 # ==============================================================================
-# 3. GITHUB PROJECT CONTEXT
-# ==============================================================================
-
-variable "github_owner" {
-  type        = string
-  default     = "Fauxx"
-  description = "The target owner/organization name hosting the project code on GitHub."
-}
-
-variable "github_repository" {
-  type        = string
-  description = "The name of the specific GitHub code repository managing the target environment."
-}
-
-# ==============================================================================
-# 4. RUNNER VALIDATION HANDSHAKE (MINIMAL APPS AUTH)
+# 3. GITHUB APP RUNTIME INJECTION (CI CONTRACT INPUTS)
 # ==============================================================================
 
 variable "github_app_id" {
   type        = string
   sensitive   = true
-  description = "The unique numerical identifier of your custom GitHub App utilized by speculative workflows."
+  description = "The GitHub App ID injected by CI for platform-level GitHub integrations."
 }
 
 variable "github_app_installation_id" {
   type        = string
   sensitive   = true
-  description = "The application installation mapping ID pointing to your target repository space."
-}
-
-variable "github_environment" {
-  type        = string
-  default     = "dev"
-  description = "The target deployment stage profile container slot inside GitHub (e.g., dev, prod)."
+  description = "The GitHub App installation ID injected by CI for environment-scoped operations."
 }
 
 variable "github_app_private_key" {
-  description = "The raw GitHub App private key"
   type        = string
   sensitive   = true
-}
-
-variable "github_app_state_secret_key" {
-  description = "TF Do Spaces"
-  type        = string
-  sensitive   = true
+  description = "The GitHub App private key content injected at runtime by the contract action."
 }
 
 variable "github_app_state_access_key" {
-  description = "The DO space access "
   type        = string
   sensitive   = true
+  description = "Remote state access key injected by CI runtime contract for platform layer workflows."
+}
+
+variable "github_app_state_secret_key" {
+  type        = string
+  sensitive   = true
+  description = "Remote state secret key injected by CI runtime contract for platform layer workflows."
 }

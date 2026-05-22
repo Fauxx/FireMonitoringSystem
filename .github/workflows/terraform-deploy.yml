@@ -7,14 +7,20 @@ on:
       - "infrastructure/terraform/environments/dev/**"
       - "infrastructure/terraform/modules/**"
       - "infrastructure/terraform/global/**"
+      - "infrastructure/terraform/*.conf"
       - ".github/workflows/terraform-deploy.yml"
+      - ".github/workflows/terraform-reusable.yml"
+      - ".github/actions/**"
   push:
     branches: [ main ]
     paths:
       - "infrastructure/terraform/environments/dev/**"
       - "infrastructure/terraform/modules/**"
       - "infrastructure/terraform/global/**"
+      - "infrastructure/terraform/*.conf"
       - ".github/workflows/terraform-deploy.yml"
+      - ".github/workflows/terraform-reusable.yml"
+      - ".github/actions/**"
   workflow_dispatch:
     inputs:
       layer:

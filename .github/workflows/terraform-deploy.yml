@@ -2,22 +2,15 @@ name: "Infrastructure Pipeline Orchestrator (Dev)"
 
 on:
   pull_request:
-    branches: [ main ]
     paths:
-      - "infrastructure/terraform/environments/dev/**"
-      - "infrastructure/terraform/modules/**"
-      - "infrastructure/terraform/global/**"
-      - "infrastructure/terraform/*.conf"
+      - "infrastructure/terraform/**"
       - ".github/workflows/terraform-deploy.yml"
       - ".github/workflows/terraform-reusable.yml"
       - ".github/actions/**"
   push:
     branches: [ main ]
     paths:
-      - "infrastructure/terraform/environments/dev/**"
-      - "infrastructure/terraform/modules/**"
-      - "infrastructure/terraform/global/**"
-      - "infrastructure/terraform/*.conf"
+      - "infrastructure/terraform/**"
       - ".github/workflows/terraform-deploy.yml"
       - ".github/workflows/terraform-reusable.yml"
       - ".github/actions/**"
@@ -63,19 +56,34 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - layer: "00-bootstrap"
+          # Dev environment layers
+          - directory: "infrastructure/terraform/environments/dev/00-bootstrap"
             layer_kind: "bootstrap"
-          - layer: "01-infra"
+            env: "dev"
+          - directory: "infrastructure/terraform/environments/dev/01-infra"
             layer_kind: "infra"
-          - layer: "02-platform"
+            env: "dev"
+          - directory: "infrastructure/terraform/environments/dev/02-platform"
             layer_kind: "platform"
-          - layer: "03-argocd"
+            env: "dev"
+          - directory: "infrastructure/terraform/environments/dev/03-argocd"
             layer_kind: "gitops"
+            env: "dev"
+          # Prod environment layers
+          - directory: "infrastructure/terraform/environments/prod/01-infra"
+            layer_kind: "infra"
+            env: "prod"
+          - directory: "infrastructure/terraform/environments/prod/02-platform"
+            layer_kind: "platform"
+            env: "prod"
+          - directory: "infrastructure/terraform/environments/prod/03-argocd"
+            layer_kind: "gitops"
+            env: "prod"
     uses: ./.github/workflows/terraform-reusable.yml
     with:
-      directory: "infrastructure/terraform/environments/dev/${{ matrix.layer }}"
+      directory: ${{ matrix.directory }}
       layer_kind: ${{ matrix.layer_kind }}
-      env: "dev"
+      env: ${{ matrix.env }}
       mode: "validate"
     secrets: inherit
 

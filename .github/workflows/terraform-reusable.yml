@@ -24,7 +24,7 @@ jobs:
   terraform_pipeline:
     name: "Terraform Pipeline Execution"
     runs-on: ubuntu-latest
-    environment: ${{ inputs.env }}
+    environment: ${{ inputs.mode == 'deploy' && inputs.env || '' }}
     concurrency: tf-${{ inputs.env }}-${{ inputs.directory }}
 
     env:

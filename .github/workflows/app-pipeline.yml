@@ -3,7 +3,6 @@ name: "Application Continuous Integration & Deployment"
 on:
   workflow_dispatch: # 1. FIX: Added manual trigger button
   pull_request:
-    branches: [ main ]
     paths:
       - 'apps/**'
       - '.github/workflows/app-pipeline.yml'

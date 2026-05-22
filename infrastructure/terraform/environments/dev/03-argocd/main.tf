@@ -38,7 +38,7 @@ provider "digitalocean" {
 }
 
 provider "kubernetes" {
-  host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
+  host = data.terraform_remote_state.infra.outputs.cluster_endpoint
   # ALIGNED: Uses the live, auto-refreshing token instead of stale static state output
   token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)

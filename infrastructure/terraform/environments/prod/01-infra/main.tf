@@ -2,7 +2,7 @@ terraform {
   required_version = ">= 1.5.0"
 
   # Secure Remote State Storage in DO Spaces
-  backend "s3" {} 
+  backend "s3" {}
 
   required_providers {
     digitalocean = {
@@ -30,10 +30,10 @@ resource "digitalocean_vpc" "cluster_network" {
 
 # 3. PROVISION DOKS CLUSTER
 resource "digitalocean_kubernetes_cluster" "this" {
-  name     = var.cluster_name
-  region   = var.region
+  name   = var.cluster_name
+  region = var.region
   # Stable version slug for SGP1 region as of May 2026
-  version  = "1.35.1-do.6" 
+  version  = "1.35.1-do.6"
   vpc_uuid = digitalocean_vpc.cluster_network.id
 
   node_pool {

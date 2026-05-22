@@ -137,9 +137,9 @@ resource "kubernetes_secret_v1" "fire_monitoring_secrets" {
     "github-app-private-key.pem" = var.github_app_private_key
     "github-app-id"              = var.github_app_id
     "github-app-installation-id" = var.github_app_installation_id
-    
+
     # Also include the database URL for shared connectivity
-    "DATABASE_URL"               = "postgresql://fireuser:changeme@db:5432/fire_monitoring"
+    "DATABASE_URL" = "postgresql://fireuser:changeme@db:5432/fire_monitoring"
   }
 
   type = "Opaque"

@@ -20,6 +20,13 @@ on:
         type: string
         description: "validate | deploy"
 
+permissions:
+  contents: read
+  id-token: write
+  environments: write
+  secrets: write
+  actions: write
+
 jobs:
   terraform_pipeline:
     name: "Terraform Pipeline Execution"

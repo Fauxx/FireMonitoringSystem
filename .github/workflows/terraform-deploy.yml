@@ -43,6 +43,8 @@ concurrency:
 permissions:
   contents: read
   actions: write
+  environments: write
+  secrets: write
 
 jobs:
   # ==============================================================================

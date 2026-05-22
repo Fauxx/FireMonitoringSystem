@@ -46,15 +46,15 @@ terraform {
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    bucket    = var.remote_state_bucket
-    key       = var.infra_state_key
-    region    = var.remote_state_region
-    endpoints = { s3 = "https://${var.remote_state_endpoint}" }
+    bucket   = var.remote_state_bucket
+    key      = var.infra_state_key
+    region   = var.remote_state_region
+    endpoint = "https://${var.remote_state_endpoint}"
 
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
-    skip_requesting_account_id  = true
+    force_path_style            = true
   }
 }
 

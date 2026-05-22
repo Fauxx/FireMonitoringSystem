@@ -18,6 +18,7 @@ variable "github_owner" {
 variable "state_bucket_name" {
   type        = string
   description = "The globally unique name for your central state tracking Spaces bucket."
+  default     = "tup-firemonitoring-state"
 }
 
 variable "state_bucket_region" {

@@ -261,6 +261,7 @@ runs:
                 printf 'do_token = "%s"\n' "${DO_TOKEN}"
                 printf 'github_app_state_access_key = "%s"\n' "${TF_STATE_ACCESS_KEY}"
                 printf 'github_app_state_secret_key = "%s"\n' "${TF_STATE_SECRET_KEY}"
+                printf 'state_bucket_name = "%s"\n' "${TF_VAR_remote_state_bucket}"
               } > runtime.auto.tfvars
               ;;
             *)

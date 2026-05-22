@@ -14,11 +14,13 @@ data "terraform_remote_state" "infra" {
     bucket                      = var.remote_state_bucket
     key                         = var.infra_state_key
     region                      = var.remote_state_region
-    endpoint                    = "https://${var.remote_state_endpoint}"
-    force_path_style            = true
+    endpoints                   = { s3 = "https://${var.remote_state_endpoint}" }
+    use_path_style              = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
   }
 }
 
@@ -71,7 +73,8 @@ resource "helm_release" "argocd" {
   values = [yamlencode({
     server = {
       replicas = 2 # Increases UI concurrency and stops UI connection hangs
-      service  = { type = "LoadBalancer" }
+      service  = { type = "ClusterIP" }
+      insecure = true
       resources = {
         limits   = { cpu = "500m", memory = "512Mi" }
         requests = { cpu = "100m", memory = "256Mi" }
@@ -111,14 +114,27 @@ data "kubernetes_service_v1" "argocd_server" {
 }
 
 # ------------------------------------------------------------------------------
-# Networking & Route Mapping
+# Networking & Route Mapping (Commented out because service type is ClusterIP)
 # ------------------------------------------------------------------------------
-resource "digitalocean_record" "argocd" {
-  domain = data.terraform_remote_state.infra.outputs.domain_name
-  type   = "A"
-  name   = "argocd"
-  value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
-  ttl    = 300
+# resource "digitalocean_record" "argocd" {
+#   domain = data.terraform_remote_state.infra.outputs.domain_name
+#   type   = "A"
+#   name   = "argocd"
+#   value  = data.kubernetes_service_v1.argocd_server.status[0].load_balancer[0].ingress[0].ip
+#   ttl    = 300
+# }
+
+# ------------------------------------------------------------------------------
+# ArgoCD Network Policies
+# ------------------------------------------------------------------------------
+resource "kubernetes_manifest" "argocd_network_policies" {
+  for_each = {
+    for idx, doc in split("---", file("${path.module}/../../../../k8s/base/argocd/networkpolicy.yaml")) : idx => doc if trimspace(doc) != ""
+  }
+
+  manifest = yamldecode(each.value)
+
+  depends_on = [helm_release.argocd]
 }
 
 # ------------------------------------------------------------------------------

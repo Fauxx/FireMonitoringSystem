@@ -19,7 +19,16 @@ export TF_VAR_github_token="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   - `admin:org_hook` (for environment secrets)
   - `user:email` (read email)
 
-### 3. (Optional) GitHub App Credentials for CI/CD Automation
+### 3. DigitalOcean Spaces Keys (S3 Backend)
+Required for Terraform to read/write the remote state file.
+```bash
+export AWS_ACCESS_KEY_ID="your_spaces_access_key"
+export AWS_SECRET_ACCESS_KEY="your_spaces_secret_key"
+# Optional: Disable metadata check to speed up init/plan
+export AWS_EC2_METADATA_DISABLED=true
+```
+
+### 4. (Optional) GitHub App Credentials for CI/CD Automation
 Only needed if you want the Terraform apply to *also* sync GitHub App secrets to the environment.
 ```bash
 export TF_VAR_github_app_id="1234567"
@@ -35,6 +44,8 @@ export TF_VAR_github_app_private_key="LS0tLS1CRUdJTi..." # base64-encoded PEM
 # 2. Export them
 export TF_VAR_do_token="dop_v1_..."
 export TF_VAR_github_token="ghp_..."
+export AWS_ACCESS_KEY_ID="..."
+export AWS_SECRET_ACCESS_KEY="..."
 
 # 3. Verify they're set
 echo "DO Token: ${TF_VAR_do_token:0:10}..."
@@ -59,6 +70,11 @@ terraform plan
 - Verify PAT hasn't expired: https://github.com/settings/tokens
 - Check scopes include `repo` and `admin:org_hook`
 - Try a fresh token if unsure
+
+**Error: InvalidClientTokenId or Retrieving AWS account details?**
+- This usually means you have extraneous AWS environment variables set (like `AWS_SESSION_TOKEN` or `AWS_PROFILE`) that are expired or invalid for DigitalOcean Spaces.
+- **Fix:** Run `unset AWS_SESSION_TOKEN AWS_PROFILE AWS_SECURITY_TOKEN` and try again.
+- Ensure `AWS_EC2_METADATA_DISABLED=true` is set.
 
 **Still getting "Unauthorized" on Kubernetes?**
 - This means the remote state from 01-infra is not readable or doesn't have valid cluster credentials

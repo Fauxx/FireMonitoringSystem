@@ -25,10 +25,10 @@ resource "github_actions_environment_secret" "github_app_id" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_ID"
-  plaintext_value       = var.github_app_id
+  value       = var.github_app_id
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 
@@ -36,10 +36,10 @@ resource "github_actions_environment_secret" "github_app_installation_id" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_INSTALLATION_ID"
-  plaintext_value       = var.github_app_installation_id
+  value       = var.github_app_installation_id
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 
@@ -47,10 +47,10 @@ resource "github_actions_environment_secret" "github_app_private_key" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_PRIVATE_KEY"
-  plaintext_value       = var.github_app_private_key
+  value       = var.github_app_private_key
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 
@@ -58,10 +58,10 @@ resource "github_actions_environment_secret" "github_app_state_access_key" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "TF_STATE_ACCESS_KEY"
-  plaintext_value       = var.github_app_state_access_key
+  value       = var.github_app_state_access_key
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 
@@ -69,10 +69,10 @@ resource "github_actions_environment_secret" "github_app_state_secret_key" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "TF_STATE_SECRET_KEY"
-  plaintext_value       = var.github_app_state_secret_key
+  value       = var.github_app_state_secret_key
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 
@@ -80,10 +80,10 @@ resource "github_actions_environment_secret" "do_token" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "DO_TOKEN"
-  plaintext_value       = var.do_token
+  value       = var.do_token
 
   lifecycle {
-    ignore_changes = [plaintext_value, encrypted_value]
+    ignore_changes = [value, encrypted_value]
   }
 }
 

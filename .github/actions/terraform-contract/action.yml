@@ -295,10 +295,10 @@ runs:
             exit 1
           fi
 
-          terraform init -reconfigure -input=false \
+          terraform init -upgrade -reconfigure -input=false \
             -backend-config="${common_backend_config}" \
             -backend-config="${layer_backend_config}"
         else
-          terraform init -backend=false -input=false
+          terraform init -upgrade -backend=false -input=false
         fi
 

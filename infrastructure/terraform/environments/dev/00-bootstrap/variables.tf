@@ -29,8 +29,8 @@ variable "state_bucket_region" {
 
 variable "github_environment" {
   type        = string
-  description = "The deployment target environment name configured in GitHub (e.g., development)."
-  default     = "development"
+  description = "The deployment target environment name configured in GitHub (e.g., dev)."
+  default     = "dev"
 }
 
 variable "github_repository" {

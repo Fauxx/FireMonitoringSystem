@@ -8,6 +8,7 @@ variable "github_token" {
   type        = string
   description = "Personal Access Token for GitHub repository management."
   sensitive   = true
+  ephemeral   = true
 }
 
 variable "github_owner" {

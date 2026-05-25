@@ -21,6 +21,19 @@ spec:
           image: api
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config
@@ -36,5 +49,11 @@ spec:
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 30
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
 
 

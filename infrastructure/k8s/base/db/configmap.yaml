@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fire-monitoring-config
+data:
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "fire_monitoring"
+  DATABASE_URL: "postgresql://postgres:localdevpassword@db:5432/fire_monitoring"
+  PGSSLMODE: "disable"
+  INFLUXDB_ORG: "fire-monitoring"
+  INFLUXDB_BUCKET: "sensor-data"
+  INFLUXDB_URL: "http://influx:8086"
+  DOCKER_INFLUXDB_INIT_MODE: "setup"
+  DOCKER_INFLUXDB_INIT_USERNAME: "admin"
+  DOCKER_INFLUXDB_INIT_ORG: "fire-monitoring"
+  DOCKER_INFLUXDB_INIT_BUCKET: "sensor-data"

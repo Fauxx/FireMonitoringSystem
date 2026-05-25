@@ -1,0 +1,27 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fire-monitoring-config
+  namespace: fire-monitoring-dev
+data:
+  POSTGRES_USER: "postgres"
+  POSTGRES_DB: "fire_monitoring"

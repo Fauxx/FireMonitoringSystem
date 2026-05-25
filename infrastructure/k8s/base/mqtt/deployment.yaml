@@ -19,6 +19,23 @@ spec:
           image: eclipse-mosquitto:2.0
           ports:
             - containerPort: 1883
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 15
+            periodSeconds: 15
           volumeMounts:
             - name: mqtt-config
               mountPath: /mosquitto/config/mosquitto.conf

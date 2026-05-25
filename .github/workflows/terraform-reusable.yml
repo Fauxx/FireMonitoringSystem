@@ -98,13 +98,13 @@ jobs:
           cd ${{ inputs.directory }}
           terraform fmt -check -recursive
           terraform validate
-          terraform plan -no-color
+          terraform plan -no-color -refresh=false
 
       - name: Generate Immutable Plan
         if: ${{ inputs.mode == 'deploy' }}
         run: |
           cd ${{ inputs.directory }}
-          terraform plan -no-color -out=tfplan.binary
+          terraform plan -no-color -refresh=false -out=tfplan.binary
 
       - name: Upload Immutable Plan
         if: ${{ inputs.mode == 'deploy' }}

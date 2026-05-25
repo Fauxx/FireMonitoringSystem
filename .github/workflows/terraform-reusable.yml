@@ -72,7 +72,7 @@ jobs:
       - name: Initialize Terraform Runtime
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ~> 1.5.0
+          terraform_version: ~> 1.11.0
           terraform_wrapper: false
 
       - name: Execute Contract (Init & Validate)
@@ -175,7 +175,7 @@ jobs:
       - name: Initialize Terraform Runtime
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ~> 1.5.0
+          terraform_version: ~> 1.11.0
           terraform_wrapper: false
 
       # FIX 3: Re-execute the backend hook so this runner can open the state communications

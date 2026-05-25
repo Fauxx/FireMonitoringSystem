@@ -1,6 +1,4 @@
 terraform {
-  required_version = ">= 1.5.0"
-
   backend "s3" {
     endpoints = {
       s3 = "https://sgp1.digitaloceanspaces.com"

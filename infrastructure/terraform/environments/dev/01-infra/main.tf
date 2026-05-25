@@ -1,6 +1,4 @@
 terraform {
-  required_version = ">= 1.5.0"
-
   # Secure Remote State Storage in DO Spaces
   backend "s3" {}
 }

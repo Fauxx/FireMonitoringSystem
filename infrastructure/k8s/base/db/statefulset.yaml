@@ -20,6 +20,13 @@ spec:
           image: postgres:14-alpine
           ports:
             - containerPort: 5432
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config

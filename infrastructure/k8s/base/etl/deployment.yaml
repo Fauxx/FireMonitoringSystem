@@ -19,9 +19,40 @@ spec:
       containers:
         - name: etl-processor
           image: etl-processor
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - "python3 -m src.main"
+            initialDelaySeconds: 10
+            periodSeconds: 10
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config
             - secretRef:
                 name: fire-monitoring-secrets
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+            - name: log-volume
+              mountPath: /app/logs
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+        - name: log-volume
+          emptyDir: {}
 

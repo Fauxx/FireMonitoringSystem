@@ -20,6 +20,13 @@ spec:
                 name: fire-monitoring-config
             - secretRef:
                 name: fire-monitoring-secrets
+          env:
+            - name: FLYWAY_URL
+              value: "jdbc:postgresql://db:5432/$(POSTGRES_DB)"
+            - name: FLYWAY_USER
+              value: "$(POSTGRES_USER)"
+            - name: FLYWAY_PASSWORD
+              value: "$(POSTGRES_PASSWORD)"
           args: ["-connectRetries=60", "migrate"]
           volumeMounts:
             - name: flyway-sql

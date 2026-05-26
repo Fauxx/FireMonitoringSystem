@@ -15,13 +15,3 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: fire-monitoring-config
-  namespace: fire-monitoring-dev
-data:
-  POSTGRES_USER: "postgres"
-  POSTGRES_DB: "fire_monitoring"

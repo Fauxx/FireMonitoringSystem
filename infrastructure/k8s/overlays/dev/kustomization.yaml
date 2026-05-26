@@ -12,6 +12,12 @@ configMapGenerator:
 resources:
 - ../../base
 
+replicas:
+  - name: prometheus
+    count: 0
+  - name: loki
+    count: 0
+
 
 images:
 - name: api

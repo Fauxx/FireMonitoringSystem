@@ -3,7 +3,6 @@ kind: Ingress
 metadata:
   name: fire-monitoring
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     # Development annotations - no rate limiting needed

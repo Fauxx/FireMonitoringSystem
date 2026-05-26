@@ -5,7 +5,6 @@ resources:
   - db/statefulset.yaml
   - db/service.yaml
   - db/configmap.yaml 
-  - db/secrets.yaml
   - influx/statefulset.yaml
   - influx/service.yaml
   - mqtt/deployment.yaml

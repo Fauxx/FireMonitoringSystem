@@ -13,7 +13,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: fire-monitoring-dev
+              kubernetes.io/metadata.name: fire-monitoring-dev
       ports:
         - protocol: TCP
           port: 8080
@@ -35,7 +35,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 8080
@@ -48,40 +48,55 @@ spec:
           port: 53
 
   egress:
+    # Allow all egress within the argocd namespace (Redis/Dex/internal communication)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+
+    # Allow egress to the Kubernetes API Server
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+
     # Allow to application namespace
     - to:
         - namespaceSelector:
             matchLabels:
-              name: fire-monitoring-dev
+              kubernetes.io/metadata.name: fire-monitoring-dev
       ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
           port: 80
 
-    # Allow to GitHub/registry
-    - to:
-        - podSelector: {}
-      ports:
+    # Allow to GitHub/registry (any destination on port 443/80)
+    - ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
           port: 80
 
-    # Allow DNS
-    - to:
-        - podSelector: {}
-      ports:
+    # Allow DNS (any destination on port 53 UDP/TCP)
+    - ports:
         - protocol: UDP
           port: 53
+        - protocol: TCP
+          port: 53
 
-    # Allow kube-dns
+    # Allow kube-dns explicitly
     - to:
         - namespaceSelector:
             matchLabels:
-              name: kube-system
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53
 ---
 apiVersion: networking.k8s.io/v1
@@ -109,10 +124,8 @@ spec:
           port: 8084
 
   egress:
-    # Allow to GitHub and container registries
-    - to:
-        - podSelector: {}
-      ports:
+    # Allow to GitHub and container registries (any destination on port 443/80)
+    - ports:
         - protocol: TCP
           port: 443
         - protocol: TCP
@@ -122,7 +135,9 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              name: kube-system
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53

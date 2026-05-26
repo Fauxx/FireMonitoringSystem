@@ -29,9 +29,15 @@ resource "helm_release" "ingress_nginx" {
       publishService = {
         enabled = true
       }
+      config = {
+        "use-proxy-protocol"         = "true"
+        "compute-full-forwarded-for" = "true"
+        "use-forwarded-headers"      = "true"
+      }
       service = {
         annotations = {
-          "service.beta.kubernetes.io/do-loadbalancer-name" = "doks-ingress-loadbalancer"
+          "service.beta.kubernetes.io/do-loadbalancer-name"                  = "doks-ingress-loadbalancer"
+          "service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol" = "true"
         }
       }
     }

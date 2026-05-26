@@ -9,6 +9,12 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow all ingress from within the argocd namespace itself
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+
     # Allow from application namespace (for webhook/pulling)
     - from:
         - namespaceSelector:

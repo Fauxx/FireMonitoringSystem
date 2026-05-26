@@ -48,7 +48,7 @@ variable "gitops_repo_url" {
 # CHANGED: Synced with your configuration names to prevent 'null' dropping
 variable "gitops_repo_branch" {
   type        = string
-  default     = "dev-zet"
+  default     = "main"
   description = "The dedicated repository branch tracking your development manifests."
 }
 

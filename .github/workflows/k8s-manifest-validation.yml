@@ -1,0 +1,29 @@
+name: "Kubernetes Manifest Validation"
+
+on:
+  push:
+    branches: [ main, dev-zet ]
+    paths:
+      - 'infrastructure/k8s/**'
+      - '.github/workflows/k8s-manifest-validation.yml'
+  pull_request:
+    paths:
+      - 'infrastructure/k8s/**'
+      - '.github/workflows/k8s-manifest-validation.yml'
+
+jobs:
+  validate:
+    name: Validate Kustomize Layouts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Validate Dev Overlay
+        run: kustomize build infrastructure/k8s/overlays/dev > /dev/null
+
+      - name: Validate Prod Overlay
+        run: kustomize build infrastructure/k8s/overlays/prod > /dev/null

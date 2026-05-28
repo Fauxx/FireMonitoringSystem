@@ -26,7 +26,9 @@ resources:
   - prometheus/service.yaml
   - prometheus/pvc.yaml
   - node-exporter/daemonset.yaml
+  - node-exporter/service.yaml
   - cadvisor/daemonset.yaml
+  - cadvisor/service.yaml
   - alloy/daemonset.yaml
   - ingress
 
@@ -55,9 +57,11 @@ configMapGenerator:
       - influxdb.yaml=grafana/provisioning/datasources/influxdb.yaml
       - loki.yaml=grafana/provisioning/datasources/loki.yaml
       - prometheus.yaml=grafana/provisioning/datasources/prometheus.yaml
+    options:
+      disableNameSuffixHash: false
   - name: grafana-dashboards
     files:
-      - fire_main.json=grafana/dashboards/fire_main.json
+      - fire-main.json=grafana/dashboards/fire-main.json
   - name: flyway-sql
     files:
       - V1__Initial_Schema.sql=sql/V1__Initial_Schema.sql
@@ -65,5 +69,3 @@ configMapGenerator:
       - V3__Official_Incidents_Setup.sql=sql/V3__Official_Incidents_Setup.sql
       - V4__Add_Final_Sensor_Schema.sql=sql/V4__Add_Final_Sensor_Schema.sql
       - V5__Final_Sensor_Views.sql=sql/V5__Final_Sensor_Views.sql
-
-

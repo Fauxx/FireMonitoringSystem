@@ -40,8 +40,12 @@ spec:
             - name: mqtt-config
               mountPath: /mosquitto/config/mosquitto.conf
               subPath: mosquitto.conf
+            - name: mqtt-data
+              mountPath: /mosquitto/data
       volumes:
         - name: mqtt-config
           configMap:
             name: mqtt-config
+        - name: mqtt-data
+          emptyDir: {}
 

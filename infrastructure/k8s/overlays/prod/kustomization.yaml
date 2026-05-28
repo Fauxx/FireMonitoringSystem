@@ -11,17 +11,7 @@ patchesStrategicMerge:
   - api-replicas-patch.yaml
   - dashboard-replicas-patch.yaml
 
-patchesJson6902:
-  - target:
-      group: v1
-      version: v1
-      kind: Service
-      name: nginx-ingress-controller
-      namespace: ingress-nginx
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: LoadBalancer
+# Removed patchesJson6902 targeting nginx-ingress-controller as it is managed via Helm outside Kustomize
 
 images:
   - name: api

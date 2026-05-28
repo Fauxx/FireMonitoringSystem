@@ -14,9 +14,9 @@ resources:
 
 replicas:
   - name: prometheus
-    count: 0
+    count: 1
   - name: loki
-    count: 0
+    count: 1
 
 
 images:

@@ -32,6 +32,7 @@ for uid in "$@"; do
   curl -fsS -H "Authorization: Bearer $GRAFANA_TOKEN" \
        -H "Content-Type: application/json" \
        "$GRAFANA_URL/api/dashboards/uid/$uid" \
+       | jq '.dashboard' \
        > "$OUT_DIR/$uid.json"
   echo "Saved to $OUT_DIR/$uid.json"
 done

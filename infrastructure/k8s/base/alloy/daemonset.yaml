@@ -21,14 +21,14 @@ spec:
             - name: alloy-config
               mountPath: /etc/alloy/config.alloy
               subPath: config.alloy
-            - name: docker-sock
-              mountPath: /var/run/docker.sock
+            - name: pod-logs
+              mountPath: /var/log/pods
               readOnly: true
       volumes:
         - name: alloy-config
           configMap:
             name: alloy-config
-        - name: docker-sock
+        - name: pod-logs
           hostPath:
-            path: /var/run/docker.sock
+            path: /var/log/pods
 

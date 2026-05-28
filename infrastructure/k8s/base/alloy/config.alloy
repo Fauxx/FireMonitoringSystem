@@ -3,17 +3,35 @@ logging {
   format = "logfmt"
 }
 
-discovery.docker "containers" {
-  host = "unix:///var/run/docker.sock"
+local.file_match "pod_logs" {
+  path_targets = [{"__address__" = "localhost", "__path__" = "/var/log/pods/**/*.log"}]
 }
 
-discovery.relabel "fire_logs" {
-  targets = discovery.docker.containers.targets
+discovery.relabel "pods" {
+  targets = local.file_match.pod_logs.targets
 
   rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "service"
+    source_labels = ["__path__"]
+    regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+    action        = "replace"
+    target_label  = "namespace"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+    action        = "replace"
+    target_label  = "pod"
+    replacement   = "$2"
+  }
+
+  rule {
+    source_labels = ["__path__"]
+    regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+    action        = "replace"
+    target_label  = "container"
+    replacement   = "$4"
   }
 
   rule {
@@ -22,9 +40,8 @@ discovery.relabel "fire_logs" {
   }
 }
 
-loki.source.docker "containers" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.relabel.fire_logs.output
+loki.source.file "pod_logs" {
+  targets    = discovery.relabel.pods.output
   forward_to = [loki.write.default.receiver]
 }
 

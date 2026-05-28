@@ -57,7 +57,7 @@ jobs:
   # LAYER 1: VALIDATE (Runs concurrently for fast PR status checks)
   # ==============================================================================
   validate:
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'plan-only' && inputs.layer == 'all')
+    if: (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'plan-only' && inputs.layer == 'all')) && (github.event_name != 'pull_request' || matrix.env == 'dev')
     strategy:
       fail-fast: true
       matrix:
@@ -85,8 +85,6 @@ jobs:
           - directory: "infrastructure/terraform/environments/prod/03-argocd"
             layer_kind: "gitops"
             env: "prod"
-        exclude:
-          - env: ${{ github.event_name == 'pull_request' && 'prod' || 'none' }}
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: ${{ matrix.directory }}

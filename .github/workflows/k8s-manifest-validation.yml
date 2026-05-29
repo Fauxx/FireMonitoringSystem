@@ -23,7 +23,11 @@ jobs:
         uses: imranismail/setup-kustomize@v2
 
       - name: Validate Dev Overlay
-        run: kustomize build infrastructure/k8s/overlays/dev > /dev/null
+        run: |
+          if [ ! -f infrastructure/k8s/overlays/dev/secrets.yaml ]; then
+            cp infrastructure/k8s/overlays/dev/secrets.yaml.example infrastructure/k8s/overlays/dev/secrets.yaml
+          fi
+          kustomize build infrastructure/k8s/overlays/dev > /dev/null
 
       - name: Validate Prod Overlay
         run: kustomize build infrastructure/k8s/overlays/prod > /dev/null

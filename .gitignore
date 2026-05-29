@@ -16,6 +16,7 @@ Thumbs.db
 !.env.example
 secrets.txt
 *.tfvars
+infrastructure/k8s/overlays/dev/secrets.yaml
 # =================================================================
 # 3. NODE.JS / DASHBOARD (The "Web" layer)
 # =================================================================

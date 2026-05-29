@@ -143,15 +143,15 @@ router.get("/dashboard/status", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
   try {
     const incidentRes = await req.pool.query(
-      `SELECT MAX(alert_level) as max_level, COUNT(DISTINCT m) as device_count
-       FROM incident_alerts WHERE last_seen > NOW() - INTERVAL '20 minutes' AND alert_level >= 2`
+      `SELECT COALESCE(MAX(status), 0) as max_level, COUNT(DISTINCT h_id) FILTER (WHERE status >= 1) as device_count
+       FROM final_sensor_latest WHERE received_at > NOW() - INTERVAL '20 minutes'`
     );
     const maxLvl = parseInt(incidentRes.rows[0]?.max_level || 0);
     const alertDevs = parseInt(incidentRes.rows[0]?.device_count || 0);
 
     let status = "Operational";
-    if (maxLvl >= 3) status = "Critical";
-    else if (maxLvl >= 2) status = "Warning";
+    if (maxLvl >= 2) status = "Critical";
+    else if (maxLvl >= 1) status = "Warning";
 
     const metricRes = await req.pool.query(`SELECT active_devices, timestamp FROM system_metrics ORDER BY timestamp DESC LIMIT 1`);
     const lastUpdate = metricRes.rows[0]?.timestamp || new Date();
@@ -254,9 +254,9 @@ router.get("/analytics/heatmap", async (req, res) => {
   try {
     const { type, start, end, device, level } = req.query;
     const isVerified = type === 'verified';
-    const tableName = isVerified ? 'verified_incidents' : 'incident_alerts';
-    const dateCol = isVerified ? 'timestamp' : 'started_at';
-    const deviceCol = isVerified ? 'device_id' : 'm'; 
+    const tableName = isVerified ? 'verified_incidents' : 'historical_fire_incidents';
+    const dateCol = isVerified ? 'timestamp' : 'incident_timestamp';
+    const deviceCol = isVerified ? 'device_id' : 'h_id'; 
 
     // USE TO_CHAR to force Postgres to output a strict string 'YYYY-MM-DD'
     // relative to Asia/Manila. This avoids JSON Date Object conversion issues.
@@ -344,27 +344,27 @@ router.get("/incidents", async (req, res) => {
     if (type === "all" || type === "pending") {
       let pendingQuery = `
         SELECT
-          ia.m AS device_id,
-          ia.started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila' as start_time,
-          TO_CHAR(ia.last_seen - ia.started_at, 'HH24:MI:SS') as duration,
-          ia.alert_level,
-          ia.event_stage,
-          GREATEST(ia.fa, ia.fb) AS flame_value,
-          GREATEST(ia.sa, ia.sb) AS smoke_value,
-          GREATEST(ia.ta, ia.tb) AS temp_value
-        FROM incident_alerts ia
-        WHERE ia.alert_level >= 2
+          hfi.h_id AS device_id,
+          hfi.incident_timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila' as start_time,
+          '00:00:00' as duration,
+          hfi.status AS alert_level,
+          'confirmed' as event_stage,
+          NULL AS flame_value,
+          NULL AS smoke_value,
+          NULL AS temp_value
+        FROM historical_fire_incidents hfi
+        WHERE hfi.status >= 2
           AND NOT EXISTS (
             SELECT 1 FROM verified_incidents vi
-            WHERE vi.device_id = ia.m AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - ia.started_at))) < 3600
+            WHERE vi.device_id = hfi.h_id AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - hfi.incident_timestamp))) < 3600
           )
       `;
       const pendingParams = [];
       let idx = 1;
-      if (device) { pendingQuery += ` AND ia.m = $${idx++}`; pendingParams.push(device); }
-      if (startDate) { pendingQuery += ` AND ia.started_at >= $${idx++}`; pendingParams.push(startDate); }
-      if (endDate) { pendingQuery += ` AND ia.started_at <= $${idx++}`; pendingParams.push(endDate); }
-      pendingQuery += ` ORDER BY ia.started_at DESC LIMIT $${idx}`;
+      if (device) { pendingQuery += ` AND hfi.h_id = $${idx++}`; pendingParams.push(device); }
+      if (startDate) { pendingQuery += ` AND hfi.incident_timestamp >= $${idx++}`; pendingParams.push(startDate); }
+      if (endDate) { pendingQuery += ` AND hfi.incident_timestamp <= $${idx++}`; pendingParams.push(endDate); }
+      pendingQuery += ` ORDER BY hfi.incident_timestamp DESC LIMIT $${idx}`;
       pendingParams.push(parseInt(limit));
 
       try {

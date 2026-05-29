@@ -67,6 +67,10 @@
               },
               {
                 "value": 1,
+                "color": "orange"
+              },
+              {
+                "value": 2,
                 "color": "red"
               }
             ]
@@ -81,7 +85,7 @@
             "type": "influxdb",
             "uid": "influxdb-fire"
           },
-          "query": "from(bucket: \"sensor-data\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sensor_status\") |> last()"
+          "query": "from(bucket: \"sensor-data\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"fire_data\") |> filter(fn: (r) => r._field == \"status\") |> last()"
         }
       ]
     },
@@ -159,7 +163,7 @@
             "type": "prometheus",
             "uid": "prometheus-fire"
           },
-          "expr": "container_cpu_cfs_throttled_seconds_total",
+          "expr": "container_cpu_usage_seconds_total",
           "range": true,
           "instant": false
         }

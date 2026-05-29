@@ -142,11 +142,19 @@ function grafanaAuth(req, res, next) {
   next();
 }
 
-app.use('/grafana', grafanaAuth, createProxyMiddleware({
-  target: 'http://grafana:3000',  // Grafana container
+const grafanaProxy = createProxyMiddleware({
+  target: 'http://grafana:3000',
   changeOrigin: true,
-  pathRewrite: { '^/grafana': '' }  // Strip /grafana prefix
-}));
+  ws: true,
+  pathRewrite: {
+    // Explicitly ensure the /grafana prefix is present in the outgoing request
+    '^/grafana': '/grafana' 
+  },
+  logLevel: 'debug'
+});
+
+// Using a broader match to ensure sub-assets are caught correctly
+app.use(['/grafana', '/grafana/*'], grafanaAuth, grafanaProxy);
 
 // -------------------------------
 // Routes

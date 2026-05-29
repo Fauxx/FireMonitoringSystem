@@ -52,6 +52,9 @@ spec:
               mountPath: /var/log/nginx
             - name: tmp-volume
               mountPath: /tmp
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
       volumes:
         - name: cache-volume
           emptyDir: {}
@@ -61,4 +64,7 @@ spec:
           emptyDir: {}
         - name: tmp-volume
           emptyDir: {}
+        - name: nginx-config-volume
+          configMap:
+            name: dashboard-nginx-config
 

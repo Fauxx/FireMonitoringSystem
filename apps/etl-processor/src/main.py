@@ -24,6 +24,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fireuser:changeme@db:5432
 # Timing & Service Logic
 ETL_SYNC_INTERVAL = int(os.getenv("ETL_SYNC_INTERVAL", 60)) # Seconds between runs
 AGG_WINDOW_MINUTES = int(os.getenv("AGG_WINDOW_MINUTES", 5))
+ANOMALY_WINDOW_MINUTES = int(os.getenv("ANOMALY_WINDOW_MINUTES", 30))
 TIMEZONE = os.getenv("TZ", "Asia/Manila")
 DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-2d")
 
@@ -110,23 +111,22 @@ from(bucket: \"{INFLUXDB_BUCKET}\")
 
 def process_telemetry_batch(df_raw):
     """
-    Implements the core ETL logic for the status-based flat telemetry model:
-    1. Deduplicate/aggregate historical points per h_id into a summarized row per interval (5m) for normal status (0).
-    2. Anomaly Filter: Scan for status == 1 or status == 2.
-    3. State Mutation: Bypass summarization thresholds upon anomaly detection (keep anomalies as separate individual records),
-       and return events for final_sensor_events and incident_alerts.
+    Implements core ETL logic with Anomaly Debouncing:
+    1. Normal data (status 0) is aggregated into 5m windows.
+    2. Anomalies (status 1/2) are debounced:
+       - Checks the database for an 'active' incident for the h_id.
+       - If active, it updates the 'last_seen_at' and does not create a new record.
+       - If no active incident exists, it creates a new record.
     """
     if df_raw is None or df_raw.empty:
         return pd.DataFrame(), pd.DataFrame()
 
     df = df_raw.copy()
     df["status"] = pd.to_numeric(df.get("status"), errors="coerce").fillna(0).astype(int)
-    df["lat"] = pd.to_numeric(df.get("lat"), errors="coerce")
-    df["lon"] = pd.to_numeric(df.get("lon"), errors="coerce")
-
+    
     normal_rows = []
-    anomaly_rows = []
-    incident_rows = []
+    events_to_save = []
+    incidents_to_create = []
 
     df["interval_time"] = df["received_at"].dt.floor(f"{AGG_WINDOW_MINUTES}min")
 
@@ -134,33 +134,67 @@ def process_telemetry_batch(df_raw):
         anomalies = group[group["status"].isin([1, 2])]
         normals = group[group["status"] == 0]
 
-        for _, row in anomalies.iterrows():
-            anomaly_rows.append(row)
-            if row["status"] == 2:
-                incident_rows.append({
-                    "h_id": h_id,
-                    "lat": row["lat"],
-                    "lon": row["lon"],
-                    "status": row["status"],
-                    "incident_timestamp": row["received_at"]
-                })
+        # Process Anomalies with Debouncing
+        if not anomalies.empty:
+            # We take the most severe status in this batch for the h_id
+            top_anomaly = anomalies.sort_values("status", ascending=False).iloc[0]
+            h_id = top_anomaly["h_id"]
+            status = int(top_anomaly["status"])
+            ts = top_anomaly["received_at"]
 
+            # 1. Check DB for active session
+            try:
+                conn = get_db_conn()
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE AND incident_timestamp > NOW() - INTERVAL '30 minutes' LIMIT 1",
+                        (h_id,)
+                    )
+                    active_session = cur.fetchone()
+
+                    if active_session:
+                        # Update existing session duration
+                        cur.execute(
+                            "UPDATE historical_fire_incidents SET last_seen_at = %s, status = GREATEST(status, %s) WHERE id = %s",
+                            (ts, status, active_session[0])
+                        )
+                        conn.commit()
+                        logger.info(f"⏳ Updated active incident for {h_id} (Session ID: {active_session[0]})")
+                    else:
+                        # Create new incident
+                        incidents_to_create.append({
+                            "h_id": h_id,
+                            "lat": top_anomaly["lat"],
+                            "lon": top_anomaly["lon"],
+                            "status": status,
+                            "incident_timestamp": ts,
+                            "last_seen_at": ts
+                        })
+                
+                # We still save the event for the Speed Layer / History
+                events_to_save.append(top_anomaly)
+
+            except Exception as e:
+                logger.error(f"❌ Debouncing check failed for {h_id}: {e}")
+
+        # Process Normals
         for interval, int_group in normals.groupby("interval_time"):
             if not int_group.empty:
                 avg_lat = int_group["lat"].mean()
                 avg_lon = int_group["lon"].mean()
-                
-                normal_rows.append({
-                    "time": interval,
+                row = {
                     "received_at": interval,
                     "h_id": h_id,
                     "status": 0,
                     "lat": avg_lat,
                     "lon": avg_lon
-                })
+                }
+                normal_rows.append(row)
+                events_to_save.append(pd.Series(row))
 
+    # Build Final DataFrames
     final_events = []
-    for r in normal_rows + anomaly_rows:
+    for r in events_to_save:
         raw_payload = {
             "h_id": r["h_id"],
             "lat": float(r["lat"]) if pd.notnull(r["lat"]) else None,
@@ -177,10 +211,7 @@ def process_telemetry_batch(df_raw):
             "received_at": r["received_at"]
         })
 
-    df_events = pd.DataFrame(final_events)
-    df_incidents = pd.DataFrame(incident_rows)
-
-    return df_events, df_incidents
+    return pd.DataFrame(final_events), pd.DataFrame(incidents_to_create)
 
 def build_sensor_aggregates(df, window_minutes=5):
     """Lightweight aggregation mapping h_id to m to keep analytics active."""

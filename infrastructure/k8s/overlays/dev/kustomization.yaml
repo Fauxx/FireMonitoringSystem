@@ -4,31 +4,31 @@ kind: Kustomization
 namespace: fire-monitoring-dev
 
 configMapGenerator:
-- name: fire-monitoring-config
-  behavior: replace
+- behavior: replace
   envs:
-    - dev-public.env
+  - dev-public.env
+  name: fire-monitoring-config
 
 resources:
 - ../../base
 - secrets.yaml
 
 replicas:
-  - name: prometheus
-    count: 1
-  - name: loki
-    count: 1
+- count: 1
+  name: prometheus
+- count: 1
+  name: loki
 
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: 53938bf
+  newTag: 657518f
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: 53938bf
+  newTag: 657518f
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: 53938bf
+  newTag: 657518f
 
 labels:
 - includeSelectors: true

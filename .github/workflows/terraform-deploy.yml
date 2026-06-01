@@ -90,6 +90,9 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          - directory: "infrastructure/terraform/environments/prod/00-bootstrap"
+            layer_kind: "bootstrap"
+            env: "prod"
           - directory: "infrastructure/terraform/environments/prod/01-infra"
             layer_kind: "infra"
             env: "prod"
@@ -158,10 +161,22 @@ jobs:
       mode: "deploy"
     secrets: inherit
 
+  deploy_prod_bootstrap:
+    name: "Deploy Prod: Bootstrap Layer (00)"
+    needs: deploy_argocd
+    if: github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '00-bootstrap' || inputs.layer == 'all')
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      directory: "infrastructure/terraform/environments/prod/00-bootstrap"
+      layer_kind: "bootstrap"
+      env: "prod"
+      mode: "deploy"
+    secrets: inherit
+
   deploy_prod_infra:
     name: "Deploy Prod: Infrastructure Layer (01)"
-    needs: deploy_argocd
-    if: github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '01-infra' || inputs.layer == 'all')
+    needs: deploy_prod_bootstrap
+    if: (always() && (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '01-infra' || inputs.layer == 'all') && (needs.deploy_prod_bootstrap.result == 'success' || needs.deploy_prod_bootstrap.result == 'skipped')))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/prod/01-infra"
@@ -173,7 +188,7 @@ jobs:
   deploy_prod_platform:
     name: "Deploy Prod: Platform Core Layer (02)"
     needs: deploy_prod_infra
-    if: github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '02-platform' || inputs.layer == 'all')
+    if: (always() && (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '02-platform' || inputs.layer == 'all') && (needs.deploy_prod_infra.result == 'success' || needs.deploy_prod_infra.result == 'skipped')))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/prod/02-platform"
@@ -185,7 +200,7 @@ jobs:
   deploy_prod_argocd:
     name: "Deploy Prod: GitOps ArgoCD Layer (03)"
     needs: deploy_prod_platform
-    if: github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '03-argocd' || inputs.layer == 'all')
+    if: (always() && (github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'apply' && inputs.environment == 'prod' && (inputs.layer == '03-argocd' || inputs.layer == 'all') && (needs.deploy_prod_platform.result == 'success' || needs.deploy_prod_platform.result == 'skipped')))
     uses: ./.github/workflows/terraform-reusable.yml
     with:
       directory: "infrastructure/terraform/environments/prod/03-argocd"

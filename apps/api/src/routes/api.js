@@ -143,15 +143,15 @@ router.get("/dashboard/status", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
   try {
     const incidentRes = await req.pool.query(
-      `SELECT MAX(alert_level) as max_level, COUNT(DISTINCT m) as device_count
-       FROM incident_alerts WHERE last_seen > NOW() - INTERVAL '20 minutes' AND alert_level >= 2`
+      `SELECT COALESCE(MAX(status), 0) as max_level, COUNT(DISTINCT h_id) FILTER (WHERE status >= 1) as device_count
+       FROM final_sensor_latest WHERE received_at > NOW() - INTERVAL '20 minutes'`
     );
     const maxLvl = parseInt(incidentRes.rows[0]?.max_level || 0);
     const alertDevs = parseInt(incidentRes.rows[0]?.device_count || 0);
 
     let status = "Operational";
-    if (maxLvl >= 3) status = "Critical";
-    else if (maxLvl >= 2) status = "Warning";
+    if (maxLvl >= 2) status = "Critical";
+    else if (maxLvl >= 1) status = "Warning";
 
     const metricRes = await req.pool.query(`SELECT active_devices, timestamp FROM system_metrics ORDER BY timestamp DESC LIMIT 1`);
     const lastUpdate = metricRes.rows[0]?.timestamp || new Date();
@@ -215,28 +215,34 @@ router.get("/analytics/hourly", async (req, res) => {
 
     let query = `
       SELECT 
-        timestamp_window,
-        ROUND(AVG(fa)::numeric, 2) as fa,
-        ROUND(AVG(fb)::numeric, 2) as fb,
-        ROUND(AVG(sa)::numeric, 2) as sa,
-        ROUND(AVG(sb)::numeric, 2) as sb,
-        ROUND(AVG(ta)::numeric, 2) as ta,
-        ROUND(AVG(tb)::numeric, 2) as tb,
-        ROUND(AVG(ga)::numeric, 2) as ga,
-        ROUND(AVG(gb)::numeric, 2) as gb
-      FROM sensor_data_aggregated 
+        date_trunc('hour', to_manila(timestamp_window)) as timestamp_window,
+        -- Backwards compatibility: Map status to sensor fields for existing charts
+        ROUND(AVG(status)::numeric, 2) as status,
+        ROUND(AVG(status)::numeric, 2) as ta, 
+        ROUND(AVG(status)::numeric, 2) as sa,
+        ROUND(AVG(status)::numeric, 2) as fa,
+        ROUND(AVG(status)::numeric, 2) as ga
+      FROM final_sensor_events 
       WHERE 1=1
     `;
 
     const params = [];
     let idx = 1;
 
-    if (device) { query += ` AND m = $${idx++}`; params.push(device); }
-    if (startDate) { query += ` AND timestamp_window >= $${idx++}::timestamp`; params.push(`${startDate} 00:00:00`); }
-    else { query += ` AND timestamp_window >= NOW() - INTERVAL '24 hours'`; }
-    if (endDate) { query += ` AND timestamp_window <= $${idx++}::timestamp`; params.push(`${endDate} 23:59:59`); }
+    if (device) { query += ` AND h_id = $${idx++}`; params.push(device); }
+    if (startDate) { 
+        query += ` AND received_at >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
+        params.push(startDate); 
+    } else { 
+        query += ` AND received_at >= NOW() - INTERVAL '24 hours'`; 
+    }
+    
+    if (endDate) { 
+        query += ` AND received_at <= ($${idx++}::date AT TIME ZONE 'Asia/Manila' + INTERVAL '1 day')`; 
+        params.push(endDate); 
+    }
 
-    query += ` GROUP BY timestamp_window ORDER BY timestamp_window ASC`;
+    query += ` GROUP BY 1 ORDER BY 1 ASC`;
     const result = await req.pool.query(query, params);
     res.json({ rows: result.rows });
 
@@ -254,9 +260,9 @@ router.get("/analytics/heatmap", async (req, res) => {
   try {
     const { type, start, end, device, level } = req.query;
     const isVerified = type === 'verified';
-    const tableName = isVerified ? 'verified_incidents' : 'incident_alerts';
-    const dateCol = isVerified ? 'timestamp' : 'started_at';
-    const deviceCol = isVerified ? 'device_id' : 'm'; 
+    const tableName = isVerified ? 'verified_incidents' : 'historical_fire_incidents';
+    const dateCol = isVerified ? 'timestamp' : 'incident_timestamp';
+    const deviceCol = isVerified ? 'device_id' : 'h_id'; 
 
     // USE TO_CHAR to force Postgres to output a strict string 'YYYY-MM-DD'
     // relative to Asia/Manila. This avoids JSON Date Object conversion issues.
@@ -340,46 +346,63 @@ router.get("/incidents", async (req, res) => {
     let pendingIncidents = [];
     let verifiedIncidents = [];
 
-    // 1. PENDING (With Fixes)
+    // 1. PENDING (Historical Fire Incidents with Duration)
     if (type === "all" || type === "pending") {
       let pendingQuery = `
         SELECT
-          ia.m AS device_id,
-          ia.started_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila' as start_time,
-          TO_CHAR(ia.last_seen - ia.started_at, 'HH24:MI:SS') as duration,
-          ia.alert_level,
-          ia.event_stage,
-          GREATEST(ia.fa, ia.fb) AS flame_value,
-          GREATEST(ia.sa, ia.sb) AS smoke_value,
-          GREATEST(ia.ta, ia.tb) AS temp_value
-        FROM incident_alerts ia
-        WHERE ia.alert_level >= 2
+          hfi.h_id AS device_id,
+          to_manila(hfi.incident_timestamp) as start_time,
+          to_manila(hfi.last_seen_at) as last_seen,
+          EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)) as duration_seconds,
+          LPAD(FLOOR(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp))/3600)::text, 2, '0') || ':' ||
+          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)), 3600)/60)::text, 2, '0') || ':' ||
+          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)), 60))::text, 2, '0') as duration,
+          hfi.status AS alert_level,
+          'confirmed' as event_stage,
+          NULL AS flame_value,
+          NULL AS smoke_value,
+          NULL AS temp_value
+        FROM historical_fire_incidents hfi
+        WHERE hfi.status >= 2
           AND NOT EXISTS (
             SELECT 1 FROM verified_incidents vi
-            WHERE vi.device_id = ia.m AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - ia.started_at))) < 3600
+            WHERE vi.device_id = hfi.h_id AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - hfi.incident_timestamp))) < 3600
           )
       `;
       const pendingParams = [];
       let idx = 1;
-      if (device) { pendingQuery += ` AND ia.m = $${idx++}`; pendingParams.push(device); }
-      if (startDate) { pendingQuery += ` AND ia.started_at >= $${idx++}`; pendingParams.push(startDate); }
-      if (endDate) { pendingQuery += ` AND ia.started_at <= $${idx++}`; pendingParams.push(endDate); }
-      pendingQuery += ` ORDER BY ia.started_at DESC LIMIT $${idx}`;
+      
+      if (device) { pendingQuery += ` AND hfi.h_id = $${idx++}`; pendingParams.push(device); }
+      
+      // Timezone-safe filtering
+      if (startDate) { 
+        pendingQuery += ` AND hfi.incident_timestamp >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
+        params.push(startDate); 
+      }
+      if (endDate) { 
+        pendingQuery += ` AND hfi.incident_timestamp <= ($${idx++}::date AT TIME ZONE 'Asia/Manila' + INTERVAL '1 day')`; 
+        params.push(endDate); 
+      }
+
+      pendingQuery += ` ORDER BY hfi.incident_timestamp DESC LIMIT $${idx}`;
       pendingParams.push(parseInt(limit));
 
       try {
         const res = await pool.query(pendingQuery, pendingParams);
         pendingIncidents = res.rows;
-      } catch (e) { pendingIncidents = []; }
+      } catch (e) { 
+        console.error("Pending query error:", e);
+        pendingIncidents = []; 
+      }
     }
 
-    // 2. VERIFIED (With Fixes)
+    // 2. VERIFIED (With Consistent Manila Time)
     if (type === "all" || type === "verified") {
       let verifiedQuery = `
         SELECT 
           vi.id, vi.device_id, vi.alert_level, vi.flame_value, vi.smoke_value, vi.temp_value, vi.notes,
-          vi.timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila' as timestamp,
-          vi.verified_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila' as verified_at,
+          to_manila(vi.timestamp) as timestamp,
+          to_manila(vi.verified_at) as verified_at,
           u.username as verified_by_username
         FROM verified_incidents vi
         LEFT JOIN users u ON vi.verified_by = u.id
@@ -388,8 +411,16 @@ router.get("/incidents", async (req, res) => {
       const verifiedParams = [];
       let idx = 1;
       if (device) { verifiedQuery += ` AND vi.device_id = $${idx++}`; verifiedParams.push(device); }
-      if (startDate) { verifiedQuery += ` AND vi.timestamp >= $${idx++}`; verifiedParams.push(startDate); }
-      if (endDate) { verifiedQuery += ` AND vi.timestamp <= $${idx++}`; verifiedParams.push(endDate); }
+      
+      if (startDate) { 
+        verifiedQuery += ` AND vi.timestamp >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
+        verifiedParams.push(startDate); 
+      }
+      if (endDate) { 
+        verifiedQuery += ` AND vi.timestamp <= ($${idx++}::date AT TIME ZONE 'Asia/Manila' + INTERVAL '1 day')`; 
+        verifiedParams.push(endDate); 
+      }
+
       verifiedQuery += ` ORDER BY vi.verified_at DESC LIMIT $${idx}`;
       verifiedParams.push(parseInt(limit));
 

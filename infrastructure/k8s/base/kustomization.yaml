@@ -62,6 +62,9 @@ configMapGenerator:
   - name: grafana-dashboards
     files:
       - fire-main.json=grafana/dashboards/fire-main.json
+  - name: dashboard-nginx-config
+    files:
+      - default.conf=dashboard/nginx.conf
   - name: flyway-sql
     files:
       - V1__Initial_Schema.sql=sql/V1__Initial_Schema.sql
@@ -69,3 +72,5 @@ configMapGenerator:
       - V3__Official_Incidents_Setup.sql=sql/V3__Official_Incidents_Setup.sql
       - V4__Add_Final_Sensor_Schema.sql=sql/V4__Add_Final_Sensor_Schema.sql
       - V5__Final_Sensor_Views.sql=sql/V5__Final_Sensor_Views.sql
+      - V6__Flattened_Architecture.sql=sql/V6__Flattened_Architecture.sql
+      - V7__Standardize_Timezone_Schema.sql=sql/V7__Standardize_Timezone_Schema.sql

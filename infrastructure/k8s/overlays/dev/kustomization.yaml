@@ -11,13 +11,13 @@ configMapGenerator:
 
 resources:
 - ../../base
+- secrets.yaml
 
 replicas:
   - name: prometheus
     count: 1
   - name: loki
     count: 1
-
 
 images:
 - name: api
@@ -35,5 +35,6 @@ labels:
   pairs:
     deployment-type: development
     environment: dev
+
 patches:
 - path: ingress-patch.yaml

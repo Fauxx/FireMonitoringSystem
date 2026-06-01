@@ -1,0 +1,66 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fire-monitoring-local
+
+configMapGenerator:
+- name: fire-monitoring-config
+  behavior: replace
+  envs:
+    - local-public.env
+
+resources:
+- ../../base
+- secrets.yaml
+
+replicas:
+  - name: prometheus
+    count: 1
+  - name: loki
+    count: 1
+
+images:
+- name: api
+  newName: api
+  newTag: local
+- name: dashboard
+  newName: dashboard
+  newTag: local
+- name: etl-processor
+  newName: etl-processor
+  newTag: local
+
+labels:
+- includeSelectors: true
+  pairs:
+    deployment-type: local
+    environment: local
+
+patches:
+  - target:
+      kind: Deployment
+      name: api
+    patch: |
+      - op: remove
+        path: /spec/template/spec/imagePullSecrets
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      kind: Deployment
+      name: dashboard
+    patch: |
+      - op: remove
+        path: /spec/template/spec/imagePullSecrets
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      kind: Deployment
+      name: etl-processor
+    patch: |
+      - op: remove
+        path: /spec/template/spec/imagePullSecrets
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never

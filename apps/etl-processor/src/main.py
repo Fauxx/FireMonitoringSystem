@@ -18,12 +18,13 @@ INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://influx:8086")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
 INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "fire-monitoring")
 INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "sensor-data")
-INFLUX_MEASUREMENT = os.getenv("INFLUX_MEASUREMENT", "final_sensor_readings")
+INFLUX_MEASUREMENT = os.getenv("INFLUX_MEASUREMENT", "fire_data")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fireuser:changeme@db:5432/fire_monitoring")
 
 # Timing & Service Logic
 ETL_SYNC_INTERVAL = int(os.getenv("ETL_SYNC_INTERVAL", 60)) # Seconds between runs
 AGG_WINDOW_MINUTES = int(os.getenv("AGG_WINDOW_MINUTES", 5))
+ANOMALY_WINDOW_MINUTES = int(os.getenv("ANOMALY_WINDOW_MINUTES", 30))
 TIMEZONE = os.getenv("TZ", "Asia/Manila")
 DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-2d")
 
@@ -49,7 +50,7 @@ ALLOWED_COLS = [
     "ks", "ls", "k", "l", "la", "lo", "a", "o",
     "timestamp_window", "readings_count", "created_at",
     "active_devices", "alerts_today", "system_uptime", "total_locations", "timestamp",
-    "status_level", "h_id", "d_id", "pos", "temp_c", "smoke_ppm", "status", "lat", "lon", "raw_payload", "received_at"
+    "status_level", "h_id", "status", "lat", "lon", "raw_payload", "received_at", "incident_timestamp"
 ]
 
 # -----------------------------
@@ -82,27 +83,25 @@ def fetch_influx_data(last_ts=None):
         # Pull the most recent window; optionally narrow using last_ts
         range_clause = f"|> range(start: {DEFAULT_RANGE})" if last_ts is None else f"|> range(start: time(v: {last_ts.isoformat()}))"
 
-        # We assume tags h_id/d_id and fields: t (temp), s (smoke), st (status), pos, lat, lon.
+        # Pivot by time and h_id tags
         flux = f"""
 from(bucket: \"{INFLUXDB_BUCKET}\")
   {range_clause}
   |> filter(fn: (r) => r._measurement == \"{INFLUX_MEASUREMENT}\")
-  |> pivot(rowKey:[\"_time\", \"h_id\", \"d_id\"], columnKey:[\"_field\"], valueColumn:\"_value\")
-  |> keep(columns: [\"_time\", \"h_id\", \"d_id\", \"pos\", \"t\", \"s\", \"st\", \"lat\", \"lon\"])
+  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey:[\"_field\"], valueColumn:\"_value\")
+  |> keep(columns: [\"_time\", \"h_id\", \"lat\", \"lon\", \"status\"])
 """
 
         df = query_api.query_data_frame(org=INFLUXDB_ORG, query=flux)
 
-        # query_data_frame may return a list-like; ensure a single DataFrame
         if isinstance(df, list):
             df = pd.concat(df) if df else pd.DataFrame()
 
         if df is None or df.empty:
             return pd.DataFrame(columns=ALLOWED_COLS)
 
-        # Drop Influx internal columns if present
         df = df.loc[:, [c for c in df.columns if not c.startswith("_start") and not c.startswith("_stop") and c not in ["table"]]]
-        df.rename(columns={"_time": "time", "t": "temp_c", "s": "smoke_ppm", "st": "status"}, inplace=True)
+        df.rename(columns={"_time": "time"}, inplace=True)
         df["received_at"] = pd.to_datetime(df["time"], errors="coerce")
         return df
     except Exception as e:
@@ -110,112 +109,153 @@ from(bucket: \"{INFLUXDB_BUCKET}\")
         return pd.DataFrame(columns=ALLOWED_COLS)
 
 
-def compute_alerts(df):
-    """Placeholder alert computation keeping pipeline alive."""
-    if df is None or df.empty:
-        return {"alert_level": [], "event_stage": []}
+def process_telemetry_batch(df_raw):
+    """
+    Implements core ETL logic with Anomaly Debouncing:
+    1. Normal data (status 0) is aggregated into 5m windows.
+    2. Anomalies (status 1/2) are debounced:
+       - Checks the database for an 'active' incident for the h_id.
+       - If active, it updates the 'last_seen_at' and does not create a new record.
+       - If no active incident exists, it creates a new record.
+    """
+    if df_raw is None or df_raw.empty:
+        return pd.DataFrame(), pd.DataFrame()
 
-    # Default every record to green/normal until logic is reintroduced
-    return {
-        "alert_level": ["green"] * len(df),
-        "event_stage": ["normal"] * len(df),
-    }
+    df = df_raw.copy()
+    df["status"] = pd.to_numeric(df.get("status"), errors="coerce").fillna(0).astype(int)
+    
+    normal_rows = []
+    events_to_save = []
+    incidents_to_create = []
 
+    df["interval_time"] = df["received_at"].dt.floor(f"{AGG_WINDOW_MINUTES}min")
 
-def build_final_sensor_events(df):
-    """Map wide dataframe to final_sensor_events columns."""
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["h_id", "d_id", "pos", "temp_c", "smoke_ppm", "status", "lat", "lon", "raw_payload", "received_at"])
+    for h_id, group in df.groupby("h_id"):
+        anomalies = group[group["status"].isin([1, 2])]
+        normals = group[group["status"] == 0]
 
-    # Ensure lat/lon numeric and keep raw payload for traceability
-    df = df.copy()
-    df["lat"] = pd.to_numeric(df.get("lat"), errors="coerce")
-    df["lon"] = pd.to_numeric(df.get("lon"), errors="coerce")
-    df["temp_c"] = pd.to_numeric(df.get("temp_c"), errors="coerce")
-    df["smoke_ppm"] = pd.to_numeric(df.get("smoke_ppm"), errors="coerce")
-    df["status"] = pd.to_numeric(df.get("status"), errors="coerce")
+        # Process Anomalies with Debouncing
+        if not anomalies.empty:
+            # We take the most severe status in this batch for the h_id
+            top_anomaly = anomalies.sort_values("status", ascending=False).iloc[0]
+            h_id = top_anomaly["h_id"]
+            status = int(top_anomaly["status"])
+            ts = top_anomaly["received_at"]
 
-    def _row_payload(row):
-        # Reconstruct the original-ish JSON shape
-        loc = []
-        if pd.notnull(row.get("lat")) and pd.notnull(row.get("lon")):
-            loc = [float(row.get("lat")), float(row.get("lon"))]
-        return {
-            "h_id": row.get("h_id"),
-            "d_id": row.get("d_id"),
-            "pos": row.get("pos"),
-            "env": {"t": row.get("temp_c"), "s": row.get("smoke_ppm")},
-            "log": {"st": row.get("status")},
-            "loc": loc,
-            "time": row.get("time").isoformat() if isinstance(row.get("time"), pd.Timestamp) else row.get("time"),
+            # 1. Check DB for active session
+            try:
+                conn = get_db_conn()
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE AND incident_timestamp > NOW() - INTERVAL '30 minutes' LIMIT 1",
+                        (h_id,)
+                    )
+                    active_session = cur.fetchone()
+
+                    if active_session:
+                        # Update existing session duration
+                        cur.execute(
+                            "UPDATE historical_fire_incidents SET last_seen_at = %s, status = GREATEST(status, %s) WHERE id = %s",
+                            (ts, status, active_session[0])
+                        )
+                        conn.commit()
+                        logger.info(f"⏳ Updated active incident for {h_id} (Session ID: {active_session[0]})")
+                    else:
+                        # Create new incident
+                        incidents_to_create.append({
+                            "h_id": h_id,
+                            "lat": top_anomaly["lat"],
+                            "lon": top_anomaly["lon"],
+                            "status": status,
+                            "incident_timestamp": ts,
+                            "last_seen_at": ts
+                        })
+                
+                # We still save the event for the Speed Layer / History
+                events_to_save.append(top_anomaly)
+
+            except Exception as e:
+                logger.error(f"❌ Debouncing check failed for {h_id}: {e}")
+
+        # Process Normals
+        for interval, int_group in normals.groupby("interval_time"):
+            if not int_group.empty:
+                avg_lat = int_group["lat"].mean()
+                avg_lon = int_group["lon"].mean()
+                row = {
+                    "received_at": interval,
+                    "h_id": h_id,
+                    "status": 0,
+                    "lat": avg_lat,
+                    "lon": avg_lon
+                }
+                normal_rows.append(row)
+                events_to_save.append(pd.Series(row))
+
+    # Build Final DataFrames
+    final_events = []
+    for r in events_to_save:
+        raw_payload = {
+            "h_id": r["h_id"],
+            "lat": float(r["lat"]) if pd.notnull(r["lat"]) else None,
+            "lon": float(r["lon"]) if pd.notnull(r["lon"]) else None,
+            "status": int(r["status"]),
+            "time": r["received_at"].isoformat() if isinstance(r["received_at"], pd.Timestamp) else str(r["received_at"])
         }
+        final_events.append({
+            "h_id": r["h_id"],
+            "status": int(r["status"]),
+            "lat": r["lat"],
+            "lon": r["lon"],
+            "raw_payload": Json(raw_payload),
+            "received_at": r["received_at"]
+        })
 
-    final_df = pd.DataFrame({
-        "h_id": df.get("h_id"),
-        "d_id": df.get("d_id"),
-        "pos": df.get("pos"),
-        "temp_c": df.get("temp_c"),
-        "smoke_ppm": df.get("smoke_ppm"),
-        "status": df.get("status"),
-        "lat": df.get("lat"),
-        "lon": df.get("lon"),
-        "raw_payload": df.apply(_row_payload, axis=1),
-        "received_at": df.get("received_at")
-    })
-
-    final_df["raw_payload"] = final_df["raw_payload"].apply(Json)
-
-    return final_df
-
+    return pd.DataFrame(final_events), pd.DataFrame(incidents_to_create)
 
 def build_sensor_aggregates(df, window_minutes=5):
-    """Lightweight aggregation to keep analytics endpoints usable."""
+    """Lightweight aggregation mapping h_id to m to keep analytics active."""
     if df is None or df.empty:
         return pd.DataFrame(columns=["m", "timestamp_window", "sa", "ta", "readings_count", "la", "lo", "host", "a", "o"])
 
     df = df.copy()
     df["timestamp_window"] = pd.to_datetime(df["received_at"], errors="coerce").dt.floor(f"{window_minutes}min")
-    df["m"] = df.get("d_id")
-    df["sa"] = df.get("smoke_ppm")
-    df["ta"] = df.get("temp_c")
+    df["m"] = df.get("h_id")
     df["la"] = df.get("lat")
     df["lo"] = df.get("lon")
 
     grouped = (
         df.groupby(["m", "timestamp_window"], dropna=False)
           .agg({
-              "sa": "mean",
-              "ta": "mean",
               "la": "mean",
               "lo": "mean",
-              "pos": "first",
-              "h_id": "first",
               "time": "count"
           })
           .rename(columns={"time": "readings_count"})
           .reset_index()
     )
 
-    grouped.rename(columns={"pos": "host", "h_id": "a", "m": "m"}, inplace=True)
-    # Retain optional text field
+    grouped["host"] = grouped["m"]
+    grouped["a"] = grouped["m"]
     grouped["o"] = None
+    grouped["sa"] = None
+    grouped["ta"] = None
 
     return grouped[["m", "timestamp_window", "sa", "ta", "readings_count", "la", "lo", "host", "a", "o"]]
 
-
 def build_system_metrics(df):
-    """Produce a single row for system_metrics from the latest batch."""
+    """Produce system metrics heartbeat row."""
     if df is None or df.empty:
         return pd.DataFrame(columns=["timestamp", "active_devices", "alerts_today", "system_uptime", "total_locations", "status_level"])
 
     now = datetime.utcnow()
-    active_devices = df["d_id"].nunique()
-    total_locations = df["pos"].nunique() if "pos" in df.columns else active_devices
+    active_devices = df["h_id"].nunique()
+    total_locations = active_devices
 
     metrics_df = pd.DataFrame([{
         "timestamp": now,
         "active_devices": int(active_devices),
-        "alerts_today": 0,
+        "alerts_today": int((df["status"] == 2).sum()),
         "system_uptime": 100.0,
         "total_locations": int(total_locations),
         "status_level": 1,
@@ -266,20 +306,22 @@ def run_main():
         logger.info("😴 No new data to process.")
         return
 
-    # Lightweight alert scaffolding (kept for compatibility)
-    alerts = compute_alerts(df_raw)
-    df_raw["alert_level"] = alerts["alert_level"]
-    df_raw["event_stage"] = alerts["event_stage"]
+    # Process batch with deduplication and state mutation
+    df_events, df_incidents = process_telemetry_batch(df_raw)
 
     # 1) Write final_sensor_events
-    final_df = build_final_sensor_events(df_raw)
-    upsert_table(final_df, "final_sensor_events", conflict_cols=None)
+    if df_events is not None and not df_events.empty:
+        upsert_table(df_events, "final_sensor_events", conflict_cols=None)
 
-    # 2) Write sensor_data_aggregated (simplified)
+    # 2) Write historical_fire_incidents registry table
+    if df_incidents is not None and not df_incidents.empty:
+        upsert_table(df_incidents, "historical_fire_incidents", conflict_cols=None)
+
+    # 3) Write sensor_data_aggregated (simplified)
     agg_df = build_sensor_aggregates(df_raw, window_minutes=AGG_WINDOW_MINUTES)
-    upsert_table(agg_df, "sensor_data_aggregated", conflict_cols=["m", "timestamp_window"])
+    upsert_table(agg_df, "sensor_data_aggregated", conflict_cols=None)
 
-    # 3) Write system_metrics heartbeat
+    # 4) Write system_metrics heartbeat
     metrics_df = build_system_metrics(df_raw)
     upsert_table(metrics_df, "system_metrics", conflict_cols=None)
 

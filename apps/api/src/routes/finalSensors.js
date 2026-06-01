@@ -16,14 +16,13 @@ router.get("/latest", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, d_id, pos, temp_c, smoke_ppm, status, lat, lon, raw_payload, received_at
+      SELECT id, h_id, status, lat, lon, raw_payload, received_at
       FROM final_sensor_latest
       WHERE 1=1
     `;
     const params = [];
     let idx = 1;
 
-    if (deviceId) { query += ` AND d_id = $${idx++}`; params.push(deviceId); }
     if (householdId) { query += ` AND h_id = $${idx++}`; params.push(householdId); }
 
     query += ` ORDER BY received_at DESC LIMIT $${idx}`;
@@ -44,14 +43,13 @@ router.get("/history", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, d_id, pos, temp_c, smoke_ppm, status, lat, lon, raw_payload, received_at
+      SELECT id, h_id, status, lat, lon, raw_payload, received_at
       FROM final_sensor_events
       WHERE 1=1
     `;
     const params = [];
     let idx = 1;
 
-    if (deviceId) { query += ` AND d_id = $${idx++}`; params.push(deviceId); }
     if (householdId) { query += ` AND h_id = $${idx++}`; params.push(householdId); }
     if (start) { query += ` AND received_at >= $${idx++}::timestamptz`; params.push(start); }
     if (end) { query += ` AND received_at <= $${idx++}::timestamptz`; params.push(end); }
@@ -78,23 +76,19 @@ router.post("/events", async (req, res) => {
   const payload = req.body || {};
   const mapped = mapPayload(payload);
 
-  if (!mapped.h_id || !mapped.d_id) {
-    return res.status(400).json({ error: "h_id and d_id are required in payload" });
+  if (!mapped.h_id) {
+    return res.status(400).json({ error: "h_id is required in payload" });
   }
 
   try {
     const insertQuery = `
-      INSERT INTO final_sensor_events (h_id, d_id, pos, temp_c, smoke_ppm, status, lat, lon, raw_payload)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO final_sensor_events (h_id, status, lat, lon, raw_payload)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id, received_at
     `;
 
     const params = [
       mapped.h_id,
-      mapped.d_id,
-      mapped.pos,
-      mapped.temp_c,
-      mapped.smoke_ppm,
       mapped.status,
       mapped.lat,
       mapped.lon,
@@ -110,22 +104,11 @@ router.post("/events", async (req, res) => {
 });
 
 function mapPayload(payload) {
-  const env = payload.env || {};
-  const log = payload.log || {};
-  const loc = Array.isArray(payload.loc) ? payload.loc : [];
-
-  const lat = loc.length >= 1 ? loc[0] : null;
-  const lon = loc.length >= 2 ? loc[1] : null;
-
   return {
     h_id: payload.h_id,
-    d_id: payload.d_id,
-    pos: payload.pos,
-    temp_c: env.t,
-    smoke_ppm: env.s,
-    status: log.st,
-    lat,
-    lon,
+    status: payload.status,
+    lat: payload.lat,
+    lon: payload.lon,
   };
 }
 

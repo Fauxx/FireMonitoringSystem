@@ -107,3 +107,47 @@ jobs:
           branch: "gitops-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
           base: main
           delete-branch: true
+
+  promote_to_prod:
+    name: "Promote to Production (GitOps)"
+    needs: build_and_test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Generate App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Bump Production Kustomize Image Tags
+        run: |
+          cd infrastructure/k8s/overlays/prod
+          kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
+
+      - name: Create Pull Request for Production GitOps bump
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          commit-message: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
+          title: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
+          body: |
+            Promotes Kubernetes manifest image tags for production environment to:
+            - API: `${{ needs.build_and_test.outputs.image_tag }}`
+            - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
+            - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
+          branch: "gitops-prod-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
+          base: main
+          delete-branch: true

@@ -22,42 +22,66 @@
   "liveNow": false,
   "panels": [
     {
-      "id": 1,
-      "title": "Latest Sensor Status",
-      "type": "stat",
+      "id": 10,
+      "type": "row",
+      "title": "🔥 Fire Monitoring Application Analytics",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 11,
+      "title": "Barangay Map",
+      "type": "geomap",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb-fire"
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
-        "w": 12,
-        "h": 8
+        "y": 1,
+        "w": 16,
+        "h": 12
       },
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "view": {
+          "id": "coords",
+          "lat": 14.5995,
+          "lon": 121.0365,
+          "zoom": 11
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "basemap": {
+          "type": "default",
+          "name": "OpenStreetMap",
+          "config": {}
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Active Sensors",
+            "config": {
+              "style": {
+                "size": {
+                  "fixed": 15
+                },
+                "color": {
+                  "field": "status",
+                  "fixed": "green"
+                },
+                "symbol": {
+                  "fixed": "circle"
+                }
+              },
+              "location": {
+                "mode": "auto"
+              },
+              "tooltip": true
+            }
+          }
+        ]
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "palette-classic"
-          },
+          "custom": {},
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -67,6 +91,10 @@
               },
               {
                 "value": 1,
+                "color": "orange"
+              },
+              {
+                "value": 2,
                 "color": "red"
               }
             ]
@@ -81,22 +109,259 @@
             "type": "influxdb",
             "uid": "influxdb-fire"
           },
-          "query": "from(bucket: \"sensor-data\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"sensor_status\") |> last()"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"lat\" or r[\"_field\"] == \"lon\" or r[\"_field\"] == \"status\")\n  |> last()\n  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
         }
       ]
     },
     {
-      "id": 2,
-      "title": "CPU UTIL",
+      "id": 12,
+      "title": "Fleet Alert Status Counters",
+      "type": "stat",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fire"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 8,
+        "h": 12
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "valueAndName"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Total Fleet"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-grey"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Normal Status"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Warning Status"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "D"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Critical Status"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fire"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"status\")\n  |> group(columns: [\"h_id\"])\n  |> last()\n  |> group()\n  |> count()"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fire"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"status\")\n  |> filter(fn: (r) => r._value == 0)\n  |> group(columns: [\"h_id\"])\n  |> last()\n  |> group()\n  |> count()"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fire"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"status\")\n  |> filter(fn: (r) => r._value == 1)\n  |> group(columns: [\"h_id\"])\n  |> last()\n  |> group()\n  |> count()"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fire"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"status\")\n  |> filter(fn: (r) => r._value == 2)\n  |> group(columns: [\"h_id\"])\n  |> last()\n  |> group()\n  |> count()"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Active Device List Overview",
+      "type": "table",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-fire"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 7
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "showCount": true,
+          "fields": []
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "orange"
+              },
+              {
+                "value": 2,
+                "color": "red"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "Normal", "color": "green" },
+                "1": { "text": "Warning", "color": "orange" },
+                "2": { "text": "Critical", "color": "red" }
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-fire"
+          },
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> last()\n  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "🖥️ Infra Observability: Compute & Hardware Capacity",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 1 }
+    },
+    {
+      "id": 21,
+      "title": "Pod CPU Engine",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus-fire"
       },
       "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 12,
+        "x": 0,
+        "y": 21,
+        "w": 8,
         "h": 8
       },
       "options": {
@@ -111,46 +376,49 @@
           "sort": "none"
         }
       },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"fire-monitoring-dev\"}[5m])) by (pod)",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Pod Memory Working Set",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 21,
+        "w": 8,
+        "h": 8
+      },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "green"
-              },
-              {
-                "value": 80,
-                "color": "red"
-              }
-            ]
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 25,
-            "gradientMode": "none",
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "percent"
-            }
-          }
+          "unit": "bytes"
+        }
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "overrides": []
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "targets": [
         {
@@ -159,14 +427,136 @@
             "type": "prometheus",
             "uid": "prometheus-fire"
           },
-          "expr": "container_cpu_cfs_throttled_seconds_total",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"fire-monitoring-dev\"}) by (pod)",
           "range": true,
           "instant": false
         }
       ]
+    },
+    {
+      "id": 23,
+      "title": "Persistent Volume Disk I/O",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 21,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "rate(node_disk_write_time_seconds_total[5m]) / rate(node_disk_writes_completed_total[5m])",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "📡 Infra Observability: System Operations & Pipeline Logs",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 }
+    },
+    {
+      "id": 31,
+      "title": "MQTT Broker Ingestion Velocity",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 8,
+        "h": 8
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "rate(telegraf_metrics_written{influxdb=\"influx-0\"}[5m])",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "title": "Centralized System Event Stream",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-fire"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 31,
+        "w": 16,
+        "h": 8
+      },
+      "options": {
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "expr": "{namespace=\"fire-monitoring-dev\"} |= \"error\" or \"exception\" or \"failed\"",
+          "maxLines": 500
+        }
+      ]
     }
   ],
-  "refresh": "30s",
+  "refresh": "10s",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [

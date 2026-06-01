@@ -53,6 +53,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: grafana
+                name: api
                 port:
-                  number: 3000
+                  number: 8000

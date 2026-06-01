@@ -11,4 +11,3 @@ providers:
     updateIntervalSeconds: 10
     options:
       path: /etc/grafana/dashboards
-

@@ -31,3 +31,6 @@ jobs:
 
       - name: Validate Prod Overlay
         run: kustomize build infrastructure/k8s/overlays/prod > /dev/null
+
+      - name: Validate Local Overlay
+        run: kustomize build infrastructure/k8s/overlays/local > /dev/null

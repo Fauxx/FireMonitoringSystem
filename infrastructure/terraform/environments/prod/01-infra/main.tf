@@ -31,7 +31,7 @@ resource "digitalocean_kubernetes_cluster" "this" {
   name   = var.cluster_name
   region = var.region
   # Stable version slug for SGP1 region as of May 2026
-  version  = "1.35.1-do.6"
+  version  = "1.35.5-do.0"
   vpc_uuid = digitalocean_vpc.cluster_network.id
 
   node_pool {

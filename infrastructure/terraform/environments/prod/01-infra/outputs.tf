@@ -8,6 +8,11 @@ output "cluster_id" {
   value       = digitalocean_kubernetes_cluster.this.id
 }
 
+output "cluster_name" {
+  value       = digitalocean_kubernetes_cluster.this.name
+  description = "The human-readable name of the DOKS cluster passed to Layer 2"
+}
+
 output "cluster_endpoint" {
   description = "The API endpoint for the Kubernetes cluster"
   value       = digitalocean_kubernetes_cluster.this.endpoint

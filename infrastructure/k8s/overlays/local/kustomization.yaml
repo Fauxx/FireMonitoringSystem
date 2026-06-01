@@ -21,13 +21,13 @@ replicas:
 
 images:
 - name: api
-  newName: api
+  newName: localhost/api
   newTag: local
 - name: dashboard
-  newName: dashboard
+  newName: localhost/dashboard
   newTag: local
 - name: etl-processor
-  newName: etl-processor
+  newName: localhost/etl-processor
   newTag: local
 
 labels:

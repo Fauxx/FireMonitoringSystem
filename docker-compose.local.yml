@@ -6,12 +6,16 @@ services:
     container_name: fire-db-local
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
       POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
     ports:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      default:
+        aliases:
+          - db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-fire_monitoring}"]
       interval: 5s
@@ -25,11 +29,11 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./infrastructure/k8s/base/sql:/flyway/sql
+      - ./infrastructure/k8s/base/sql:/flyway/sql:Z
     environment:
       FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
       FLYWAY_USER: ${POSTGRES_USER:-postgres}
-      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-local-password}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
     command: -connectRetries=60 migrate
 
   influx:
@@ -46,6 +50,10 @@ services:
       - "8086:8086"
     volumes:
       - influx_data:/var/lib/influxdb2
+    networks:
+      default:
+        aliases:
+          - influx
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8086/health"]
       interval: 5s
@@ -55,13 +63,18 @@ services:
   mqtt:
     image: eclipse-mosquitto:2.0
     container_name: fire-mqtt-local
+    user: "0:0"
     ports:
       - "1883:1883"
     volumes:
-      - ./infrastructure/k8s/base/mqtt/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - mqtt_data:/mosquitto/data
+      - ./infrastructure/k8s/base/mqtt/config:/mosquitto/config:Z
+      - mqtt_data:/mosquitto/data:Z
+    networks:
+      default:
+        aliases:
+          - mqtt
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 1883"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t 'test' -E -i 'healthcheck' || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -83,12 +96,16 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./apps/api/src:/usr/src/app/src
+      - ./apps/api/src:/usr/src/app/src:Z
     env_file:
       - .env
+    networks:
+      default:
+        aliases:
+          - api
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-local-password}@db:5432/${POSTGRES_DB:-fire_monitoring}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@db:5432/${POSTGRES_DB:-fire_monitoring}
       INFLUXDB_URL: http://influx:8086
       MQTT_BROKER_HOST: mqtt
       DASHBOARD_DIR: /usr/share/nginx/html
@@ -101,7 +118,9 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./apps/dashboard/public:/usr/share/nginx/html
+      - ./apps/dashboard/public:/usr/share/nginx/html:Z
+    environment:
+      - API_URL=http://api:8000
     depends_on:
       - api
 
@@ -118,15 +137,76 @@ services:
       influx:
         condition: service_healthy
     volumes:
-      - ./apps/etl-processor/src:/app/src
+      - ./apps/etl-processor/src:/app/src:Z
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-local-password}@db:5432/${POSTGRES_DB:-fire_monitoring}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@db:5432/${POSTGRES_DB:-fire_monitoring}
       INFLUXDB_URL: http://influx:8086
       MQTT_BROKER_HOST: mqtt
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: fire-prometheus-local
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/k8s/base/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+      - prometheus_data:/prometheus
+    networks:
+      default:
+        aliases:
+          - prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: fire-loki-local
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infrastructure/k8s/base/loki/local-config.yaml:/etc/loki/local-config.yaml:Z
+    networks:
+      default:
+        aliases:
+          - loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: fire-grafana-local
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_ROOT_URL=http://localhost:3000/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/k8s/base/grafana/provisioning:/etc/grafana/provisioning:Z
+      - ./infrastructure/k8s/base/grafana/dashboards:/var/lib/grafana/dashboards:Z
+    networks:
+      default:
+        aliases:
+          - grafana
+    depends_on:
+      - prometheus
+      - loki
+      - influx
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: fire-node-exporter-local
+    networks:
+      default:
+        aliases:
+          - node-exporter
 
 volumes:
   db_data:
   influx_data:
   mqtt_data:
+  prometheus_data:
+  grafana_data:

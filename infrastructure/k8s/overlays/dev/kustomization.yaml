@@ -11,7 +11,6 @@ configMapGenerator:
 
 resources:
 - ../../base
-- secrets.yaml
 
 replicas:
 - count: 1

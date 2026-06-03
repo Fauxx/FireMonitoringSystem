@@ -136,7 +136,9 @@ const protectGrafana = process.env.GRAFANA_PROXY_PROTECT
 
 function grafanaAuth(req, res, next) {
   if (!protectGrafana) return next();
+  console.log(`[grafana-auth] Request to ${req.originalUrl} - Session present: ${!!req.session} - User present: ${req.session?.user?.username}`);
   if (!req.session || !req.session.user) {
+    console.log(`[grafana-auth] Unauthorized access to ${req.originalUrl}`);
     return res.status(401).send('Unauthorized');
   }
   next();

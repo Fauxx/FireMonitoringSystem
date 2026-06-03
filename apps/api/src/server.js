@@ -31,6 +31,9 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Trust the first proxy (Ingress/Nginx) to handle X-Forwarded-* headers correctly
+app.set('trust proxy', 1);
+
 // Prometheus metrics registry for API/process and HTTP traffic.
 const metricsRegister = new client.Registry();
 metricsRegister.setDefaultLabels({ app: 'fire-api', env: NODE_ENV });
@@ -102,7 +105,14 @@ app.use((req, res, next) => {
 app.use(session({
   secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  proxy: true, // Trust the reverse proxy for session cookies
+  cookie: {
+    httpOnly: true,
+    secure: false, // Set to true if using HTTPS
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
 // Attach DB pool to each request

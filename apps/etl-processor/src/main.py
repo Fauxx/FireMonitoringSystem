@@ -147,7 +147,7 @@ def process_telemetry_batch(df_raw):
                 conn = get_db_conn()
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE AND incident_timestamp > NOW() - INTERVAL '30 minutes' LIMIT 1",
+                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE AND last_seen_at > NOW() - INTERVAL '30 minutes' LIMIT 1",
                         (h_id,)
                     )
                     active_session = cur.fetchone()
@@ -178,19 +178,41 @@ def process_telemetry_batch(df_raw):
                 logger.error(f"❌ Debouncing check failed for {h_id}: {e}")
 
         # Process Normals
-        for interval, int_group in normals.groupby("interval_time"):
-            if not int_group.empty:
-                avg_lat = int_group["lat"].mean()
-                avg_lon = int_group["lon"].mean()
-                row = {
-                    "received_at": interval,
-                    "h_id": h_id,
-                    "status": 0,
-                    "lat": avg_lat,
-                    "lon": avg_lon
-                }
-                normal_rows.append(row)
-                events_to_save.append(pd.Series(row))
+        else:
+            # anomalies is empty, we only have normals. If there is an active session, close it.
+            try:
+                conn = get_db_conn()
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE LIMIT 1",
+                        (h_id,)
+                    )
+                    active_session = cur.fetchone()
+                    if active_session:
+                        latest_normal = normals.sort_values("received_at", ascending=False).iloc[0]
+                        normal_ts = latest_normal["received_at"]
+                        cur.execute(
+                            "UPDATE historical_fire_incidents SET is_active = FALSE, last_seen_at = %s WHERE id = %s",
+                            (normal_ts, active_session[0])
+                        )
+                        conn.commit()
+                        logger.info(f"✅ Closed active incident for {h_id} (Session ID: {active_session[0]}) due to normal status")
+            except Exception as e:
+                logger.error(f"❌ Deactivation check failed for {h_id}: {e}")
+
+            for interval, int_group in normals.groupby("interval_time"):
+                if not int_group.empty:
+                    avg_lat = int_group["lat"].mean()
+                    avg_lon = int_group["lon"].mean()
+                    row = {
+                        "received_at": interval,
+                        "h_id": h_id,
+                        "status": 0,
+                        "lat": avg_lat,
+                        "lon": avg_lon
+                    }
+                    normal_rows.append(row)
+                    events_to_save.append(pd.Series(row))
 
     # Build Final DataFrames
     final_events = []
@@ -298,6 +320,22 @@ def upsert_table(df, table_name, conflict_cols):
 # -----------------------------
 def run_main():
     logger.info("🔄 Starting ETL Sync Batch...")
+
+    # Auto-close stale active incidents (where no updates were received within the anomaly window)
+    try:
+        conn = get_db_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE historical_fire_incidents SET is_active = FALSE "
+                "WHERE is_active = TRUE AND last_seen_at < NOW() - INTERVAL '%s minutes'",
+                (ANOMALY_WINDOW_MINUTES,)
+            )
+            closed_count = cur.rowcount
+            if closed_count > 0:
+                conn.commit()
+                logger.info(f"🧹 Auto-closed {closed_count} stale active fire incident(s).")
+    except Exception as e:
+        logger.error(f"❌ Failed to auto-close stale incidents: {e}")
 
     last_ts = None # Placeholder for incremental cursor
     df_raw = fetch_influx_data(last_ts)

@@ -106,12 +106,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,
   saveUninitialized: false,
-  proxy: true, // Trust the reverse proxy for session cookies
+  proxy: true,
   cookie: {
     httpOnly: true,
-    secure: false, // Set to true if using HTTPS
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    secure: false, // Must be false for plain HTTP
+    sameSite: 'lax', // Use lax to allow top-level navigation and some sub-resource sharing
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 

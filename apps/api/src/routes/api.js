@@ -352,13 +352,13 @@ router.get("/incidents", async (req, res) => {
         SELECT
           hfi.h_id AS device_id,
           to_manila(hfi.incident_timestamp) as start_time,
-          to_manila(hfi.last_seen_at) as last_seen,
-          EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)) as duration_seconds,
-          LPAD(FLOOR(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp))/3600)::text, 2, '0') || ':' ||
-          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)), 3600)/60)::text, 2, '0') || ':' ||
-          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM (hfi.last_seen_at - hfi.incident_timestamp)), 60))::text, 2, '0') as duration,
+          to_manila(CASE WHEN hfi.is_active = TRUE THEN NOW() ELSE hfi.last_seen_at END) as last_seen,
+          EXTRACT(EPOCH FROM ((CASE WHEN hfi.is_active = TRUE THEN NOW() ELSE hfi.last_seen_at END) - hfi.incident_timestamp)) as duration_seconds,
+          LPAD(FLOOR(EXTRACT(EPOCH FROM ((CASE WHEN hfi.is_active = TRUE THEN NOW() ELSE hfi.last_seen_at END) - hfi.incident_timestamp))/3600)::text, 2, '0') || ':' ||
+          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM ((CASE WHEN hfi.is_active = TRUE THEN NOW() ELSE hfi.last_seen_at END) - hfi.incident_timestamp)), 3600)/60)::text, 2, '0') || ':' ||
+          LPAD(FLOOR(MOD(EXTRACT(EPOCH FROM ((CASE WHEN hfi.is_active = TRUE THEN NOW() ELSE hfi.last_seen_at END) - hfi.incident_timestamp)), 60))::text, 2, '0') as duration,
           hfi.status AS alert_level,
-          'confirmed' as event_stage,
+          CASE WHEN hfi.is_active = TRUE THEN 'ongoing' ELSE 'resolved' END as event_stage,
           NULL AS flame_value,
           NULL AS smoke_value,
           NULL AS temp_value
@@ -377,11 +377,11 @@ router.get("/incidents", async (req, res) => {
       // Timezone-safe filtering
       if (startDate) { 
         pendingQuery += ` AND hfi.incident_timestamp >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
-        params.push(startDate); 
+        pendingParams.push(startDate); 
       }
       if (endDate) { 
         pendingQuery += ` AND hfi.incident_timestamp <= ($${idx++}::date AT TIME ZONE 'Asia/Manila' + INTERVAL '1 day')`; 
-        params.push(endDate); 
+        pendingParams.push(endDate); 
       }
 
       pendingQuery += ` ORDER BY hfi.incident_timestamp DESC LIMIT $${idx}`;

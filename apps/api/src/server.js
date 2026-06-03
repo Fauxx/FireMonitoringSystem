@@ -146,13 +146,18 @@ function grafanaAuth(req, res, next) {
 
 const grafanaProxy = createProxyMiddleware({
   target: 'http://grafana:3000',
-  changeOrigin: true,
+  changeOrigin: false, // Keep original Host header
+  xfwd: true,          // Add X-Forwarded-For/Host/Proto
   ws: true,
   pathRewrite: {
-    // Explicitly ensure the /grafana prefix is present in the outgoing request
     '^/grafana': '/grafana' 
   },
-  logLevel: 'debug'
+  logLevel: 'debug',
+  onProxyRes: (proxyRes, req, res) => {
+    if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
+      console.log(`[grafana-proxy] Redirect detected: ${proxyRes.statusCode} -> ${proxyRes.headers.location}`);
+    }
+  }
 });
 
 // Using a broader match to ensure sub-assets are caught correctly

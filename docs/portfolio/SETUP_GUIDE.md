@@ -1,6 +1,8 @@
-# Credentials Required for terraform plan/apply
+# Infrastructure Setup & Local Credentials
 
-## Before running `terraform plan` or `terraform apply` in dev/02-platform:
+This guide outlines the necessary credentials and environment variables required to execute Terraform plans and manage the infrastructure layers locally.
+
+## 🔐 Required Environment Variables
 
 ### 1. DigitalOcean API Token
 ```bash

@@ -1,28 +1,37 @@
-# Fire Monitoring Infrastructure Monorepo
+# Fire Monitoring Platform: DevOps & Engineering Laboratory
 
-This repository centralizes every component of the IoT fire-monitoring stack into a single, DevOps-friendly layout. Application code now lives under `apps/api/`, `apps/dashboard/`, and `apps/etl-processor/` while infrastructure-as-code, broker configs, and SQL migrations sit under `infrastructure/`.
+**Status:** 🚀 *Active Engineering Laboratory (Work in Progress)*  
+This repository serves as a high-fidelity platform for exploring **Cloud-Native Infrastructure**, **GitOps**, and **Zero-Trust Security**. While the application layer is in active development, the core **Infrastructure as Code (IaC)** and **Automated Delivery Pipelines** are fully functional and production-hardened.
 
-## Repository Status (Structure Migration)
+## 🏗️ Core Engineering Pillars (Fully Functional)
 
-This repository is in a phased structure migration.
+-   **Multi-Layer IaC:** Modular Terraform architecture managing DigitalOcean resources, DNS, and K8s clusters with environment-isolated state.
+-   **GitOps Reconciliation:** Automated cluster state management via **ArgoCD** and **Kustomize**, ensuring zero configuration drift.
+-   **Automated CI/CD:** High-velocity pipelines using **GitHub Actions** that build, tag (via Git SHA), and auto-bump Kubernetes manifests via Pull Requests.
+-   **Zero-Trust Networking:** "Default Deny" security posture implemented through granular Kubernetes **NetworkPolicies**.
+-   **Full-Stack Observability:** Production-grade monitoring stack (Prometheus, Grafana, Loki, Alloy) for deep system visibility.
 
-1. Phase 1 complete: infrastructure config assets moved under `infrastructure/k8s/base/*` and path references normalized.
-2. Phase 2 complete: governance and documentation scaffolding added.
-3. Phase 3 complete: application services regrouped under `apps/` and core CI/compose paths updated.
-4. Phase 4 baseline complete: environment overlays introduced under `build/compose/` and CI/docs rewired.
-5. Phase 4.1 complete: base compose relocated to `build/compose/docker-compose.base.yml` with root shim compatibility.
+## 📂 Documentation & Deep-Dives
 
-## Documentation and Governance
+1.  **[DevOps & Platform Engineering Portfolio](./docs/portfolio/README.md)** (Architecture, Pipelines, and IaC Deep-Dive)
+2.  **[Architecture Decisions (ADRs)](./docs/ADR/README.md)** (The "Why" behind the technical choices)
+3.  **[Operational Guide](./docs/portfolio/OPERATIONS_GITOPS.md)** (How the GitOps flow works)
+4.  **[Setup & Credentials](./docs/portfolio/SETUP_GUIDE.md)** (Local execution and secret management)
 
-1. Documentation index: `docs/README.md`
-2. Architecture scaffold: `docs/ARCHITECTURE.md`
-3. Deployment scaffold: `docs/DEPLOYMENT.md`
-4. Developer guide scaffold: `docs/DEV_GUIDE.md`
-5. Troubleshooting scaffold: `docs/TROUBLESHOOTING.md`
-6. ADR index: `docs/ADR/README.md`
-7. Contribution policy: `CONTRIBUTING.md`
-8. Support routing: `SUPPORT.md`
-9. Ownership map: `.github/CODEOWNERS`
+## 🛠️ Current Roadmap & Active Challenges
+
+The platform is designed as an evolving laboratory. Current active engineering tasks include:
+-   **[In Progress]** Refining secure Auth-Proxy handshakes for embedded Grafana analytics.
+-   **[In Progress]** Expanding cross-namespace NetworkPolicies for centralized monitoring.
+-   **[Planned]** Transitioning to cloud-managed persistent storage for high-availability.
+
+## 🛰️ High-Level Tech Stack
+-   **Orchestration:** Kubernetes (DOKS), ArgoCD, Kustomize
+-   **IaC:** Terraform
+-   **CI/CD:** GitHub Actions, GHCR
+-   **Observability:** Grafana, Prometheus, Loki, Alloy
+-   **Backend:** Node.js (API), Python (ETL), Nginx (Dashboard)
+-   **Persistence:** PostgreSQL, InfluxDB, Mosquitto (MQTT)
 
 ## Repository Guide (Codebase Structure + Tech Stack)
 

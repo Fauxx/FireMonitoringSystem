@@ -1,6 +1,6 @@
-# Fire Monitoring System - Operational Runbooks
+# Operational Runbook: Emergency Procedures
 
-Emergency procedures, troubleshooting, and common operational tasks.
+This document provides step-by-step instructions for emergency procedures, rollbacks, and troubleshooting common cluster issues.
 
 ## Table of Contents
 

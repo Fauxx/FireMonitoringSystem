@@ -1,9 +1,13 @@
-# ADR Index
+# Architecture Decision Records (ADR) Index
 
-Architecture Decision Records (ADRs) capture structural decisions and trade-offs.
+This directory captures the structural decisions and technical trade-offs made during the development of the Fire Monitoring System.
 
-## Planned ADRs
+## 📜 Active Decisions
 
-1. ADR-0001: Monorepo structure and migration phases.
-2. ADR-0002: GitOps path conventions and ownership boundaries.
-3. ADR-0003: Environment composition strategy.
+- **[ADR-0001: Adoption of GitOps](./0001-adoption-of-gitops.md)**
+    - *Rationale:* Automated state reconciliation, auditability, and reliable rollbacks via ArgoCD.
+- **[ADR-0002: Zero-Trust Networking](./0002-zero-trust-networking.md)**
+    - *Rationale:* Implementing a "Default Deny" posture using Kubernetes NetworkPolicies to prevent lateral movement.
+
+## 🛠️ About ADRs
+Architectural Decision Records are a standard industry practice for documenting the "Why" behind technical choices, ensuring long-term maintainability and providing context for future engineering teams.

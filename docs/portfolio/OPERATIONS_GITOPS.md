@@ -1,8 +1,6 @@
-# Fire Monitoring System - GitOps Deployment Guide
+# Operational Guide: GitOps Deployment Flow
 
-## Overview
-
-The Fire Monitoring System now uses a **fully automated GitOps approach** with Argo CD for deployments. This guide explains how deployments work and how to manage them.
+This guide explains the automated deployment methodology used by the Fire Monitoring System, leveraging ArgoCD for continuous state reconciliation.
 
 ## Key Concepts
 

@@ -74,3 +74,4 @@ configMapGenerator:
       - V5__Final_Sensor_Views.sql=sql/V5__Final_Sensor_Views.sql
       - V6__Flattened_Architecture.sql=sql/V6__Flattened_Architecture.sql
       - V7__Standardize_Timezone_Schema.sql=sql/V7__Standardize_Timezone_Schema.sql
+      - V8__Add_Persistent_Sessions.sql=sql/V8__Add_Persistent_Sessions.sql

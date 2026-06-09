@@ -136,6 +136,14 @@ resource "digitalocean_record" "root" {
   ttl    = 300
 }
 
+resource "digitalocean_record" "dev" {
+  domain = data.terraform_remote_state.infra.outputs.domain_name
+  type   = "A"
+  name   = "dev"
+  value  = module.ingress_controller.load_balancer_ip
+  ttl    = 300
+}
+
 # ------------------------------------------------------------------------------
 # ArgoCD Network Policies
 # ------------------------------------------------------------------------------

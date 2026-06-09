@@ -109,7 +109,7 @@ app.use(session({
   proxy: true,
   cookie: {
     httpOnly: true,
-    secure: false, // Must be false for plain HTTP
+    secure: 'auto', // Toggles Secure based on HTTPS/TLS detection via trust proxy
     sameSite: 'lax', // Use lax to allow top-level navigation and some sub-resource sharing
     maxAge: 24 * 60 * 60 * 1000
   }
@@ -146,7 +146,10 @@ const protectGrafana = process.env.GRAFANA_PROXY_PROTECT
 
 function grafanaAuth(req, res, next) {
   if (!protectGrafana) return next();
-  console.log(`[grafana-auth] Request to ${req.originalUrl} - Session present: ${!!req.session} - User present: ${req.session?.user?.username}`);
+  console.log(`[grafana-auth] Request to ${req.originalUrl}`);
+  console.log(`[grafana-auth] Headers: ${JSON.stringify(req.headers)}`);
+  console.log(`[grafana-auth] Session ID: ${req.sessionID}`);
+  console.log(`[grafana-auth] Session present: ${!!req.session} - User present: ${req.session?.user?.username}`);
   if (!req.session || !req.session.user) {
     console.log(`[grafana-auth] Unauthorized access to ${req.originalUrl}`);
     return res.status(401).send('Unauthorized');

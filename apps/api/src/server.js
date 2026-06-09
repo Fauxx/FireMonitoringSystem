@@ -176,8 +176,8 @@ const grafanaProxy = createProxyMiddleware({
   on: {
     proxyReq: (proxyReq, req, res) => {
       // Tell Grafana the original host and port to prevent redirects to internal IPs/ports
-      proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '159.89.209.175');
-      proxyReq.setHeader('X-Forwarded-Port', '80');
+      proxyReq.setHeader('X-Forwarded-Host', req.headers.host);
+      proxyReq.setHeader('X-Forwarded-Port', req.headers['x-forwarded-port'] || '80');
 
       if (req.session && req.session.user) {
         proxyReq.setHeader('X-WEBAUTH-USER', req.session.user.username);

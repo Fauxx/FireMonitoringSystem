@@ -19,7 +19,8 @@ spec:
                 name: argocd-server
                 port:
                   number: 80
-    - http:
+    - host: dev.fires.systems
+      http:
         paths:
           - path: /
             pathType: Prefix

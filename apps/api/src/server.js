@@ -187,7 +187,7 @@ const grafanaProxy = createProxyMiddleware({
 });
 
 // Using a broader match to ensure sub-assets are caught correctly
-app.use(['/grafana', '/grafana/*'], grafanaAuth, grafanaProxy);
+app.all('/grafana*', grafanaAuth, grafanaProxy);
 
 // -------------------------------
 // Routes

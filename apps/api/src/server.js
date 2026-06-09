@@ -166,7 +166,7 @@ function grafanaAuth(req, res, next) {
 
 const grafanaProxy = createProxyMiddleware({
   target: 'http://grafana:3000',
-  changeOrigin: false, // Keep original Host header
+  changeOrigin: true, // Crucial: rewrite the host header to the target's host
   xfwd: true,          // Add X-Forwarded-For/Host/Proto
   ws: true,
   pathRewrite: {
@@ -175,6 +175,10 @@ const grafanaProxy = createProxyMiddleware({
   logLevel: 'debug',
   on: {
     proxyReq: (proxyReq, req, res) => {
+      // Tell Grafana the original host and port to prevent redirects to internal IPs/ports
+      proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '159.89.209.175');
+      proxyReq.setHeader('X-Forwarded-Port', '80');
+
       if (req.session && req.session.user) {
         proxyReq.setHeader('X-WEBAUTH-USER', req.session.user.username);
       }

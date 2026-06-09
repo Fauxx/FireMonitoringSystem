@@ -166,7 +166,7 @@ function grafanaAuth(req, res, next) {
 
 const grafanaProxy = createProxyMiddleware({
   target: 'http://grafana:3000',
-  changeOrigin: true, // Crucial: rewrite the host header to the target's host
+  changeOrigin: false, // Keep the original Host header (dev.fires.systems) so Grafana does not redirect
   ws: true,
   pathRewrite: {
     '^/grafana': '/grafana' 

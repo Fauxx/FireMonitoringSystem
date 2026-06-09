@@ -80,6 +80,8 @@ pool.connect()
 // -------------------------------
 // Middleware
 // -------------------------------
+const PgSession = require('connect-pg-simple')(session);
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -103,6 +105,11 @@ app.use((req, res, next) => {
 });
 
 app.use(session({
+  store: new PgSession({
+    pool: pool,
+    tableName: 'session',
+    createTableIfMissing: true
+  }),
   secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,
   saveUninitialized: false,

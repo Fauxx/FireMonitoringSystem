@@ -39,6 +39,10 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const pool = req.pool;
 
+  if (!email || !password) {
+    return res.redirect('/login.html?message=invalid');
+  }
+
   try {
     // Check if the input is an email or username
     const isEmail = email.includes('@');

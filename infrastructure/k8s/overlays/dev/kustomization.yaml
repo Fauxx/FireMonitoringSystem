@@ -21,13 +21,13 @@ replicas:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: 07fd14b
+  newTag: 7142cb2
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: 07fd14b
+  newTag: 7142cb2
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: 07fd14b
+  newTag: 7142cb2
 
 labels:
 - includeSelectors: true

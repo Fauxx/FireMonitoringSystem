@@ -33,20 +33,23 @@ spec:
                 name: fire-monitoring-secrets
           env:
             - name: GF_SERVER_ROOT_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: fire-monitoring-config
-                  key: GRAFANA_ROOT_URL
+              value: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
             - name: GF_SERVER_SERVE_FROM_SUB_PATH
               value: "true"
             - name: GF_AUTH_ANONYMOUS_ENABLED
-              value: "true"
-            - name: GF_AUTH_ANONYMOUS_ORG_NAME
-              value: "Main Org."
-            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
-              value: "Viewer"
+              value: "false"
             - name: GF_SECURITY_ALLOW_EMBEDDING
               value: "true"
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: "X-WEBAUTH-USER"
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: "username"
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "true"
+            - name: GF_AUTH_PROXY_SYNC_TTL
+              value: "60"
           volumeMounts:
             - name: grafana-data
               mountPath: /var/lib/grafana

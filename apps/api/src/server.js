@@ -166,9 +166,16 @@ const grafanaProxy = createProxyMiddleware({
     '^/grafana': '/grafana' 
   },
   logLevel: 'debug',
-  onProxyRes: (proxyRes, req, res) => {
-    if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
-      console.log(`[grafana-proxy] Redirect detected: ${proxyRes.statusCode} -> ${proxyRes.headers.location}`);
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+      if (req.session && req.session.user) {
+        proxyReq.setHeader('X-WEBAUTH-USER', req.session.user.username);
+      }
+    },
+    proxyRes: (proxyRes, req, res) => {
+      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400) {
+        console.log(`[grafana-proxy] Redirect detected: ${proxyRes.statusCode} -> ${proxyRes.headers.location}`);
+      }
     }
   }
 });

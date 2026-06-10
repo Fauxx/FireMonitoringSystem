@@ -17,6 +17,13 @@ spec:
         - name: alloy
           image: grafana/alloy:v1.7.2
           args: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
           volumeMounts:
             - name: alloy-config
               mountPath: /etc/alloy/config.alloy

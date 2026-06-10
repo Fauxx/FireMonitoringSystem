@@ -6,6 +6,8 @@ metadata:
     app: api
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: api
@@ -23,11 +25,11 @@ spec:
             - containerPort: 8000
           resources:
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
-              cpu: 1000m
-              memory: 1Gi
+              cpu: 500m
+              memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

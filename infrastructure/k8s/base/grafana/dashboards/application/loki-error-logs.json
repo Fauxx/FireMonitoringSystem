@@ -1,0 +1,91 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Error Log Rate over Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-fire"
+      },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki-fire" },
+          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (app)",
+          "legendFormat": "{{app}} errors",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki-fire" },
+          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (app)",
+          "legendFormat": "{{app}} warnings",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth"
+          },
+          "unit": "short",
+          "min": 0
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Live Application Error/Warning Logs",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-fire"
+      },
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 14 },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki-fire" },
+          "expr": "{app=~\".+\"} |~ \"(?i)(error|fail|warn|exception)\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "showTime": true
+      }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["application", "logs"],
+  "timezone": "",
+  "title": "Loki Error Logs",
+  "uid": "loki-error-logs",
+  "version": 1
+}

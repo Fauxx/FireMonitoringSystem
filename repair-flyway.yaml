@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: flyway-repair
+  namespace: fire-monitoring-dev
+  labels:
+    app: flyway
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: flyway
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: flyway
+          image: flyway/flyway:10-alpine
+          envFrom:
+            - configMapRef:
+                name: fire-monitoring-config
+            - secretRef:
+                name: fire-monitoring-secrets
+          env:
+            - name: FLYWAY_URL
+              value: "jdbc:postgresql://db:5432/fire_monitoring"
+            - name: FLYWAY_USER
+              value: "postgres"
+            - name: FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fire-monitoring-secrets
+                  key: POSTGRES_PASSWORD
+          args: ["-connectRetries=10", "-X", "repair"]
+          volumeMounts:
+            - name: flyway-sql
+              mountPath: /flyway/sql
+      volumes:
+        - name: flyway-sql
+          configMap:
+            name: flyway-sql

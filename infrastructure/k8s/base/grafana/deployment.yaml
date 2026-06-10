@@ -59,8 +59,14 @@ spec:
               subPath: grafana-data
             - name: grafana-provisioning
               mountPath: /etc/grafana/provisioning
-            - name: grafana-dashboards
-              mountPath: /etc/grafana/dashboards
+            - name: grafana-dashboards-telemetry
+              mountPath: /etc/grafana/dashboards/telemetry
+            - name: grafana-dashboards-infrastructure
+              mountPath: /etc/grafana/dashboards/infrastructure
+            - name: grafana-dashboards-application
+              mountPath: /etc/grafana/dashboards/application
+            - name: grafana-dashboards-datalayer
+              mountPath: /etc/grafana/dashboards/data-layer
       volumes:
         - name: grafana-data
           persistentVolumeClaim:
@@ -77,7 +83,16 @@ spec:
                 path: datasources/prometheus.yaml
               - key: dashboards.yaml
                 path: dashboards/dashboards.yaml
-        - name: grafana-dashboards
+        - name: grafana-dashboards-telemetry
           configMap:
-            name: grafana-dashboards
+            name: grafana-dashboards-telemetry
+        - name: grafana-dashboards-infrastructure
+          configMap:
+            name: grafana-dashboards-infrastructure
+        - name: grafana-dashboards-application
+          configMap:
+            name: grafana-dashboards-application
+        - name: grafana-dashboards-datalayer
+          configMap:
+            name: grafana-dashboards-datalayer
 

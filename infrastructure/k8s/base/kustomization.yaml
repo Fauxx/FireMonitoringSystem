@@ -5,10 +5,12 @@ resources:
   - db/statefulset.yaml
   - db/service.yaml
   - db/configmap.yaml 
+  - db/exporter.yaml
   - influx/statefulset.yaml
   - influx/service.yaml
   - mqtt/deployment.yaml
   - mqtt/service.yaml
+  - mqtt/exporter.yaml
   - telegraf/deployment.yaml
   - flyway/job.yaml
   - api/deployment.yaml
@@ -59,9 +61,20 @@ configMapGenerator:
       - prometheus.yaml=grafana/provisioning/datasources/prometheus.yaml
     options:
       disableNameSuffixHash: false
-  - name: grafana-dashboards
+  - name: grafana-dashboards-telemetry
     files:
-      - fire-main.json=grafana/dashboards/fire-main.json
+      - fire-main.json=grafana/dashboards/telemetry/fire-main.json
+  - name: grafana-dashboards-infrastructure
+    files:
+      - cluster-health.json=grafana/dashboards/infrastructure/cluster-health.json
+  - name: grafana-dashboards-application
+    files:
+      - api-performance.json=grafana/dashboards/application/api-performance.json
+      - loki-error-logs.json=grafana/dashboards/application/loki-error-logs.json
+  - name: grafana-dashboards-datalayer
+    files:
+      - postgres-health.json=grafana/dashboards/data-layer/postgres-health.json
+      - mqtt-broker.json=grafana/dashboards/data-layer/mqtt-broker.json
   - name: dashboard-nginx-config
     files:
       - default.conf=dashboard/nginx.conf

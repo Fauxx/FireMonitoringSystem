@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", type=int, choices=[0, 1, 2], default=None, help="Force a specific status (0=Normal, 1=Warning, 2=Critical)")
     parser.add_argument("--lat", type=float, default=14.5995, help="Latitude")
     parser.add_argument("--lon", type=float, default=121.0365, help="Longitude")
+    parser.add_argument("--transport", default=os.getenv("MQTT_TRANSPORT", "tcp"), choices=["tcp", "websockets"], help="MQTT transport protocol (tcp or websockets)")
+    parser.add_argument("--ws-path", default=os.getenv("MQTT_WS_PATH", "/mqtt"), help="WebSocket path (only for websockets transport)")
     return parser
 
 def generate_payload(args: argparse.Namespace) -> dict:
@@ -49,12 +51,19 @@ def generate_payload(args: argparse.Namespace) -> dict:
 
 def publish_loop(args: argparse.Namespace) -> None:
     # Use newer CallbackAPIVersion for compatibility with latest paho-mqtt
-    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2, client_id=args.client_id)
+    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2, client_id=args.client_id, transport=args.transport)
+
+    if args.transport == "websockets":
+        client.ws_set_options(path=args.ws_path)
+
+    # Automatically enable TLS if port is 443
+    if args.port == 443:
+        client.tls_set()
 
     try:
         client.connect(args.host, args.port, keepalive=60)
         print(f"🚀 Simulation Started!")
-        print(f"📡 Broker: {args.host}:{args.port} | Topic: {args.topic}")
+        print(f"📡 Broker: {args.host}:{args.port} | Transport: {args.transport} | Topic: {args.topic}")
 
         while True:
             payload = generate_payload(args)

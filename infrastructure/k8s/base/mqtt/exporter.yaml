@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-exporter
+  labels:
+    app: mqtt-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt-exporter
+  template:
+    metadata:
+      labels:
+        app: mqtt-exporter
+    spec:
+      containers:
+        - name: mqtt-exporter
+          image: sapcc/mosquitto-exporter:0.6.0
+          env:
+            - name: BROKER_ENDPOINT
+              value: "tcp://mqtt:1883"
+          ports:
+            - containerPort: 9234
+              name: metrics
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt-exporter
+  labels:
+    app: mqtt-exporter
+spec:
+  type: ClusterIP
+  selector:
+    app: mqtt-exporter
+  ports:
+    - name: metrics
+      port: 9234
+      targetPort: 9234

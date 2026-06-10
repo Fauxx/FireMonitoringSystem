@@ -19,6 +19,7 @@ spec:
           image: eclipse-mosquitto:2.0
           ports:
             - containerPort: 1883
+            - containerPort: 9001 # <-- NEW
           resources:
             requests:
               cpu: 50m

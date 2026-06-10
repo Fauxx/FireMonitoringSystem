@@ -7,6 +7,9 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     # Development annotations - no rate limiting needed
     nginx.ingress.kubernetes.io/limit-rps: "100"
+    # --- NEW: WebSocket Timeouts ---
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   rules:
     - host: argocd.local
@@ -57,3 +60,11 @@ spec:
                 name: api
                 port:
                   number: 8000
+          # --- NEW ROUTE ---
+          - path: /mqtt
+            pathType: Prefix
+            backend:
+              service:
+                name: mqtt
+                port:
+                  number: 9001

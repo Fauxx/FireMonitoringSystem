@@ -1,13 +1,43 @@
 apiVersion: 1
 
 providers:
-  - name: "file-dashboards"
+  - name: "telemetry"
     orgId: 1
-    folder: "Fire Monitoring"
+    folder: "Telemetry"
     type: file
     disableDeletion: false
     editable: true
     allowUiUpdates: true
     updateIntervalSeconds: 10
     options:
-      path: /etc/grafana/dashboards
+      path: /etc/grafana/dashboards/telemetry
+  - name: "infrastructure"
+    orgId: 1
+    folder: "Infrastructure"
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards/infrastructure
+  - name: "application"
+    orgId: 1
+    folder: "Application"
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards/application
+  - name: "data-layer"
+    orgId: 1
+    folder: "Data Layer"
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards/data-layer

@@ -26,6 +26,13 @@ spec:
           image: grafana/grafana:10.4.0
           ports:
             - containerPort: 3000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config

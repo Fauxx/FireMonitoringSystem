@@ -215,7 +215,7 @@ router.get("/analytics/hourly", async (req, res) => {
 
     let query = `
       SELECT 
-        date_trunc('hour', to_manila(timestamp_window)) as timestamp_window,
+        date_trunc('hour', to_manila(received_at)) as timestamp_window,
         -- Backwards compatibility: Map status to sensor fields for existing charts
         ROUND(AVG(status)::numeric, 2) as status,
         ROUND(AVG(status)::numeric, 2) as ta, 
@@ -285,8 +285,8 @@ router.get("/analytics/heatmap", async (req, res) => {
 
     if (device) { query += ` AND ${deviceCol} = $${idx++}`; params.push(device); }
     if (!isVerified && level) {
-      if (level === 'critical') query += ` AND alert_level >= 3`; 
-      else query += ` AND alert_level = 2`; 
+      if (level === 'critical') query += ` AND status >= 3`; 
+      else query += ` AND status = 2`; 
     }
 
     // Group by the formatted string

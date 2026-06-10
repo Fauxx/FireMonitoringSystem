@@ -6,6 +6,8 @@ metadata:
     app: prometheus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -29,11 +31,11 @@ spec:
             - containerPort: 9090
           resources:
             requests:
-              cpu: 200m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
               cpu: 1000m
-              memory: 1Gi
+              memory: 512Mi
           volumeMounts:
             - name: prometheus-config
               mountPath: /etc/prometheus/prometheus.yml

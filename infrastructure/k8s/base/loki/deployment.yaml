@@ -6,6 +6,8 @@ metadata:
     app: loki
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: loki
@@ -27,11 +29,11 @@ spec:
             - containerPort: 3100
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 50m
+              memory: 128Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 256Mi
           volumeMounts:
             - name: loki-config
               mountPath: /etc/loki/local-config.yaml

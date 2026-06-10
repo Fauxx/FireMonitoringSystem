@@ -81,7 +81,16 @@ def fetch_influx_data(last_ts=None):
         query_api = client.query_api()
 
         # Pull the most recent window; optionally narrow using last_ts
-        range_clause = f"|> range(start: {DEFAULT_RANGE})" if last_ts is None else f"|> range(start: time(v: {last_ts.isoformat()}))"
+        if last_ts is not None:
+            if hasattr(last_ts, "isoformat"):
+                ts_str = last_ts.isoformat()
+                if not ts_str.endswith("Z") and "+" not in ts_str and "-" not in ts_str[10:]:
+                    ts_str += "Z"
+            else:
+                ts_str = str(last_ts)
+            range_clause = f"|> range(start: time(v: \"{ts_str}\"))"
+        else:
+            range_clause = f"|> range(start: {DEFAULT_RANGE})"
 
         # Pivot by time and h_id tags
         flux = f"""
@@ -318,7 +327,7 @@ def upsert_table(df, table_name, conflict_cols):
 # -----------------------------
 # 4. Main Execution
 # -----------------------------
-def run_main():
+def run_main(last_ts=None):
     logger.info("🔄 Starting ETL Sync Batch...")
 
     # Auto-close stale active incidents (where no updates were received within the anomaly window)
@@ -337,12 +346,11 @@ def run_main():
     except Exception as e:
         logger.error(f"❌ Failed to auto-close stale incidents: {e}")
 
-    last_ts = None # Placeholder for incremental cursor
     df_raw = fetch_influx_data(last_ts)
 
     if df_raw is None or df_raw.empty:
         logger.info("😴 No new data to process.")
-        return
+        return last_ts
 
     # Process batch with deduplication and state mutation
     df_events, df_incidents = process_telemetry_batch(df_raw)
@@ -363,7 +371,11 @@ def run_main():
     metrics_df = build_system_metrics(df_raw)
     upsert_table(metrics_df, "system_metrics", conflict_cols=None)
 
+    # Capture new cursor
+    new_cursor = df_raw["received_at"].max()
+
     logger.success("✨ Batch synchronization successful.")
+    return new_cursor
 
 if __name__ == "__main__":
     os.makedirs("logs", exist_ok=True)
@@ -371,9 +383,10 @@ if __name__ == "__main__":
     logger.info(f"🚀 ETL Service Started. Sync Interval: {ETL_SYNC_INTERVAL}s")
 
     # THE SERVICE LOOP
+    cursor = None
     while True:
         try:
-            run_main()
+            cursor = run_main(cursor)
         except KeyboardInterrupt:
             logger.warning("🛑 ETL Service stopping (KeyboardInterrupt)")
             break

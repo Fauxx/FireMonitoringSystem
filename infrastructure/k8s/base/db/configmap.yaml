@@ -5,6 +5,7 @@ metadata:
 data:
   POSTGRES_USER: "postgres"
   POSTGRES_DB: "fire_monitoring"
+  GRAFANA_ROOT_URL: "http://localhost/grafana"
   DATABASE_URL: "postgresql://postgres:localdevpassword@db:5432/fire_monitoring"
   PGSSLMODE: "disable"
   INFLUXDB_ORG: "fire-monitoring"

@@ -8,6 +8,7 @@ const pg = require('pg');
 const dotenv = require('dotenv');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const client = require('prom-client');
+const cors = require('cors');
 
 // Load environment variables (.env file)
 dotenv.config();
@@ -33,6 +34,9 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Trust the first proxy (Ingress/Nginx) to handle X-Forwarded-* headers correctly
 app.set('trust proxy', 1);
+
+// Enable CORS for frontend-to-API communication
+app.use(cors({ origin: true, credentials: true }));
 
 // Prometheus metrics registry for API/process and HTTP traffic.
 const metricsRegister = new client.Registry();
@@ -116,8 +120,8 @@ app.use(session({
   proxy: true,
   cookie: {
     httpOnly: true,
-    secure: 'auto', // Toggles Secure based on HTTPS/TLS detection via trust proxy
-    sameSite: 'lax', // Use lax to allow top-level navigation and some sub-resource sharing
+    secure: process.env.COOKIE_SECURE === 'true' ? true : (process.env.COOKIE_SECURE === 'false' ? false : 'auto'),
+    sameSite: process.env.COOKIE_SAMESITE || (isProduction ? 'none' : 'lax'),
     maxAge: 24 * 60 * 60 * 1000
   }
 }));

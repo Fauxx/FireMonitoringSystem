@@ -86,28 +86,7 @@ pool.connect()
 // -------------------------------
 const PgSession = require('connect-pg-simple')(session);
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-
-app.use((req, res, next) => {
-  const start = process.hrtime.bigint();
-  res.on('finish', () => {
-    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
-    const routePath = req.route && req.route.path ? req.route.path : req.path;
-    const route = `${req.baseUrl || ''}${routePath || ''}` || 'unknown';
-    const labels = {
-      method: req.method,
-      route,
-      status_code: String(res.statusCode)
-    };
-
-    httpRequestDuration.observe(labels, durationSeconds);
-    httpRequestsTotal.inc(labels);
-  });
-
-  next();
-});
-
+// Initialize session middleware early so downstream middleware (like Grafana auth) can access sessions
 app.use(session({
   store: new PgSession({
     pool: pool,
@@ -132,6 +111,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// Prometheus HTTP metrics tracking middleware
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    const routePath = req.route && req.route.path ? req.route.path : req.path;
+    const route = `${req.baseUrl || ''}${routePath || ''}` || 'unknown';
+    const labels = {
+      method: req.method,
+      route,
+      status_code: String(res.statusCode)
+    };
+
+    httpRequestDuration.observe(labels, durationSeconds);
+    httpRequestsTotal.inc(labels);
+  });
+
+  next();
+});
+
 // Debug: log signup paths
 app.use((req, res, next) => {
   if (req.method === 'POST' && (req.originalUrl.includes('signup') || req.originalUrl.includes('login'))) {
@@ -140,16 +139,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Compatibility: if proxy strips /auth, redirect POSTs
+// Compatibility: if proxy strips /auth, redirect POSTs (handles raw stream forwarding)
 app.post('/signup', (req, res) => res.redirect(307, '/auth/signup'));
 app.post('/login', (req, res) => res.redirect(307, '/auth/login'));
 
-// Serve static files
-app.use(express.static(DASHBOARD_DIR));
-app.use('/styles', express.static(DASHBOARD_STYLES_DIR));
-
 // -------------------------------
-// Grafana Proxy (Authenticated)
+// Grafana Proxy (Authenticated) - Must be registered BEFORE body parsers!
 // -------------------------------
 const protectGrafana = process.env.GRAFANA_PROXY_PROTECT
   ? process.env.GRAFANA_PROXY_PROTECT !== 'false'
@@ -190,8 +185,18 @@ const grafanaProxy = createProxyMiddleware({
   }
 });
 
-// Using a broader match to ensure sub-assets are caught correctly
+// Mount Grafana proxy before body-parsing so POST streams are not pre-read
 app.all('/grafana*', grafanaAuth, grafanaProxy);
+
+// -------------------------------
+// Body Parsing & Static Middleware for standard API routes
+// -------------------------------
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Serve static files
+app.use(express.static(DASHBOARD_DIR));
+app.use('/styles', express.static(DASHBOARD_STYLES_DIR));
 
 // -------------------------------
 // Routes

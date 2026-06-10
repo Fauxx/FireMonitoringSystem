@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lon", type=float, default=121.0365, help="Longitude")
     parser.add_argument("--transport", default=os.getenv("MQTT_TRANSPORT", "tcp"), choices=["tcp", "websockets"], help="MQTT transport protocol (tcp or websockets)")
     parser.add_argument("--ws-path", default=os.getenv("MQTT_WS_PATH", "/mqtt"), help="WebSocket path (only for websockets transport)")
+    parser.add_argument("--insecure", action="store_true", help="Bypass SSL certificate validation")
     return parser
 
 def generate_payload(args: argparse.Namespace) -> dict:
@@ -58,10 +59,16 @@ def publish_loop(args: argparse.Namespace) -> None:
 
     # Automatically enable TLS if port is 443
     if args.port == 443:
-        client.tls_set()
+        if args.insecure:
+            import ssl
+            client.tls_set(cert_reqs=ssl.CERT_NONE)
+            client.tls_insecure_set(True)
+        else:
+            client.tls_set()
 
     try:
         client.connect(args.host, args.port, keepalive=60)
+        client.loop_start()
         print(f"🚀 Simulation Started!")
         print(f"📡 Broker: {args.host}:{args.port} | Transport: {args.transport} | Topic: {args.topic}")
 
@@ -77,6 +84,7 @@ def publish_loop(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         print("\n🛑 Stopping simulator...")
     finally:
+        client.loop_stop()
         client.disconnect()
 
 if __name__ == "__main__":

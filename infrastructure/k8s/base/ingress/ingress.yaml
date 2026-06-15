@@ -45,13 +45,6 @@ spec:
                 name: api
                 port:
                   number: 8000
-          - path: /grafana
-            pathType: Prefix
-            backend:
-              service:
-                name: api
-                port:
-                  number: 8000
           # --- NEW ROUTE ---
           - path: /mqtt
             pathType: Prefix

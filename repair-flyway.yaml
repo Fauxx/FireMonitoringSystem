@@ -39,3 +39,4 @@ spec:
         - name: flyway-sql
           configMap:
             name: flyway-sql
+  

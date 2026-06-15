@@ -63,13 +63,16 @@ router.post('/login', async (req, res) => {
     }
 
     const user = result.rows[0];
+    console.log(`[auth-debug] Login successful for user: ${user.username} (status: ${user.status})`);
 
     // Check user status - only allow approved users to login
     if (!user.status || user.status === 'pending') {
+      console.log(`[auth-debug] Login blocked: status is pending`);
       return res.redirect('/login.html?message=pending');
     }
 
     if (user.status === 'rejected') {
+      console.log(`[auth-debug] Login blocked: status is rejected`);
       return res.redirect('/login.html?message=rejected');
     }
 
@@ -79,6 +82,8 @@ router.post('/login', async (req, res) => {
       username: user.username,
       role: user.role
     };
+    
+    console.log(`[auth-debug] Session established for ${user.username}. Session ID: ${req.sessionID}`);
 
     return res.redirect('/protected/dashboard.html');
   } catch (err) {
@@ -125,6 +130,17 @@ router.get('/current-user', (req, res) => {
 });
 
 
+
+// 🟩 ROUTE: GET /auth/verify
+router.get('/verify', (req, res) => {
+  if (req.session && req.session.user) {
+    res.setHeader('x-user', req.session.user.username);
+    res.setHeader('x-webauth-user', req.session.user.username);
+    return res.sendStatus(200);
+  } else {
+    return res.sendStatus(401);
+  }
+});
 
 // 📦 Export the router
 module.exports = router;

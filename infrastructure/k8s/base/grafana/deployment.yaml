@@ -60,6 +60,8 @@ spec:
               value: "true"
             - name: GF_AUTH_PROXY_SYNC_TTL
               value: "60"
+            - name: GF_AUTH_BASIC_ENABLED
+              value: "true"
           volumeMounts:
             - name: grafana-data
               mountPath: /var/lib/grafana

@@ -30,7 +30,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(mosquitto_clients_active)",
+          "expr": "sum(broker_clients_connected)",
           "refId": "A"
         }
       ],
@@ -56,7 +56,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(mosquitto_subscriptions_count)",
+          "expr": "sum(broker_subscriptions_count)",
           "refId": "A"
         }
       ],
@@ -82,7 +82,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_messages_received[1m]))",
+          "expr": "sum(rate(broker_messages_received[1m]))",
           "refId": "A"
         }
       ],
@@ -108,7 +108,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_messages_sent[1m]))",
+          "expr": "sum(rate(broker_messages_sent[1m]))",
           "refId": "A"
         }
       ],
@@ -134,13 +134,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(mosquitto_clients_active)",
+          "expr": "sum(broker_clients_connected)",
           "legendFormat": "Active Clients",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(mosquitto_clients_total)",
+          "expr": "sum(broker_clients_total)",
           "legendFormat": "Total Registered",
           "refId": "B"
         }
@@ -167,13 +167,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_messages_received[5m]))",
+          "expr": "sum(rate(broker_messages_received[5m]))",
           "legendFormat": "Received (Inbound)",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_messages_sent[5m]))",
+          "expr": "sum(rate(broker_messages_sent[5m]))",
           "legendFormat": "Sent (Outbound)",
           "refId": "B"
         }
@@ -200,13 +200,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_bytes_received[5m]))",
+          "expr": "sum(rate(broker_bytes_received[5m]))",
           "legendFormat": "Bytes Inbound",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(mosquitto_bytes_sent[5m]))",
+          "expr": "sum(rate(broker_bytes_sent[5m]))",
           "legendFormat": "Bytes Outbound",
           "refId": "B"
         }

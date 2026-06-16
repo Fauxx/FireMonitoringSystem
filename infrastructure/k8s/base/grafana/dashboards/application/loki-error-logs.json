@@ -33,14 +33,14 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (app)",
-          "legendFormat": "{{app}} errors",
+          "expr": "sum(count_over_time({container=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (container)",
+          "legendFormat": "{{container}} errors",
           "refId": "A"
         },
         {
           "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (app)",
-          "legendFormat": "{{app}} warnings",
+          "expr": "sum(count_over_time({container=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (container)",
+          "legendFormat": "{{container}} warnings",
           "refId": "B"
         }
       ],
@@ -67,7 +67,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "{app=~\".+\"} |~ \"(?i)(error|fail|warn|exception)\"",
+          "expr": "{container=~\".+\"} |~ \"(?i)(error|fail|warn|exception)\"",
           "refId": "A"
         }
       ],

@@ -34,9 +34,6 @@ resources:
   - alloy/daemonset.yaml
   - ingress
 
-generatorOptions:
-  disableNameSuffixHash: true
-
 configMapGenerator:
   - name: mqtt-config
     files:
@@ -59,8 +56,6 @@ configMapGenerator:
       - influxdb.yaml=grafana/provisioning/datasources/influxdb.yaml
       - loki.yaml=grafana/provisioning/datasources/loki.yaml
       - prometheus.yaml=grafana/provisioning/datasources/prometheus.yaml
-    options:
-      disableNameSuffixHash: false
   - name: grafana-dashboards-telemetry
     files:
       - fire-main.json=grafana/dashboards/telemetry/fire-main.json

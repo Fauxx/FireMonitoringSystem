@@ -134,6 +134,16 @@ router.get('/current-user', (req, res) => {
 // 🟩 ROUTE: GET /auth/verify
 router.get('/verify', (req, res) => {
   if (req.session && req.session.user) {
+    const originalUri = req.headers['x-original-uri'] || '';
+    const secFetchDest = req.headers['sec-fetch-dest'] || '';
+    const userRole = req.session.user.role || '';
+
+    // Reject direct document navigation to Grafana for non-admin users
+    if (originalUri.startsWith('/grafana') && secFetchDest === 'document' && userRole !== 'admin') {
+      console.log(`[auth-debug] Rejecting direct Grafana document access for user ${req.session.user.username} with role ${userRole}`);
+      return res.sendStatus(403);
+    }
+
     res.setHeader('x-user', req.session.user.username);
     res.setHeader('x-webauth-user', req.session.user.username);
     res.setHeader('x-user-role', req.session.user.role);

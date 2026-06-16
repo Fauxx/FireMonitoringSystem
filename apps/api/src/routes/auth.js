@@ -136,6 +136,7 @@ router.get('/verify', (req, res) => {
   if (req.session && req.session.user) {
     res.setHeader('x-user', req.session.user.username);
     res.setHeader('x-webauth-user', req.session.user.username);
+    res.setHeader('x-user-role', req.session.user.role);
     return res.sendStatus(200);
   } else {
     return res.sendStatus(401);

@@ -109,7 +109,7 @@
             "type": "influxdb",
             "uid": "influxdb-fire"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"lat\" or r[\"_field\"] == \"lon\" or r[\"_field\"] == \"status\")\n  |> last()\n  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> filter(fn: (r) => r[\"_field\"] == \"lat\" or r[\"_field\"] == \"lon\" or r[\"_field\"] == \"status\")\n  |> last()\n  |> drop(columns: [\"_time\", \"_start\", \"_stop\"])\n  |> pivot(rowKey: [\"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
         }
       ]
     },
@@ -339,7 +339,7 @@
             "type": "influxdb",
             "uid": "influxdb-fire"
           },
-          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> last()\n  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
+          "query": "from(bucket: \"sensor-data\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"node_telemetry\")\n  |> last()\n  |> drop(columns: [\"_time\", \"_start\", \"_stop\"])\n  |> pivot(rowKey: [\"h_id\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
         }
       ]
     },

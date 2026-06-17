@@ -550,7 +550,7 @@
             "type": "loki",
             "uid": "loki-fire"
           },
-          "expr": "{namespace=\"fire-monitoring-dev\"} |= \"error\" or \"exception\" or \"failed\"",
+          "expr": "{container=~\"api|dashboard|etl-processor\"} |~ \"(?i)error|fail|exception\"",
           "maxLines": 500
         }
       ]

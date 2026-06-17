@@ -17,220 +17,315 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
-      "title": "Active Clients",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value_and_name"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(broker_clients_connected)",
           "refId": "A"
         }
       ],
+      "title": "Active Clients",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 2,
-      "title": "Total Subscriptions",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(broker_subscriptions_count)",
           "refId": "A"
         }
       ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "value_and_name"
+      "title": "Total Subscriptions",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" }
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "pps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
       "id": 3,
-      "title": "Messages Inbound (Rate)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "value_and_name"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_messages_received[1m]))",
           "refId": "A"
         }
       ],
+      "title": "Messages Inbound (Rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "pps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "pps",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 4,
-      "title": "Messages Outbound (Rate)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_messages_sent[1m]))",
           "refId": "A"
         }
       ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "textMode": "value_and_name"
+      "title": "Messages Outbound (Rate)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "pps",
-          "color": { "mode": "palette-classic" }
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
+          },
+          "min": 0,
+          "unit": "short"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
       "id": 5,
-      "title": "Client Connection Trends",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(broker_clients_connected)",
           "legendFormat": "Active Clients",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(broker_clients_total)",
           "legendFormat": "Total Registered",
           "refId": "B"
         }
       ],
+      "title": "Client Connection Trends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
             "fillOpacity": 12,
-            "gradientMode": "opacity"
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "short",
-          "min": 0
+          "min": 0,
+          "unit": "pps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
       "id": 6,
-      "title": "Message Publish & Delivery Rate",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_messages_received[5m]))",
           "legendFormat": "Received (Inbound)",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_messages_sent[5m]))",
           "legendFormat": "Sent (Outbound)",
           "refId": "B"
         }
       ],
+      "title": "Message Publish & Delivery Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 12,
-            "gradientMode": "opacity"
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "pps",
-          "min": 0
+          "min": 0,
+          "unit": "Bps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
       "id": 7,
-      "title": "Broker Traffic (Network Bandwidth)",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_bytes_received[5m]))",
           "legendFormat": "Bytes Inbound",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(broker_bytes_sent[5m]))",
           "legendFormat": "Bytes Outbound",
           "refId": "B"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "gradientMode": "opacity"
-          },
-          "unit": "Bps",
-          "min": 0
-        }
-      }
+      "title": "Broker Traffic (Network Bandwidth)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["mqtt", "data-layer"],
+  "tags": [
+    "mqtt",
+    "data-layer"
+  ],
   "timezone": "",
   "title": "MQTT Broker",
-  "uid": "mqtt-broker",
-  "version": 2
+  "uid": "mqtt-broker"
 }

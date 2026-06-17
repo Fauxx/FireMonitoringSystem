@@ -17,75 +17,166 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "liveNow": true,
   "panels": [
     {
-      "id": 1,
-      "title": "Error Log Rate over Time",
-      "type": "timeseries",
       "datasource": {
         "type": "loki",
         "uid": "loki-fire"
       },
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "sum(count_over_time({container=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (container)",
-          "legendFormat": "{{container}} errors",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (app)",
+          "legendFormat": "{{app}} errors",
           "refId": "A"
         },
         {
-          "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "sum(count_over_time({container=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (container)",
-          "legendFormat": "{{container}} warnings",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (app)",
+          "legendFormat": "{{app}} warnings",
           "refId": "B"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth"
-          },
-          "unit": "short",
-          "min": 0
-        }
-      }
+      "title": "Error Log Rate over Time",
+      "type": "timeseries"
     },
     {
-      "id": 2,
-      "title": "Live Application Error/Warning Logs",
-      "type": "logs",
       "datasource": {
         "type": "loki",
         "uid": "loki-fire"
       },
-      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 14 },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki-fire" },
-          "expr": "{container=~\".+\"} |~ \"(?i)(error|fail|warn|exception)\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "editorMode": "code",
+          "expr": "{namespace=\"fire-monitoring-dev\", container=~\"api|dashboard|etl-processor\"}",
+          "queryType": "range",
           "refId": "A"
         }
       ],
-      "options": {
-        "showLabels": true,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending",
-        "showTime": true
-      }
+      "title": "Live Application Error/Warning Logs",
+      "type": "logs"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "style": "dark",
-  "tags": ["application", "logs"],
+  "tags": [
+    "application",
+    "logs"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
   "timezone": "",
   "title": "Loki Error Logs",
   "uid": "loki-error-logs",
-  "version": 1
+  "weekStart": ""
 }

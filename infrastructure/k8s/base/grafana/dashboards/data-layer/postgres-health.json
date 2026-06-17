@@ -17,223 +17,325 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
-      "id": 1,
-      "title": "Active Backends (Connections)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(pg_stat_database_numbackends)",
-          "refId": "A"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
         }
-      ],
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 2,
-      "title": "Database Cache Hit %",
-      "type": "gauge",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "sum(pg_stat_database_numbackends)",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Backends (Connections)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m]))) * 100",
           "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "value": null, "color": "red" },
-              { "value": 90, "color": "orange" },
-              { "value": 95, "color": "green" }
-            ]
-          }
-        }
-      }
+      "title": "Database Cache Hit %",
+      "type": "gauge"
     },
     {
-      "id": 3,
-      "title": "Total Transaction Commits",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(pg_stat_database_xact_commit[1m]))",
-          "refId": "A"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "tps"
         }
-      ],
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "tps",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 4,
-      "title": "Current Database Size",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(pg_database_size_bytes)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "sum(rate(pg_stat_database_xact_commit[1m]))",
           "refId": "A"
         }
       ],
+      "title": "Total Transaction Commits",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 5,
-      "title": "Active Backend Connection Trends",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "sum(pg_database_size_bytes)",
+          "refId": "A"
+        }
+      ],
+      "title": "Current Database Size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
+          },
+          "min": 0,
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(pg_stat_database_numbackends)",
           "legendFormat": "Database Backends",
           "refId": "A"
         }
       ],
+      "title": "Active Backend Connection Trends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 12,
-            "gradientMode": "opacity"
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "short",
-          "min": 0
+          "min": 0,
+          "unit": "tps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
       "id": 6,
-      "title": "Transaction Activity Rate",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_xact_commit[5m]))",
           "legendFormat": "Commits",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_xact_rollback[5m]))",
           "legendFormat": "Rollbacks",
           "refId": "B"
         }
       ],
+      "title": "Transaction Activity Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
             "fillOpacity": 10,
-            "gradientMode": "opacity"
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "tps",
-          "min": 0
+          "min": 0,
+          "unit": "short"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
       "id": 7,
-      "title": "Row Activity Stats (Tuple Operations)",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_tuples_inserted[5m]))",
           "legendFormat": "Inserted Rows",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_tuples_updated[5m]))",
           "legendFormat": "Updated Rows",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(pg_stat_database_tuples_deleted[5m]))",
           "legendFormat": "Deleted Rows",
           "refId": "C"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "gradientMode": "opacity"
-          },
-          "unit": "short",
-          "min": 0
-        }
-      }
+      "title": "Row Activity Stats (Tuple Operations)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["postgres", "data-layer"],
+  "tags": [
+    "postgres",
+    "data-layer"
+  ],
   "timezone": "",
   "title": "PostgreSQL Health",
-  "uid": "postgres-health",
-  "version": 2
+  "uid": "postgres-health"
 }

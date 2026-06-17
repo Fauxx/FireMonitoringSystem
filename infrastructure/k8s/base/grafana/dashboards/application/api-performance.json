@@ -17,257 +17,370 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
-      "id": 1,
-      "title": "Throughput (RPS)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-          "expr": "sum(rate(http_request_duration_seconds_count[1m]))",
-          "refId": "A"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "reqps"
         }
-      ],
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "id": 2,
-      "title": "HTTP Success Rate",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "expr": "sum(rate(http_request_duration_seconds_count[1m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput (RPS)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"2..\"}[1m])) / sum(rate(http_request_duration_seconds_count[1m])) * 100",
           "refId": "A"
         }
       ],
+      "title": "HTTP Success Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "value": null, "color": "red" },
-              { "value": 95, "color": "orange" },
-              { "value": 99, "color": "green" }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 3,
-      "title": "Error Rate (5xx)",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[1m]))",
           "refId": "A"
         }
       ],
+      "title": "Error Rate (5xx)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "textMode": "value_and_name"
       },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "value": null, "color": "green" },
-              { "value": 0.01, "color": "red" }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 4,
-      "title": "p95 Latency",
-      "type": "stat",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
           "refId": "A"
         }
       ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "value_and_name"
+      "title": "p95 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "color": { "mode": "palette-classic" }
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
+          },
+          "min": 0,
+          "unit": "reqps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
       "id": 5,
-      "title": "Throughput (RPS) Trend",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_count[5m]))",
           "legendFormat": "Total Requests",
           "refId": "A"
         }
       ],
+      "title": "Throughput (RPS) Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 12,
-            "gradientMode": "opacity"
+            "fillOpacity": 8,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "reqps",
-          "min": 0
+          "min": 0,
+          "unit": "s"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
       "id": 6,
-      "title": "Latency Trends",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95 Latency",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p99 Latency",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_request_duration_seconds_count[5m]))",
           "legendFormat": "Average Latency",
           "refId": "C"
         }
       ],
+      "title": "Latency Trends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 8,
-            "gradientMode": "opacity"
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "s",
-          "min": 0
+          "min": 0,
+          "unit": "reqps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
       "id": 7,
-      "title": "Throughput by Status Code",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_count[5m])) by (status_code)",
           "legendFormat": "HTTP {{status_code}}",
           "refId": "A"
         }
       ],
+      "title": "Throughput by Status Code",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-fire"
+      },
       "fieldConfig": {
         "defaults": {
           "custom": {
             "drawStyle": "line",
-            "lineInterpolation": "smooth",
             "fillOpacity": 10,
-            "gradientMode": "opacity"
+            "gradientMode": "opacity",
+            "lineInterpolation": "smooth"
           },
-          "unit": "reqps",
-          "min": 0
+          "min": 0,
+          "unit": "reqps"
         }
-      }
-    },
-    {
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
       "id": 8,
-      "title": "Throughput by Route Path",
-      "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
-      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus-fire" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
           "expr": "sum(rate(http_request_duration_seconds_count[5m])) by (route)",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "gradientMode": "opacity"
-          },
-          "unit": "reqps",
-          "min": 0
-        }
-      }
+      "title": "Throughput by Route Path",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["application"],
+  "tags": [
+    "application"
+  ],
   "timezone": "",
   "title": "API Performance",
-  "uid": "api-performance",
-  "version": 2
+  "uid": "api-performance"
 }

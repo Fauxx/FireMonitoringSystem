@@ -17,6 +17,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 4,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -447,5 +448,6 @@
   "timezone": "",
   "title": "Fire Monitoring Overview",
   "uid": "fire-main",
+  "version": 7,
   "weekStart": ""
 }

@@ -17,6 +17,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
+  "id": 9,
   "links": [],
   "liveNow": true,
   "panels": [
@@ -106,18 +107,11 @@
             "type": "loki",
             "uid": "loki-fire"
           },
-          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(error|fail|exception)\" [5m])) by (app)",
-          "legendFormat": "{{app}} errors",
+          "editorMode": "code",
+          "expr": "sum by(container) (count_over_time({namespace=\"fire-monitoring-dev\", container=~\"api|dashboard|etl-processor\"} |= \"error\" [5m])) or vector(0)",
+          "hide": false,
+          "queryType": "range",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki-fire"
-          },
-          "expr": "sum(count_over_time({app=~\".+\"} |~ \"(?i)(warn)\" [5m])) by (app)",
-          "legendFormat": "{{app}} warnings",
-          "refId": "B"
         }
       ],
       "title": "Error Log Rate over Time",
@@ -153,11 +147,12 @@
           },
           "editorMode": "code",
           "expr": "{namespace=\"fire-monitoring-dev\", container=~\"api|dashboard|etl-processor\"}",
+          "hide": false,
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Live Application Error/Warning Logs",
+      "title": "Live Application Logs",
       "type": "logs"
     }
   ],
@@ -178,5 +173,6 @@
   "timezone": "",
   "title": "Loki Error Logs",
   "uid": "loki-error-logs",
+  "version": 10,
   "weekStart": ""
 }

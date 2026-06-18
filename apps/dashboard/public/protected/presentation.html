@@ -305,11 +305,12 @@
         <div class="header-subtitle">SYSTEM ACTIVE</div>
       </div>
       <nav class="control-actions">
-        <button class="nav-btn active" data-filter="SYS_ALL">Overview</button>
-        <button class="nav-btn" data-filter="TELEMETRY">Telemetry</button>
-        <button class="nav-btn" data-filter="DATA_LAYER">Data Layer</button>
-        <button class="nav-btn" data-filter="INFRASTRUCTURE">Infrastructure</button>
-        <button class="nav-btn" data-filter="APPLICATION">Application</button>
+        <button class="nav-btn active" data-filter="FIRE_MAIN">Fire Monitoring Overview</button>
+        <button class="nav-btn" data-filter="API_PERF">API Performance</button>
+        <button class="nav-btn" data-filter="LOKI">Loki Error Logs</button>
+        <button class="nav-btn" data-filter="MQTT">MQTT Broker</button>
+        <button class="nav-btn" data-filter="POSTGRES">PostgreSQL Health</button>
+        <button class="nav-btn" data-filter="CLUSTER">Cluster Health</button>
         <div style="width: 1px; height: 16px; background-color: #374151; margin: 0 8px;"></div>
         <button class="nav-btn exit-btn" onclick="window.location.href='/protected/dashboard.html'">← Return to App</button>
       </nav>
@@ -343,42 +344,14 @@
   <!-- Session auth checking loaded via script.js -->
   <script src="/protected/script.js"></script>
   <script>
-    // Config Map containing ONLY pure panel embeds (d-solo URLs) grouped and sized perfectly
-    const viewsConfig = {
-      SYS_ALL: [
-        { uid: 'fire-main', panelId: 11, title: 'TELEMETRY: GEOGRAPHIC BARANGAY MAP', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'fire-main', panelId: 12, title: 'TELEMETRY: FLEET ALERT STATS', spanClass: '', alert: false },
-        { uid: 'api-performance', panelId: 2, title: 'APPLICATION: HTTP SUCCESS RATE', spanClass: '', alert: false },
-        { uid: 'cluster-health', panelId: 1, title: 'INFRASTRUCTURE: NODE CPU UTILIZATION', spanClass: '', alert: false },
-        { uid: 'loki-error-logs', panelId: 2, title: 'LOG MONITOR: SYSTEM EVENT LOGS', spanClass: 'span-2-cols', alert: true }
-      ],
-      TELEMETRY: [
-        { uid: 'fire-main', panelId: 11, title: 'TELEMETRY: GEOGRAPHIC BARANGAY MAP', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'fire-main', panelId: 12, title: 'TELEMETRY: FLEET ALERT STATS', spanClass: '', alert: false },
-        { uid: 'fire-main', panelId: 13, title: 'TELEMETRY: ACTIVE DEVICELIST RECORDS', spanClass: 'span-3-cols', alert: false }
-      ],
-      DATA_LAYER: [
-        { uid: 'postgres-health', panelId: 1, title: 'DATABASE: PGSQL ACTIVE BACKEND CONNECTIONS', spanClass: '', alert: false },
-        { uid: 'postgres-health', panelId: 2, title: 'DATABASE: PGSQL CACHE HIT RATIO', spanClass: '', alert: false },
-        { uid: 'postgres-health', panelId: 4, title: 'DATABASE: CURRENT DATABASE SIZE', spanClass: '', alert: false },
-        { uid: 'mqtt-broker', panelId: 1, title: 'COMMUNICATION: MQTT ACTIVE ROUTED CLIENTS', spanClass: '', alert: false },
-        { uid: 'mqtt-broker', panelId: 3, title: 'COMMUNICATION: MQTT INBOUND MESSAGE RATE', spanClass: '', alert: false },
-        { uid: 'mqtt-broker', panelId: 4, title: 'COMMUNICATION: MQTT OUTBOUND MESSAGE RATE', spanClass: '', alert: false }
-      ],
-      INFRASTRUCTURE: [
-        { uid: 'cluster-health', panelId: 1, title: 'INFRASTRUCTURE: NODE CPU UTILIZATION', spanClass: '', alert: false },
-        { uid: 'cluster-health', panelId: 2, title: 'INFRASTRUCTURE: NODE MEMORY CONSUMPTION', spanClass: '', alert: false },
-        { uid: 'cluster-health', panelId: 3, title: 'INFRASTRUCTURE: NODE ROOT DISK STORAGE', spanClass: '', alert: false },
-        { uid: 'cluster-health', panelId: 4, title: 'CONTAINER: K8S POD CPU USAGE', spanClass: '', alert: false },
-        { uid: 'cluster-health', panelId: 5, title: 'CONTAINER: K8S POD MEMORY USAGE', spanClass: '', alert: false }
-      ],
-      APPLICATION: [
-        { uid: 'api-performance', panelId: 2, title: 'APPLICATION: HTTP SUCCESS RATE', spanClass: 'span-2-cols', alert: false },
-        { uid: 'api-performance', panelId: 1, title: 'APPLICATION: THROUGHPUT REQUEST RATE (RPS)', spanClass: '', alert: false },
-        { uid: 'api-performance', panelId: 3, title: 'APPLICATION: API SERVER HTTP 5XX ERROR RATE', spanClass: '', alert: false },
-        { uid: 'api-performance', panelId: 4, title: 'APPLICATION: API RESPONSE p95 LATENCY', spanClass: '', alert: false },
-        { uid: 'loki-error-logs', panelId: 2, title: 'LOG MONITOR: SYSTEM EVENT LOGS', spanClass: 'span-3-cols', alert: true }
-      ]
+    // Mapping of filter keys to full dashboard UIDs and Slugs
+    const dashboardsConfig = {
+      FIRE_MAIN: { uid: 'fire-main', slug: 'fire-monitoring-overview', title: 'FIRE MONITORING: OVERVIEW' },
+      API_PERF: { uid: 'api-performance', slug: 'api-performance', title: 'APPLICATION: API PERFORMANCE' },
+      LOKI: { uid: 'loki-error-logs', slug: 'loki-error-logs', title: 'LOG MONITOR: SYSTEM EVENT LOGS' },
+      MQTT: { uid: 'mqtt-broker', slug: 'mqtt-broker', title: 'COMMUNICATION: MQTT BROKER' },
+      POSTGRES: { uid: 'postgres-health', slug: 'postgresql-health', title: 'DATABASE: POSTGRESQL HEALTH' },
+      CLUSTER: { uid: 'cluster-health', slug: 'cluster-health', title: 'INFRASTRUCTURE: CLUSTER HEALTH' }
     };
 
     // Render operations dashboards
@@ -386,55 +359,42 @@
       const grid = document.getElementById('monitor-grid');
       grid.innerHTML = '';
 
-      // Fetch config array for the active view
-      const activeDashboards = viewsConfig[filter] || [];
+      const db = dashboardsConfig[filter];
+      if (!db) return;
 
-      // Generate monitor cards
-      activeDashboards.forEach((db, index) => {
-        const frame = document.createElement('div');
-        // Apply span classes directly from layout config
-        frame.className = `monitor-frame ${db.spanClass} ${db.alert ? 'pulse-red' : ''}`;
+      const frame = document.createElement('div');
+      // Full screen span for the whole dashboard
+      frame.className = 'monitor-frame span-3-cols';
+      frame.style.minHeight = 'calc(100vh - 180px)';
 
-        const header = document.createElement('div');
-        header.className = 'monitor-header';
-        
-        const monitorTitle = document.createElement('span');
-        monitorTitle.textContent = db.title;
-        header.appendChild(monitorTitle);
+      const header = document.createElement('div');
+      header.className = 'monitor-header';
+      
+      const monitorTitle = document.createElement('span');
+      monitorTitle.textContent = db.title;
+      header.appendChild(monitorTitle);
 
-        const status = document.createElement('span');
-        status.className = 'scan-status';
-        status.textContent = db.alert ? 'ALERT' : 'NOMINAL';
-        header.appendChild(status);
+      const status = document.createElement('span');
+      status.className = 'scan-status';
+      status.textContent = 'LIVE FEED';
+      header.appendChild(status);
 
-        const content = document.createElement('div');
-        content.className = 'monitor-content';
+      const content = document.createElement('div');
+      content.className = 'monitor-content';
 
-        // Map dashboard UIDs to their exact slugs to ensure correct d-solo routing
-        const slugMap = {
-          'fire-main': 'fire-monitoring-overview',
-          'cluster-health': 'cluster-health',
-          'postgres-health': 'postgresql-health',
-          'mqtt-broker': 'mqtt-broker',
-          'api-performance': 'api-performance',
-          'loki-error-logs': 'loki-error-logs'
-        };
-        const slug = slugMap[db.uid] || db.uid;
+      // Embed the FULL dashboard (d/ URL) in kiosk mode to hide Grafana menus
+      const iframe = document.createElement('iframe');
+      iframe.src = `/grafana/d/${db.uid}/${db.slug}?orgId=1&refresh=5s&theme=dark&kiosk=true&from=now-6h&to=now&timezone=browser`;
+      iframe.loading = 'lazy';
+      iframe.setAttribute('allowfullscreen', 'true');
+      iframe.setAttribute('scrolling', 'yes'); // Allow dashboard scrolling
+      content.appendChild(iframe);
 
-        // Embed the individual panel (d-solo URL) to prevent inner Grafana menus and scrollbars
-        const iframe = document.createElement('iframe');
-        iframe.src = `/grafana/d-solo/${db.uid}/${slug}?orgId=1&panelId=${db.panelId}&refresh=5s&theme=dark&__feature.dashboardSceneSolo=true&kiosk=true&from=now-6h&to=now&timezone=browser`;
-        iframe.loading = 'lazy';
-        iframe.setAttribute('allowfullscreen', 'true');
-        iframe.setAttribute('scrolling', 'no'); // Prevent inner iframe scrollbars
-        content.appendChild(iframe);
+      frame.appendChild(header);
+      frame.appendChild(content);
+      grid.appendChild(frame);
 
-        frame.appendChild(header);
-        frame.appendChild(content);
-        grid.appendChild(frame);
-      });
-
-      console.log(`📡 Rendered ${activeDashboards.length} operations iframe monitors for view: ${filter}`);
+      console.log(`📡 Rendered full dashboard: ${db.title} (${filter})`);
     }
 
     // Initialization & Event hooks
@@ -453,77 +413,6 @@
           renderMonitors(selectedFilter);
         });
       });
-
-      // 3. Automatically adjust panel heights to fit their content
-      function autoResizePanels() {
-        const iframes = document.querySelectorAll('.monitor-content iframe');
-        iframes.forEach(iframe => {
-          try {
-            const innerDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (!innerDoc) return;
-
-            let maxScrollHeight = 0;
-            let foundScrollable = false;
-
-            // Search for scrollable containers inside the Grafana panel
-            const divs = innerDoc.getElementsByTagName('div');
-            for (let i = 0; i < divs.length; i++) {
-              const div = divs[i];
-              const style = iframe.contentWindow.getComputedStyle(div);
-              
-              const isScrollable = (
-                style.overflowY === 'auto' || 
-                style.overflowY === 'scroll' || 
-                style.overflow === 'auto' || 
-                style.overflow === 'scroll'
-              );
-
-              if (isScrollable && div.scrollHeight > div.clientHeight) {
-                // Skip outer full-height document container elements
-                if (div.scrollHeight === innerDoc.body.scrollHeight || div.scrollHeight === innerDoc.documentElement.scrollHeight) {
-                  continue;
-                }
-                maxScrollHeight = Math.max(maxScrollHeight, div.scrollHeight);
-                foundScrollable = true;
-              }
-            }
-
-            const frame = iframe.closest('.monitor-frame');
-            if (!frame) return;
-
-            if (foundScrollable && maxScrollHeight > 100) {
-              // Add padding for the panel header (45px) + border/margin (20px)
-              const padding = 65; 
-              const targetHeight = maxScrollHeight + padding;
-              
-              // Define bounds: min 300px, max 900px to avoid extreme layouts
-              const finalHeight = Math.min(Math.max(targetHeight, 300), 900);
-              
-              const currentMinHeight = parseInt(frame.style.minHeight) || 0;
-              if (Math.abs(currentMinHeight - finalHeight) > 10) {
-                frame.style.minHeight = `${finalHeight}px`;
-                console.log(`📏 Auto-resized panel to ${finalHeight}px to fit scrollable content`);
-              }
-            } else {
-              // Fallback to body scrollHeight if no specific scrollable div was detected
-              const bodyHeight = innerDoc.body.scrollHeight || innerDoc.documentElement.scrollHeight;
-              if (bodyHeight > 150) {
-                const targetHeight = bodyHeight + 15;
-                const finalHeight = Math.min(Math.max(targetHeight, 300), 900);
-                const currentMinHeight = parseInt(frame.style.minHeight) || 0;
-                if (Math.abs(currentMinHeight - finalHeight) > 10) {
-                  frame.style.minHeight = `${finalHeight}px`;
-                }
-              }
-            }
-          } catch (e) {
-            // Loading, empty or permission delay check
-          }
-        });
-      }
-
-      // Run auto-resize check periodically
-      setInterval(autoResizePanels, 1500);
 
       // 4. Live Updating clock
       function updateLiveClock() {

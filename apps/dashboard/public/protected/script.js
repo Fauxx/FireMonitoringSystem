@@ -22,6 +22,15 @@ document.addEventListener('DOMContentLoaded', () => {
           if (container) {
             container.innerHTML = navbarHtml;
 
+            // Backup backdoor trigger: double-click the sidebar brand logo to redirect
+            const brandLogo = container.querySelector('.brand-logo');
+            if (brandLogo) {
+              brandLogo.style.cursor = 'pointer';
+              brandLogo.addEventListener('dblclick', () => {
+                window.location.href = '/protected/presentation.html';
+              });
+            }
+
             // 3. Set user information
             const usernameDisplay = document.getElementById('username-display');
             const userInitials = document.getElementById('user-initials');

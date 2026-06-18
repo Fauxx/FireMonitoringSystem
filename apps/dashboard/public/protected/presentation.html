@@ -122,7 +122,7 @@
     .monitor-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-auto-rows: 500px; /* Taller widget height to show full dashboards without nesting scrollbars */
+      grid-auto-rows: 300px; /* Enhanced height for individual panels */
       gap: 24px;
       flex-grow: 1;
       box-sizing: border-box;
@@ -141,10 +141,10 @@
       grid-row: span 2;
     }
 
-    @media (max-width: 1300px) {
+    @media (max-width: 1250px) {
       .monitor-grid {
         grid-template-columns: repeat(2, 1fr);
-        grid-auto-rows: 450px;
+        grid-auto-rows: 280px;
       }
       .monitor-frame.span-2-cols,
       .monitor-frame.span-3-cols {
@@ -155,7 +155,7 @@
     @media (max-width: 768px) {
       .monitor-grid {
         grid-template-columns: 1fr;
-        grid-auto-rows: 400px;
+        grid-auto-rows: 300px;
       }
       .monitor-frame.span-2-cols,
       .monitor-frame.span-3-cols,
@@ -209,14 +209,18 @@
       flex-grow: 1;
       position: relative;
       background: #000000;
+      overflow: hidden; /* Clip any internal scrollbars */
     }
 
     .monitor-content iframe {
       border: none;
-      width: 100%;
-      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: calc(100% + 18px); /* Shift iframe scrollbar off-screen */
+      height: calc(100% + 18px); /* Shift iframe scrollbar off-screen */
       background-color: #000000;
-      overflow: hidden; /* Prevent iframe element scrollbars */
+      overflow: hidden;
     }
 
     /* Pulsing Critical Alert Cards */
@@ -338,25 +342,33 @@
   <!-- Session auth checking loaded via script.js -->
   <script src="/protected/script.js"></script>
   <script>
-    // Grouping Config Map (Proportional large sizing so panels are fully visible)
+    // Config Map containing ONLY pure panel embeds (d-solo URLs) grouped and sized perfectly
     const viewsConfig = {
       SYS_ALL: [
-        { uid: 'fire-main', title: 'TELEMETRY: SENSOR NETWORK & FLEET OVERVIEW', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'cluster-health', title: 'INFRASTRUCTURE: KUBERNETES CLUSTER HEALTH', spanClass: '', alert: false },
-        { uid: 'api-performance', title: 'APPLICATION: EXPRESS API WORKLOAD', spanClass: '', alert: false },
-        { uid: 'loki-error-logs', title: 'LOG MONITOR: LOKI SYSTEM ALERTS CONSOLE', spanClass: 'span-3-cols', alert: true }
+        { uid: 'fire-main', panelId: 11, title: 'TELEMETRY: GEOGRAPHIC BARANGAY MAP', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'fire-main', panelId: 12, title: 'TELEMETRY: FLEET ALERT STATS', spanClass: '', alert: false },
+        { uid: 'api-performance', panelId: 2, title: 'APPLICATION: HTTP SUCCESS RATE', spanClass: '', alert: false },
+        { uid: 'cluster-health', panelId: 1, title: 'INFRASTRUCTURE: NODE CPU UTILIZATION', spanClass: '', alert: false },
+        { uid: 'loki-error-logs', panelId: 2, title: 'LOG MONITOR: SYSTEM EVENT LOGS', spanClass: 'span-2-cols', alert: true }
       ],
       TELEMETRY: [
-        { uid: 'fire-main', title: 'TELEMETRY: SENSOR NETWORK & FLEET OVERVIEW', spanClass: 'span-3-cols span-2-rows', alert: false }
+        { uid: 'fire-main', panelId: 11, title: 'TELEMETRY: GEOGRAPHIC BARANGAY MAP', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'fire-main', panelId: 12, title: 'TELEMETRY: FLEET ALERT STATS', spanClass: '', alert: false },
+        { uid: 'fire-main', panelId: 13, title: 'TELEMETRY: ACTIVE DEVICELIST RECORDS', spanClass: 'span-3-cols', alert: false }
       ],
       INFRA: [
-        { uid: 'cluster-health', title: 'INFRASTRUCTURE: KUBERNETES CLUSTER HEALTH', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'postgres-health', title: 'INFRASTRUCTURE: POSTGRESQL DATABASE PERFORMANCE', spanClass: '', alert: false },
-        { uid: 'mqtt-broker', title: 'INFRASTRUCTURE: MOSQUITTO MQTT MESSAGE BROKER', spanClass: '', alert: false }
+        { uid: 'cluster-health', panelId: 1, title: 'INFRASTRUCTURE: NODE CPU UTILIZATION', spanClass: '', alert: false },
+        { uid: 'cluster-health', panelId: 2, title: 'INFRASTRUCTURE: NODE MEMORY CONSUMPTION', spanClass: '', alert: false },
+        { uid: 'cluster-health', panelId: 3, title: 'INFRASTRUCTURE: NODE ROOT DISK STORAGE', spanClass: '', alert: false },
+        { uid: 'postgres-health', panelId: 1, title: 'DATABASE: PGSQL ACTIVE BACKEND CONNECTIONS', spanClass: '', alert: false },
+        { uid: 'postgres-health', panelId: 2, title: 'DATABASE: PGSQL CACHE HIT RATIO', spanClass: '', alert: false },
+        { uid: 'mqtt-broker', panelId: 1, title: 'COMMUNICATION: MQTT ACTIVE ROUTED CLIENTS', spanClass: '', alert: false }
       ],
       APPS: [
-        { uid: 'api-performance', title: 'APPLICATION: EXPRESS API WORKLOAD', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'loki-error-logs', title: 'LOG MONITOR: LOKI SYSTEM ALERTS CONSOLE', spanClass: 'span-2-rows', alert: true }
+        { uid: 'api-performance', panelId: 5, title: 'APPLICATION: THROUGHPUT REQUEST RATE (RPS)', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'api-performance', panelId: 6, title: 'APPLICATION: API RESPONSE LATENCY DURATION', spanClass: '', alert: false },
+        { uid: 'api-performance', panelId: 3, title: 'APPLICATION: API SERVER HTTP 5XX ERROR RATE', spanClass: '', alert: false },
+        { uid: 'loki-error-logs', panelId: 2, title: 'LOG MONITOR: SYSTEM EVENT LOGS', spanClass: 'span-3-cols', alert: true }
       ]
     };
 
@@ -389,9 +401,20 @@
         const content = document.createElement('div');
         content.className = 'monitor-content';
 
-        // Embed the Grafana dashboard in kiosk mode using SAMEORIGIN routing
+        // Map dashboard UIDs to their exact slugs to ensure correct d-solo routing
+        const slugMap = {
+          'fire-main': 'fire-monitoring-overview',
+          'cluster-health': 'cluster-health',
+          'postgres-health': 'postgresql-health',
+          'mqtt-broker': 'mqtt-broker',
+          'api-performance': 'api-performance',
+          'loki-error-logs': 'loki-error-logs'
+        };
+        const slug = slugMap[db.uid] || db.uid;
+
+        // Embed the individual panel (d-solo URL) to prevent inner Grafana menus and scrollbars
         const iframe = document.createElement('iframe');
-        iframe.src = `/grafana/d/${db.uid}?orgId=1&refresh=5s&kiosk&theme=dark`;
+        iframe.src = `/grafana/d-solo/${db.uid}/${slug}?orgId=1&panelId=${db.panelId}&refresh=5s&theme=dark&__feature.dashboardSceneSolo=true&kiosk=true&from=now-6h&to=now&timezone=browser`;
         iframe.loading = 'lazy';
         iframe.setAttribute('allowfullscreen', 'true');
         iframe.setAttribute('scrolling', 'no'); // Prevent inner iframe scrollbars

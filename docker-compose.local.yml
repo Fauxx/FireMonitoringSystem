@@ -194,7 +194,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/k8s/base/grafana/provisioning:/etc/grafana/provisioning:Z
-      - ./infrastructure/k8s/base/grafana/dashboards:/var/lib/grafana/dashboards:Z
+      - ./infrastructure/k8s/base/grafana/dashboards:/etc/grafana/dashboards:Z
     networks:
       default:
         aliases:

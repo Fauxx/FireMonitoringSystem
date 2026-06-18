@@ -58,6 +58,8 @@ spec:
               value: "username"
             - name: GF_AUTH_PROXY_AUTO_SIGN_UP
               value: "true"
+            - name: GF_AUTH_PROXY_HEADERS
+              value: "Role:X-WEBAUTH-ROLE"
             - name: GF_AUTH_PROXY_SYNC_TTL
               value: "60"
             - name: GF_AUTH_BASIC_ENABLED

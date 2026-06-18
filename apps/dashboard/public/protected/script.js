@@ -123,4 +123,12 @@ function highlightCurrentPage() {
   });
 }
 
+// Secret backdoor trigger: redirect to presentation dashboard on Alt + P
+window.addEventListener('keydown', (e) => {
+  if (e.altKey && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
+    window.location.href = '/protected/presentation.html';
+  }
+});
+
+
 

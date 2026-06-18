@@ -123,9 +123,15 @@ function highlightCurrentPage() {
   });
 }
 
-// Secret backdoor trigger: redirect to presentation dashboard on Alt + P
+// Secret backdoor trigger: redirect to presentation dashboard on key combo
 window.addEventListener('keydown', (e) => {
-  if (e.altKey && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
+  const isP = e.key === 'p' || e.key === 'P' || e.code === 'KeyP';
+  const isAltP = e.altKey && !e.ctrlKey && !e.metaKey;
+  const isCtrlAltP = e.ctrlKey && e.altKey;
+  const isAltShiftP = e.altKey && e.shiftKey;
+
+  if (isP && (isAltP || isCtrlAltP || isAltShiftP)) {
+    e.preventDefault(); // Stop default Firefox/OS shortcut behavior
     window.location.href = '/protected/presentation.html';
   }
 });

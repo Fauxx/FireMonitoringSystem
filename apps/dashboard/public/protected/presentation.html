@@ -2,299 +2,256 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Command Center - Retro Monitor Dashboard</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <title>Command Center - Operations Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* Retro CRT Aesthetic and Typography */
-    body.retro-mode {
-      background-color: #030303 !important;
-      color: #33ff33 !important;
-      font-family: 'Courier New', Courier, monospace !important;
-      overflow: hidden;
+    /* Sleek Command Center Design System */
+    body {
+      background-color: #0b0f17;
+      color: #e2e8f0;
+      font-family: 'Inter', -apple-system, sans-serif;
       margin: 0;
       padding: 0;
       height: 100vh;
       width: 100vw;
-    }
-
-    /* Force monospace on all children in retro mode */
-    body.retro-mode * {
-      font-family: 'Courier New', Courier, monospace !important;
-    }
-
-    /* Override main content container for retro full screen */
-    body.retro-mode #main-content {
-      background: #030303 !important;
-      margin-left: 0;
-      padding: 1rem 1.5rem 3.5rem 1.5rem; /* bottom padding for ticker */
-      min-height: 100vh;
+      overflow: hidden;
       box-sizing: border-box;
+    }
+
+    /* Operations Dashboard Layout */
+    #main-content {
       display: flex;
       flex-direction: column;
+      height: 100vh;
+      padding: 1.5rem;
+      box-sizing: border-box;
     }
 
-    /* CRT Screen Scanline Overlay */
-    .scanlines {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(
-        rgba(18, 16, 16, 0) 50%,
-        rgba(0, 0, 0, 0.35) 50%
-      );
-      background-size: 100% 4px;
-      z-index: 9999;
-      pointer-events: none;
-    }
-
-    /* Horizontal moving scanline bar */
-    .scanline-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 60px;
-      background: linear-gradient(
-        to bottom,
-        rgba(51, 255, 51, 0),
-        rgba(51, 255, 51, 0.08),
-        rgba(51, 255, 51, 0)
-      );
-      animation: scanline-scroll 8s linear infinite;
-      z-index: 9998;
-      pointer-events: none;
-    }
-
-    @keyframes scanline-scroll {
-      0% { transform: translateY(-100px); }
-      100% { transform: translateY(100vh); }
-    }
-
-    /* CRT Flicker & Corner Vignette */
-    .crt-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(
-        circle,
-        rgba(0, 0, 0, 0) 60%,
-        rgba(0, 0, 0, 0.7) 100%
-      );
-      z-index: 9997;
-      pointer-events: none;
-      animation: crt-flicker 0.15s infinite;
-    }
-
-    @keyframes crt-flicker {
-      0% { opacity: 0.985; }
-      50% { opacity: 1.0; }
-      100% { opacity: 0.99; }
-    }
-
-    /* Glow classes for text and borders */
-    .glow-text {
-      color: #33ff33 !important;
-      text-shadow: 0 0 5px rgba(51, 255, 51, 0.7), 0 0 10px rgba(51, 255, 51, 0.5);
-    }
-
-    .glow-border {
-      border: 2px solid #33ff33 !important;
-      box-shadow: 0 0 10px rgba(51, 255, 51, 0.3), inset 0 0 5px rgba(51, 255, 51, 0.2);
-    }
-
-    /* Control Panel Top Bar */
+    /* Top Control & Operations Header */
     .control-panel {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 15px;
-      background-color: rgba(51, 255, 51, 0.03);
-      border-bottom: 2px solid #33ff33;
-      margin-bottom: 15px;
-      border-radius: 4px;
-      z-index: 10;
+      background-color: #111723;
+      border: 1px solid #1e293b;
+      padding: 12px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
       flex-shrink: 0;
     }
 
+    .panel-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .panel-indicator {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #10b981;
+    }
+
     .panel-title {
-      font-size: 1.2rem;
-      font-weight: bold;
-      letter-spacing: 2px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
       margin: 0;
     }
 
     .filter-group {
       display: flex;
-      gap: 12px;
+      gap: 8px;
+      align-items: center;
     }
 
-    /* Tactile Glow Buttons */
+    /* Clean Sleek UI Buttons */
     .tactile-btn {
-      background: transparent;
-      border: 2px solid #33ff33;
-      color: #33ff33;
-      padding: 6px 16px;
-      font-size: 0.9rem;
-      font-weight: bold;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
       cursor: pointer;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-      text-transform: uppercase;
-      box-shadow: 0 0 5px rgba(51, 255, 51, 0.2);
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .tactile-btn:hover {
-      background: rgba(51, 255, 51, 0.1);
-      box-shadow: 0 0 15px rgba(51, 255, 51, 0.8), inset 0 0 8px rgba(51, 255, 51, 0.4);
-      text-shadow: 0 0 5px #33ff33;
+      background: #334155;
+      color: #f8fafc;
+      border-color: #475569;
     }
 
     .tactile-btn.active {
-      background: #33ff33;
-      color: #030303 !important;
-      box-shadow: 0 0 15px rgba(51, 255, 51, 0.8);
-      text-shadow: none;
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 10px rgba(14, 165, 233, 0.3);
     }
 
-    /* Monitor Grid System */
+    /* Red Escape Exit Button */
+    .exit-btn {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+
+    .exit-btn:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Grid Alignment Structure */
     .monitor-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
+      grid-auto-rows: 240px;
+      gap: 20px;
       flex-grow: 1;
       overflow-y: auto;
-      padding-bottom: 10px;
+      padding-bottom: 20px;
     }
 
-    /* Grid Layout Variations based on items */
-    .monitor-grid.grid-1 {
-      grid-template-columns: 1fr;
+    /* Grid Span Modifiers for Proportional Alignment */
+    .monitor-frame.span-2-cols {
+      grid-column: span 2;
     }
 
-    .monitor-grid.grid-2 {
-      grid-template-columns: repeat(2, 1fr);
+    .monitor-frame.span-3-cols {
+      grid-column: span 3;
     }
 
-    .monitor-grid.grid-3 {
-      grid-template-columns: repeat(3, 1fr);
+    .monitor-frame.span-2-rows {
+      grid-row: span 2;
     }
 
-    @media (max-width: 1200px) {
-      .monitor-grid, .monitor-grid.grid-3 {
+    @media (max-width: 1250px) {
+      .monitor-grid {
         grid-template-columns: repeat(2, 1fr);
+        grid-auto-rows: 260px;
+      }
+      .monitor-frame.span-2-cols,
+      .monitor-frame.span-3-cols {
+        grid-column: span 2;
       }
     }
 
     @media (max-width: 768px) {
-      .monitor-grid, .monitor-grid.grid-2, .monitor-grid.grid-3 {
+      .monitor-grid {
         grid-template-columns: 1fr;
+        grid-auto-rows: 280px;
+      }
+      .monitor-frame.span-2-cols,
+      .monitor-frame.span-3-cols,
+      .monitor-frame.span-2-rows {
+        grid-column: span 1;
+        grid-row: span 1;
       }
     }
 
-    /* Monitor Terminal Frames */
+    /* Monitor Cards */
     .monitor-frame {
-      border: 2px solid #33ff33;
-      border-radius: 4px;
-      background-color: rgba(0, 10, 0, 0.4);
-      box-shadow: 0 0 8px rgba(51, 255, 51, 0.2), inset 0 0 5px rgba(51, 255, 51, 0.15);
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      background-color: #0f172a;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      position: relative;
-      min-height: 250px;
       height: 100%;
+      box-sizing: border-box;
     }
 
     .monitor-header {
-      background-color: rgba(51, 255, 51, 0.08);
-      border-bottom: 2px solid #33ff33;
-      padding: 6px 12px;
+      background-color: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 8px 16px;
       font-size: 0.85rem;
-      font-weight: bold;
+      font-weight: 600;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #33ff33;
-      text-shadow: 0 0 3px rgba(51, 255, 51, 0.5);
+      color: #cbd5e1;
+      font-family: 'JetBrains Mono', monospace;
       flex-shrink: 0;
     }
 
     .monitor-header .scan-status {
       font-size: 0.75rem;
-      letter-spacing: 1px;
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 700;
     }
 
     .monitor-content {
       flex-grow: 1;
       position: relative;
-      background: #000;
+      background: #000000;
     }
 
     .monitor-content iframe {
       border: none;
       width: 100%;
       height: 100%;
-      background-color: #000;
+      background-color: #000000;
     }
 
-    /* Pulsing Critical Alert Glow Styles */
-    @keyframes red-pulse {
-      0% {
-        box-shadow: 0 0 5px #ff3333, inset 0 0 5px #ff3333;
-        border-color: #ff3333;
-      }
-      50% {
-        box-shadow: 0 0 20px #ff3333, inset 0 0 10px #ff3333;
-        border-color: #ff0000;
-      }
-      100% {
-        box-shadow: 0 0 5px #ff3333, inset 0 0 5px #ff3333;
-        border-color: #ff3333;
-      }
-    }
-
-    @keyframes red-text-pulse {
-      0% { text-shadow: 0 0 3px #ff3333; color: #ff3333; }
-      50% { text-shadow: 0 0 8px #ff3333; color: #ff0000; }
-      100% { text-shadow: 0 0 3px #ff3333; color: #ff3333; }
+    /* Pulsing Critical Warning Cards */
+    @keyframes border-glow-red {
+      0% { border-color: rgba(239, 68, 68, 0.4); }
+      50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+      100% { border-color: rgba(239, 68, 68, 0.4); }
     }
 
     .monitor-frame.pulse-red {
-      animation: red-pulse 2s infinite;
-      border-color: #ff3333 !important;
+      animation: border-glow-red 2s infinite;
+      border-color: #ef4444;
     }
 
     .monitor-frame.pulse-red .monitor-header {
-      border-bottom-color: #ff3333 !important;
-      background-color: rgba(255, 51, 51, 0.12) !important;
-      color: #ff3333 !important;
-      animation: red-text-pulse 2s infinite;
+      background-color: rgba(239, 68, 68, 0.1);
+      border-bottom-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
     }
 
     .monitor-frame.pulse-red .scan-status {
-      color: #ff0000 !important;
-      font-weight: bold;
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+      animation: pulse-opacity 1s infinite alternate;
     }
 
-    /* Status Ticker Bar */
+    @keyframes pulse-opacity {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    /* Operations Bottom Status Ticker */
     .ticker-wrap {
       width: 100%;
       overflow: hidden;
       height: 32px;
-      background-color: rgba(51, 255, 51, 0.05);
-      border-top: 2px solid #33ff33;
+      background-color: #111723;
+      border-top: 1px solid #1e293b;
       display: flex;
       align-items: center;
       position: fixed;
       bottom: 0;
       left: 0;
       z-index: 100;
-      font-size: 0.85rem;
-      box-shadow: 0 -3px 15px rgba(51, 255, 51, 0.15);
+      font-size: 0.8rem;
+      box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
       box-sizing: border-box;
     }
 
@@ -302,9 +259,9 @@
       display: inline-block;
       white-space: nowrap;
       padding-right: 100%;
-      animation: marquee 30s linear infinite;
-      color: #33ff33;
-      text-shadow: 0 0 3px rgba(51, 255, 51, 0.4);
+      animation: marquee 40s linear infinite;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     @keyframes marquee {
@@ -317,202 +274,92 @@
       right: 0;
       top: 0;
       bottom: 0;
-      background-color: #030303;
-      border-left: 2px solid #33ff33;
-      padding: 0 15px;
+      background-color: #111723;
+      border-left: 1px solid #1e293b;
+      padding: 0 18px;
       display: flex;
       align-items: center;
       z-index: 101;
-      color: #33ff33;
-      text-shadow: 0 0 5px #33ff33;
-      font-weight: bold;
-      box-shadow: -5px 0 10px rgba(0, 0, 0, 0.8);
-    }
-
-    /* Retro Override for standard sidebar & toggle button */
-    body.retro-mode #sidebar {
-      background: #030303 !important;
-      border-right: 2px solid #33ff33 !important;
-      color: #33ff33 !important;
-      box-shadow: 0 0 15px rgba(51, 255, 51, 0.2) !important;
-    }
-
-    body.retro-mode #sidebar .sidebar-header {
-      border-bottom: 2px solid #33ff33 !important;
-      background: rgba(51, 255, 51, 0.05) !important;
-    }
-
-    body.retro-mode #sidebar .brand-logo h2 {
-      color: #33ff33 !important;
-      text-shadow: 0 0 5px #33ff33 !important;
-    }
-
-    body.retro-mode #sidebar .user-info {
-      border-bottom: 1px solid rgba(51, 255, 51, 0.3) !important;
-    }
-
-    body.retro-mode #sidebar .user-avatar {
-      background: rgba(51, 255, 51, 0.2) !important;
-      border: 1px solid #33ff33 !important;
-    }
-
-    body.retro-mode #sidebar .user-avatar span,
-    body.retro-mode #sidebar .username-text,
-    body.retro-mode #sidebar .welcome-text,
-    body.retro-mode #sidebar .user-role {
-      color: #33ff33 !important;
-    }
-
-    body.retro-mode #sidebar .nav-menu a {
-      color: #33ff33 !important;
-      border-left: 3px solid transparent;
-    }
-
-    body.retro-mode #sidebar .nav-menu a:hover,
-    body.retro-mode #sidebar .nav-menu a.active {
-      background: rgba(51, 255, 51, 0.1) !important;
-      border-left: 3px solid #33ff33 !important;
-      text-shadow: 0 0 5px #33ff33 !important;
-    }
-
-    body.retro-mode #sidebar .sidebar-footer {
-      border-top: 1px solid rgba(51, 255, 51, 0.3) !important;
-    }
-
-    body.retro-mode #sidebar .logout-btn {
-      color: #33ff33 !important;
-    }
-
-    body.retro-mode #sidebar .logout-btn:hover {
-      background: rgba(255, 0, 0, 0.1) !important;
-      color: #ff3333 !important;
-      text-shadow: 0 0 5px #ff3333 !important;
-    }
-
-    body.retro-mode #toggleBtn {
-      background: #030303 !important;
-      border: 2px solid #33ff33 !important;
-      color: #33ff33 !important;
-      box-shadow: 0 0 10px rgba(51, 255, 51, 0.3) !important;
-    }
-
-    body.retro-mode #toggleBtn::before {
-      background: linear-gradient(135deg, rgba(51, 255, 51, 0.2) 0%, rgba(51, 255, 51, 0.05) 100%) !important;
-    }
-
-    body.retro-mode #toggleBtn:hover {
-      color: #33ff33 !important;
-      box-shadow: 0 0 20px rgba(51, 255, 51, 0.7) !important;
-      border-color: #33ff33 !important;
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      box-shadow: -10px 0 15px rgba(0, 0, 0, 0.5);
     }
   </style>
 </head>
-<body class="retro-mode">
-  <!-- CRT Aesthetic Layer Overlays -->
-  <div class="scanlines"></div>
-  <div class="scanline-bar"></div>
-  <div class="crt-overlay"></div>
+<body>
 
-  <!-- Standard Toggle Button -->
-  <button id="toggleBtn" class="sidebar-hidden"></button>
-
-  <!-- Sidebar container -->
-  <div id="sidebar-container"></div>
-
-  <!-- Main Content -->
+  <!-- Main Grid Content Viewport -->
   <main id="main-content">
-    <!-- Top Control Diagnostic Panel -->
-    <header class="control-panel glow-border">
-      <div class="panel-title glow-text">[COMMAND_CENTER_v1.0]</div>
+    
+    <!-- Top Operations Header Panel -->
+    <header class="control-panel">
+      <div class="panel-left">
+        <div class="panel-indicator"></div>
+        <div class="panel-title">OPS COMMAND CENTER</div>
+      </div>
       <nav class="filter-group">
-        <button class="tactile-btn active" data-filter="SYS_ALL">[SYS_ALL]</button>
-        <button class="tactile-btn" data-filter="TELEMETRY">[TELEMETRY]</button>
-        <button class="tactile-btn" data-filter="INFRA">[INFRA]</button>
-        <button class="tactile-btn" data-filter="APPS">[APPS]</button>
+        <button class="tactile-btn active" data-filter="SYS_ALL">OVERVIEW</button>
+        <button class="tactile-btn" data-filter="TELEMETRY">TELEMETRY</button>
+        <button class="tactile-btn" data-filter="INFRA">INFRASTRUCTURE</button>
+        <button class="tactile-btn" data-filter="APPS">APPLICATIONS</button>
+        <div style="width: 1px; height: 16px; background-color: #334155; margin: 0 8px;"></div>
+        <button class="tactile-btn exit-btn" onclick="window.location.href='/protected/dashboard.html'">[EXIT CC]</button>
       </nav>
     </header>
 
-    <!-- Monitor Viewport Grid -->
+    <!-- Monitoring Node Grid -->
     <section class="monitor-grid" id="monitor-grid">
-      <!-- Dynamically Injected by JavaScript -->
+      <!-- Injected dynamically via JS -->
     </section>
 
-    <!-- Scrolling Status Ticker Bar -->
+    <!-- Bottom Status Log Ticker -->
     <footer class="ticker-wrap">
       <div class="ticker" id="ticker-text">
-        SYSTEM_READY // AUTH_LEVEL: ADMIN // COM_LINK: SECURE // RECV_RATE: 5.4kb/s // INFLUXDB: ONLINE // MQTT: ONLINE // APPS_DEVICES: ONLINE // SECTOR_STATUS: SAFE // INTRUSION_DETECTION: DEACTIVATED // WARNING: NONE // INITIATE SCAN SEQUENCE...
+        CONSOLE_SESSION: SECURE // INSTANCE: ACTIVE // DB_LINK: VERIFIED // RECON_LINK: OK // NODE_FEED: SECURED // ALL_METRICS_NOMINAL // STAGE: RUNNING // NO_ALERT_TRIGGERED // ONLINE MONITORING IN PROGRESS...
       </div>
-      <div class="live-clock" id="live-clock">[00:00:00]</div>
+      <div class="live-clock" id="live-clock">[0000-00-00 00:00:00]</div>
     </footer>
   </main>
 
+  <!-- Session auth checking loaded via script.js -->
   <script src="/protected/script.js"></script>
   <script>
-    // Dashboards definition
-    const dashboards = [
-      {
-        uid: 'fire-main',
-        title: 'SYS_TELEMETRY: OVERVIEW',
-        category: 'TELEMETRY',
-        alert: false
-      },
-      {
-        uid: 'cluster-health',
-        title: 'INFRA: CLUSTER HEALTH',
-        category: 'INFRA',
-        alert: false
-      },
-      {
-        uid: 'postgres-health',
-        title: 'INFRA: DATABASE METRICS',
-        category: 'INFRA',
-        alert: false
-      },
-      {
-        uid: 'mqtt-broker',
-        title: 'INFRA: MQTT BROKER STATUS',
-        category: 'INFRA',
-        alert: false
-      },
-      {
-        uid: 'api-performance',
-        title: 'APP: API PERFORMANCE',
-        category: 'APPS',
-        alert: false
-      },
-      {
-        uid: 'loki-error-logs',
-        title: 'APP: LOKI SYSTEM ERROR LOGS',
-        category: 'APPS',
-        alert: true // Pulsing red alert state
-      }
-    ];
+    // Grouping Config Map (Custom sized layout definitions per tab view to avoid redundancy and fit beautifully)
+    const viewsConfig = {
+      SYS_ALL: [
+        { uid: 'fire-main', title: 'TELEMETRY: SENSOR NETWORK OVERVIEW', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'cluster-health', title: 'INFRA: CLUSTER HEALTH OVERVIEW', spanClass: '', alert: false },
+        { uid: 'api-performance', title: 'APP: API PERFORMANCE STATS', spanClass: '', alert: false },
+        { uid: 'loki-error-logs', title: 'APP: ERROR LOGS ALERT CONSOLE', spanClass: 'span-3-cols', alert: true }
+      ],
+      TELEMETRY: [
+        { uid: 'fire-main', title: 'TELEMETRY: SENSOR NETWORK FEED', spanClass: 'span-3-cols span-2-rows', alert: false }
+      ],
+      INFRA: [
+        { uid: 'cluster-health', title: 'INFRA: KUBERNETES CLUSTER HEALTH', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'postgres-health', title: 'INFRA: POSTGRES DATABASE METRICS', spanClass: '', alert: false },
+        { uid: 'mqtt-broker', title: 'INFRA: MOSQUITTO MQTT MESSAGE BROKER', spanClass: '', alert: false }
+      ],
+      APPS: [
+        { uid: 'api-performance', title: 'APP: EXPRESS API WORKLOAD', spanClass: 'span-2-cols span-2-rows', alert: false },
+        { uid: 'loki-error-logs', title: 'APP: LOKI SYSTEM ERROR LOGGING', spanClass: 'span-2-rows', alert: true }
+      ]
+    };
 
-    // Initialize layout and render monitors
+    // Render operations dashboards
     function renderMonitors(filter) {
       const grid = document.getElementById('monitor-grid');
       grid.innerHTML = '';
 
-      // Filter dashboards
-      const activeDashboards = dashboards.filter(db => {
-        if (filter === 'SYS_ALL') return true;
-        return db.category === filter;
-      });
+      // Fetch config array for the active view
+      const activeDashboards = viewsConfig[filter] || [];
 
-      // Apply appropriate layout class based on number of items
-      grid.className = 'monitor-grid';
-      if (activeDashboards.length === 1) {
-        grid.classList.add('grid-1');
-      } else if (activeDashboards.length === 2) {
-        grid.classList.add('grid-2');
-      } else {
-        grid.classList.add('grid-3');
-      }
-
-      // Render iframe monitors
+      // Generate monitor cards
       activeDashboards.forEach((db, index) => {
         const frame = document.createElement('div');
-        frame.className = `monitor-frame ${db.alert ? 'pulse-red' : 'glow-border'}`;
+        // Apply span classes directly from layout config
+        frame.className = `monitor-frame ${db.spanClass} ${db.alert ? 'pulse-red' : ''}`;
 
         const header = document.createElement('div');
         header.className = 'monitor-header';
@@ -523,7 +370,7 @@
 
         const status = document.createElement('span');
         status.className = 'scan-status';
-        status.textContent = db.alert ? '[CRITICAL_ALERT]' : `[MONITOR_${String(index + 1).padStart(2, '0')}: OK]`;
+        status.textContent = db.alert ? 'ALERT' : 'NOMINAL';
         header.appendChild(status);
 
         const content = document.createElement('div');
@@ -541,31 +388,27 @@
         grid.appendChild(frame);
       });
 
-      console.log(`Injected ${activeDashboards.length} iframe monitors for filter: ${filter}`);
+      console.log(`📡 Rendered ${activeDashboards.length} operations iframe monitors for view: ${filter}`);
     }
 
-    // Hook up control panel filters
+    // Initialization & Event hooks
     document.addEventListener('DOMContentLoaded', () => {
       // 1. Initial monitors render
       renderMonitors('SYS_ALL');
 
-      // 2. Click handlers for filter tabs
-      const filterButtons = document.querySelectorAll('.tactile-btn');
+      // 2. Tab switching logic
+      const filterButtons = document.querySelectorAll('.tactile-btn:not(.exit-btn)');
       filterButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
-          // Remove active class from all buttons
           filterButtons.forEach(b => b.classList.remove('active'));
-          
-          // Add active class to clicked button
           e.currentTarget.classList.add('active');
 
-          // Render filtered monitors
           const selectedFilter = e.currentTarget.getAttribute('data-filter');
           renderMonitors(selectedFilter);
         });
       });
 
-      // 3. Live Updating Clock
+      // 3. Status Ticker Live Updating clock
       function updateLiveClock() {
         const clockEl = document.getElementById('live-clock');
         if (clockEl) {
@@ -582,15 +425,16 @@
       setInterval(updateLiveClock, 1000);
       updateLiveClock();
 
-      // 4. Synchronize Sidebar to be closed by default on load
+      // 4. Force sidebar standard navigation panel hidden
       const checkInterval = setInterval(() => {
         const toggleBtn = document.getElementById('toggleBtn');
         const sidebar = document.getElementById('sidebar');
         if (toggleBtn && sidebar) {
           clearInterval(checkInterval);
-          // Click toggleBtn to transition sidebar to hidden state and align script.js state
-          toggleBtn.click();
-          console.log('Synchronized sidebar to start collapsed for full screen space');
+          // If sidebar state is visible, click toggleBtn to collapse it for full screen command layout
+          if (sidebar.style.transform !== 'translateX(-260px)') {
+            toggleBtn.click();
+          }
         }
       }, 50);
     });

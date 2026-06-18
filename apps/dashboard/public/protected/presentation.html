@@ -307,8 +307,9 @@
       <nav class="control-actions">
         <button class="nav-btn active" data-filter="SYS_ALL">Overview</button>
         <button class="nav-btn" data-filter="TELEMETRY">Telemetry</button>
-        <button class="nav-btn" data-filter="INFRA">Infrastructure</button>
-        <button class="nav-btn" data-filter="APPS">Applications</button>
+        <button class="nav-btn" data-filter="DATA_LAYER">Data Layer</button>
+        <button class="nav-btn" data-filter="INFRASTRUCTURE">Infrastructure</button>
+        <button class="nav-btn" data-filter="APPLICATION">Application</button>
         <div style="width: 1px; height: 16px; background-color: #374151; margin: 0 8px;"></div>
         <button class="nav-btn exit-btn" onclick="window.location.href='/protected/dashboard.html'">← Return to App</button>
       </nav>
@@ -356,18 +357,26 @@
         { uid: 'fire-main', panelId: 12, title: 'TELEMETRY: FLEET ALERT STATS', spanClass: '', alert: false },
         { uid: 'fire-main', panelId: 13, title: 'TELEMETRY: ACTIVE DEVICELIST RECORDS', spanClass: 'span-3-cols', alert: false }
       ],
-      INFRA: [
+      DATA_LAYER: [
+        { uid: 'postgres-health', panelId: 1, title: 'DATABASE: PGSQL ACTIVE BACKEND CONNECTIONS', spanClass: '', alert: false },
+        { uid: 'postgres-health', panelId: 2, title: 'DATABASE: PGSQL CACHE HIT RATIO', spanClass: '', alert: false },
+        { uid: 'postgres-health', panelId: 4, title: 'DATABASE: CURRENT DATABASE SIZE', spanClass: '', alert: false },
+        { uid: 'mqtt-broker', panelId: 1, title: 'COMMUNICATION: MQTT ACTIVE ROUTED CLIENTS', spanClass: '', alert: false },
+        { uid: 'mqtt-broker', panelId: 3, title: 'COMMUNICATION: MQTT INBOUND MESSAGE RATE', spanClass: '', alert: false },
+        { uid: 'mqtt-broker', panelId: 4, title: 'COMMUNICATION: MQTT OUTBOUND MESSAGE RATE', spanClass: '', alert: false }
+      ],
+      INFRASTRUCTURE: [
         { uid: 'cluster-health', panelId: 1, title: 'INFRASTRUCTURE: NODE CPU UTILIZATION', spanClass: '', alert: false },
         { uid: 'cluster-health', panelId: 2, title: 'INFRASTRUCTURE: NODE MEMORY CONSUMPTION', spanClass: '', alert: false },
         { uid: 'cluster-health', panelId: 3, title: 'INFRASTRUCTURE: NODE ROOT DISK STORAGE', spanClass: '', alert: false },
-        { uid: 'postgres-health', panelId: 1, title: 'DATABASE: PGSQL ACTIVE BACKEND CONNECTIONS', spanClass: '', alert: false },
-        { uid: 'postgres-health', panelId: 2, title: 'DATABASE: PGSQL CACHE HIT RATIO', spanClass: '', alert: false },
-        { uid: 'mqtt-broker', panelId: 1, title: 'COMMUNICATION: MQTT ACTIVE ROUTED CLIENTS', spanClass: '', alert: false }
+        { uid: 'cluster-health', panelId: 4, title: 'CONTAINER: K8S POD CPU USAGE', spanClass: '', alert: false },
+        { uid: 'cluster-health', panelId: 5, title: 'CONTAINER: K8S POD MEMORY USAGE', spanClass: '', alert: false }
       ],
-      APPS: [
-        { uid: 'api-performance', panelId: 5, title: 'APPLICATION: THROUGHPUT REQUEST RATE (RPS)', spanClass: 'span-2-cols span-2-rows', alert: false },
-        { uid: 'api-performance', panelId: 6, title: 'APPLICATION: API RESPONSE LATENCY DURATION', spanClass: '', alert: false },
+      APPLICATION: [
+        { uid: 'api-performance', panelId: 2, title: 'APPLICATION: HTTP SUCCESS RATE', spanClass: 'span-2-cols', alert: false },
+        { uid: 'api-performance', panelId: 1, title: 'APPLICATION: THROUGHPUT REQUEST RATE (RPS)', spanClass: '', alert: false },
         { uid: 'api-performance', panelId: 3, title: 'APPLICATION: API SERVER HTTP 5XX ERROR RATE', spanClass: '', alert: false },
+        { uid: 'api-performance', panelId: 4, title: 'APPLICATION: API RESPONSE p95 LATENCY', spanClass: '', alert: false },
         { uid: 'loki-error-logs', panelId: 2, title: 'LOG MONITOR: SYSTEM EVENT LOGS', spanClass: 'span-3-cols', alert: true }
       ]
     };

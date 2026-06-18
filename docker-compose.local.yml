@@ -188,13 +188,14 @@ services:
       - GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
       - GF_AUTH_PROXY_HEADER_PROPERTY=username
       - GF_AUTH_PROXY_AUTO_SIGN_UP=true
+      - GF_AUTH_PROXY_HEADERS=Role:X-WEBAUTH-ROLE
       - GF_AUTH_PROXY_SYNC_TTL=60
       - GF_AUTH_BASIC_ENABLED=true
       - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/k8s/base/grafana/provisioning:/etc/grafana/provisioning:Z
-      - ./infrastructure/k8s/base/grafana/dashboards:/var/lib/grafana/dashboards:Z
+      - ./infrastructure/k8s/base/grafana/dashboards:/etc/grafana/dashboards:Z
     networks:
       default:
         aliases:

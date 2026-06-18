@@ -3,9 +3,6 @@ kind: Ingress
 metadata:
   name: grafana-ops
   annotations:
-    nginx.ingress.kubernetes.io/auth-type: basic
-    nginx.ingress.kubernetes.io/auth-secret: grafana-ops-basic-auth
-    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required - Ops"
     nginx.ingress.kubernetes.io/app-root: /grafana
 spec:
   ingressClassName: nginx

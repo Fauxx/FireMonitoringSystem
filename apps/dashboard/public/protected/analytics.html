@@ -430,6 +430,16 @@
           cell.dataset.intensity = intensity;
 
           if(count > 0) {
+            cell.style.cursor = 'pointer';
+            cell.addEventListener('click', () => {
+              startDateEl.value = dateKey;
+              endDateEl.value = dateKey;
+              if (heatmapDeviceFilterEl.value) {
+                deviceSelect.value = heatmapDeviceFilterEl.value;
+              }
+              loadChartData();
+              document.getElementById('sensorChart').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
             cell.addEventListener('mouseenter', (e) => {
               const rect = e.target.getBoundingClientRect();
               tooltip.style.display = 'block';
@@ -441,7 +451,8 @@
               tooltip.innerHTML = `
                 <strong>${dateKey}</strong><br/>
                 ${statusText}<br/>
-                Count: ${count}
+                Count: ${count}<br/>
+                <span style="font-size:0.65rem;color:#38bdf8;">⚡ Click to view sensor details</span>
               `;
             });
             cell.addEventListener('mouseleave', () => {
@@ -503,10 +514,12 @@
             label: meta.label,
             data: values,
             borderColor: meta.color,
-            backgroundColor: meta.color + '20',
+            backgroundColor: meta.color + '15',
             fill: true,
-            tension: 0.3,
-            pointRadius: 2
+            tension: 0.35,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            borderWidth: 2.5
           }]
         },
         options: {
@@ -514,15 +527,22 @@
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { position: 'top' },
+            legend: { position: 'top', labels: { font: { weight: 'bold' } } },
             zoom: {
               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
               pan: { enabled: true, mode: 'x' }
             }
           },
           scales: {
-            x: { title: { display: true, text: 'Time' }, ticks: { maxTicksLimit: 10 } },
-            y: { beginAtZero: true }
+            x: { 
+              grid: { color: '#f3f4f6' },
+              title: { display: true, text: 'Time', font: { weight: 'bold' } }, 
+              ticks: { maxTicksLimit: 10 } 
+            },
+            y: { 
+              grid: { color: '#f3f4f6' },
+              beginAtZero: true 
+            }
           }
         }
       });

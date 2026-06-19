@@ -104,36 +104,36 @@ router.get('/heatmap', async (req, res) => {
             
             query += ` GROUP BY DATE(timestamp) ORDER BY date ASC`;
         } else {
-            // Get system-generated incidents (from incident_alerts)
+            // Get system-generated incidents (from final_sensor_events)
             query = `
                 SELECT 
-                    DATE(time) as date,
+                    to_char(received_at, 'YYYY-MM-DD') as date,
                     COUNT(*) as count,
-                    MAX(alert_level) as max_level,
-                    COUNT(CASE WHEN alert_level >= 3 THEN 1 END) as critical_count,
-                    COUNT(CASE WHEN alert_level = 2 THEN 1 END) as warning_count
-                FROM incident_alerts
-                WHERE time >= NOW() - INTERVAL '${parseInt(days)} days'
-                    AND alert_level >= 2
+                    MAX(status) as max_level,
+                    COUNT(CASE WHEN status = 2 THEN 1 END) as critical_count,
+                    COUNT(CASE WHEN status = 1 THEN 1 END) as warning_count
+                FROM final_sensor_events
+                WHERE received_at >= NOW() - INTERVAL '${parseInt(days)} days'
+                    AND status >= 1
             `;
             
             if (device) {
-                query += ` AND m = $${paramIndex}`;
+                query += ` AND h_id = $${paramIndex}`;
                 params.push(device);
                 paramIndex++;
             }
             if (start) {
-                query += ` AND time >= $${paramIndex}`;
+                query += ` AND received_at >= $${paramIndex}`;
                 params.push(start);
                 paramIndex++;
             }
             if (end) {
-                query += ` AND time <= $${paramIndex}`;
+                query += ` AND received_at <= $${paramIndex}`;
                 params.push(end);
                 paramIndex++;
             }
             
-            query += ` GROUP BY DATE(time) ORDER BY date ASC`;
+            query += ` GROUP BY to_char(received_at, 'YYYY-MM-DD') ORDER BY date ASC`;
         }
 
         const result = await pool.query(query, params.length > 0 ? params : undefined);

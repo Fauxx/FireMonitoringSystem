@@ -335,6 +335,12 @@ router.get('/performance', async (req, res) => {
                 active_devices: activeDevices,
                 total_locations: totalLocations
             };
+        } else {
+            // Check if the current metrics are stale
+            const diffMins = Math.floor((new Date() - new Date(currentMetrics.timestamp)) / 60000);
+            if (diffMins > 15) {
+                currentMetrics.active_devices = 0;
+            }
         }
 
         res.json({

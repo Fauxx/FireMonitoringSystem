@@ -430,6 +430,15 @@
 
       await getCurrentUser();
       await fetchDevices();
+
+      // Set today's date as default filter
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+      const todayStr = localDate.toISOString().split('T')[0];
+      document.getElementById('filterStartDate').value = todayStr;
+      document.getElementById('filterEndDate').value = todayStr;
+
       document.getElementById('filterDevice').addEventListener('change', loadIncidents);
       await loadIncidents();
       setInterval(loadIncidents, 60000); 

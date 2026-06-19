@@ -21,10 +21,10 @@ replicas:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: ea30f64
+  newTag: fc08adf
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: ea30f64
+  newTag: fc08adf
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
   newTag: a4eb2ae

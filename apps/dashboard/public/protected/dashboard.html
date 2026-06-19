@@ -268,7 +268,7 @@
       setInterval(loadDashboardData, 300000); // refresh every 5 mins
 
       // Panel fallback
-      ['barangayMapPanel','deviceListPanel'].forEach(id => {
+      ['barangayMapPanel','alertStatusCounters'].forEach(id => {
         const iframe = document.getElementById(id);
         iframe.onload = () => console.log(`${id} loaded successfully`);
         iframe.onerror = () => {

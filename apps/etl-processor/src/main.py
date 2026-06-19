@@ -83,7 +83,9 @@ def fetch_influx_data(last_ts=None):
         # Pull the most recent window; optionally narrow using last_ts
         if last_ts is not None:
             if hasattr(last_ts, "isoformat"):
-                ts_str = last_ts.isoformat()
+                # Add 1 millisecond offset to prevent inclusive boundary duplication
+                next_start = last_ts + timedelta(milliseconds=1)
+                ts_str = next_start.isoformat()
                 if not ts_str.endswith("Z") and "+" not in ts_str and "-" not in ts_str[10:]:
                     ts_str += "Z"
             else:
@@ -143,15 +145,14 @@ def process_telemetry_batch(df_raw):
         anomalies = group[group["status"].isin([1, 2])]
         normals = group[group["status"] == 0]
 
-        # Process Anomalies with Debouncing
+        # 1. Process Anomalies with Debouncing
         if not anomalies.empty:
             # We take the most severe status in this batch for the h_id
             top_anomaly = anomalies.sort_values("status", ascending=False).iloc[0]
-            h_id = top_anomaly["h_id"]
             status = int(top_anomaly["status"])
             ts = top_anomaly["received_at"]
 
-            # 1. Check DB for active session
+            # Check DB for active session
             try:
                 conn = get_db_conn()
                 with conn.cursor() as cur:
@@ -186,28 +187,29 @@ def process_telemetry_batch(df_raw):
             except Exception as e:
                 logger.error(f"❌ Debouncing check failed for {h_id}: {e}")
 
-        # Process Normals
-        else:
+        # 2. Process Normals
+        if not normals.empty:
             # anomalies is empty, we only have normals. If there is an active session, close it.
-            try:
-                conn = get_db_conn()
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE LIMIT 1",
-                        (h_id,)
-                    )
-                    active_session = cur.fetchone()
-                    if active_session:
-                        latest_normal = normals.sort_values("received_at", ascending=False).iloc[0]
-                        normal_ts = latest_normal["received_at"]
+            if anomalies.empty:
+                try:
+                    conn = get_db_conn()
+                    with conn.cursor() as cur:
                         cur.execute(
-                            "UPDATE historical_fire_incidents SET is_active = FALSE, last_seen_at = %s WHERE id = %s",
-                            (normal_ts, active_session[0])
+                            "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE LIMIT 1",
+                            (h_id,)
                         )
-                        conn.commit()
-                        logger.info(f"✅ Closed active incident for {h_id} (Session ID: {active_session[0]}) due to normal status")
-            except Exception as e:
-                logger.error(f"❌ Deactivation check failed for {h_id}: {e}")
+                        active_session = cur.fetchone()
+                        if active_session:
+                            latest_normal = normals.sort_values("received_at", ascending=False).iloc[0]
+                            normal_ts = latest_normal["received_at"]
+                            cur.execute(
+                                "UPDATE historical_fire_incidents SET is_active = FALSE, last_seen_at = %s WHERE id = %s",
+                                (normal_ts, active_session[0])
+                            )
+                            conn.commit()
+                            logger.info(f"✅ Closed active incident for {h_id} (Session ID: {active_session[0]}) due to normal status")
+                except Exception as e:
+                    logger.error(f"❌ Deactivation check failed for {h_id}: {e}")
 
             for interval, int_group in normals.groupby("interval_time"):
                 if not int_group.empty:

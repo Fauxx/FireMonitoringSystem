@@ -75,6 +75,36 @@ router.put("/users/:id", async (req, res) => {
   }
 });
 
+// UPDATE a user's role
+router.put("/users/:id/role", async (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
+  const { id } = req.params;
+  const { role, admin } = req.body;
+  if (!role) return res.status(400).json({ error: "Role is required" });
+
+  try {
+    if (admin) {
+      const adminRes = await req.pool.query("SELECT * FROM users WHERE email = $1 AND role = 'admin'", [admin.email]);
+      const adminUser = adminRes.rows[0];
+      if (!adminUser || !(await bcrypt.compare(admin.password, adminUser.password))) {
+        return res.status(401).json({ error: "Invalid admin credentials" });
+      }
+    } else {
+      return res.status(400).json({ error: "Admin verification required" });
+    }
+
+    const result = await req.pool.query(
+      "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, email, role, created_at",
+      [role, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating user role:", err);
+    res.status(500).json({ error: "Error updating user role" });
+  }
+});
+
 // DELETE a user
 router.delete("/users/:id", async (req, res) => {
   if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
@@ -160,7 +190,7 @@ router.get("/dashboard/status", async (req, res) => {
     const diffMins = Math.floor((new Date() - new Date(lastUpdate)) / 60000);
 
     if (diffMins > 15) status = "No Live Data";
-    else if (activeDevs === 0 && status === "Operational") status = "Monitoring (Idle)";
+    else if (activeDevs === 0 && status === "Operational") status = "Monitoring";
 
     res.json({
       systemStatus: status,
@@ -184,8 +214,21 @@ router.get("/devices/stats", async (req, res) => {
 
     const totalRes = await req.pool.query(`SELECT COUNT(DISTINCT m) as count FROM sensor_data_aggregated`);
     const total = parseInt(totalRes.rows[0]?.count || 0);
+
+    // Query count of alerting devices (status >= 1)
+    const alertRes = await req.pool.query(
+      `SELECT COUNT(DISTINCT h_id) as count 
+       FROM final_sensor_latest 
+       WHERE status >= 1 AND received_at > NOW() - INTERVAL '20 minutes'`
+    );
+    const alerts = parseInt(alertRes.rows[0]?.count || 0);
     
-    res.json({ onlineDevices: online, offlineDevices: Math.max(0, total - online), totalLocations: locs });
+    res.json({ 
+      onlineDevices: online, 
+      offlineDevices: Math.max(0, total - online), 
+      totalLocations: locs,
+      warningStatus: alerts
+    });
   } catch (err) {
     res.status(500).json({ error: "Device stats error" });
   }

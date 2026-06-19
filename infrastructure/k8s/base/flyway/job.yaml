@@ -17,7 +17,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: flyway
-          image: flyway/flyway:10-alpine
+          image: db-migrations
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config
@@ -31,11 +31,4 @@ spec:
             - name: FLYWAY_PASSWORD
               value: "$(POSTGRES_PASSWORD)"
           args: ["-connectRetries=60", "migrate"]
-          volumeMounts:
-            - name: flyway-sql
-              mountPath: /flyway/sql
-      volumes:
-        - name: flyway-sql
-          configMap:
-            name: flyway-sql
 

@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [api, dashboard, etl-processor]
+        service: [api, dashboard, etl-processor, db-migrations]
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
       
@@ -51,7 +51,7 @@ jobs:
       - name: Build and Push Container
         uses: docker/build-push-action@v5
         with:
-          context: ./apps/${{ matrix.service }}
+          context: ${{ matrix.service == 'db-migrations' && './infrastructure/k8s/base/sql' || format('./apps/{0}', matrix.service) }}
           # Allow push on manual workflow_dispatch as well
           push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} 
           tags: |
@@ -92,6 +92,7 @@ jobs:
           kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
           kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
           kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image db-migrations=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/db-migrations:${{ needs.build_and_test.outputs.image_tag }}
 
       - name: Create Pull Request for GitOps bump
         uses: peter-evans/create-pull-request@v6
@@ -104,6 +105,7 @@ jobs:
             - API: `${{ needs.build_and_test.outputs.image_tag }}`
             - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
             - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
+            - DB Migrations: `${{ needs.build_and_test.outputs.image_tag }}`
           branch: "gitops-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
           base: main
           delete-branch: true
@@ -136,6 +138,7 @@ jobs:
           kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
           kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
           kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
+          kustomize edit set image db-migrations=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/db-migrations:${{ needs.build_and_test.outputs.image_tag }}
 
       - name: Create Pull Request for Production GitOps bump
         uses: peter-evans/create-pull-request@v6
@@ -148,6 +151,7 @@ jobs:
             - API: `${{ needs.build_and_test.outputs.image_tag }}`
             - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
             - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
+            - DB Migrations: `${{ needs.build_and_test.outputs.image_tag }}`
           branch: "gitops-prod-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
           base: main
           delete-branch: true

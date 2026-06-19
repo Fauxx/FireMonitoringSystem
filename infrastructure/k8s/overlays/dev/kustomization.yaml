@@ -28,6 +28,9 @@ images:
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
   newTag: ea30f64
+- name: db-migrations
+  newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
+  newTag: 011910c
 
 labels:
 - includeSelectors: true

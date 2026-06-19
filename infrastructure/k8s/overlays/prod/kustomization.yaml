@@ -23,6 +23,9 @@ images:
   - name: dashboard
     newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
     newTag: sha-000000000000
+  - name: db-migrations
+    newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
+    newTag: sha-000000000000
 
 commonLabels:
   environment: prod

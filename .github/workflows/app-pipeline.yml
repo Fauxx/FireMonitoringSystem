@@ -5,11 +5,13 @@ on:
   pull_request:
     paths:
       - 'apps/**'
+      - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
   push:
     branches: [ main ]
     paths:
       - 'apps/**'
+      - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
 
 permissions:
@@ -21,15 +23,52 @@ env:
 
 jobs:
   # -------------------------------------------------------------
+  # Stage 0: Change Detection
+  # -------------------------------------------------------------
+  detect_changes:
+    name: "Detect Changed Services"
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.set_services.outputs.services }}
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+            dashboard:
+              - 'apps/dashboard/**'
+            etl-processor:
+              - 'apps/etl-processor/**'
+            db-migrations:
+              - 'infrastructure/k8s/base/sql/**'
+
+      - name: Determine Services to Build
+        id: set_services
+        run: |
+          CHANGES='${{ steps.filter.outputs.changes }}'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -z "$CHANGES" ] || [ "$CHANGES" = "[]" ]; then
+            echo "services=[\"api\", \"dashboard\", \"etl-processor\", \"db-migrations\"]" >> $GITHUB_OUTPUT
+          else
+            echo "services=$CHANGES" >> $GITHUB_OUTPUT
+          fi
+
+  # -------------------------------------------------------------
   # Stage 1: Code Verification & Container Compilation
   # -------------------------------------------------------------
   build_and_test:
     name: "Compile & Verify ${{ matrix.service }}"
+    needs: detect_changes
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
-        service: [api, dashboard, etl-processor, db-migrations]
+        service: ${{ fromJSON(needs.detect_changes.outputs.services) }}
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
       
@@ -63,7 +102,7 @@ jobs:
   # -------------------------------------------------------------
   deploy_via_gitops:
     name: "Update GitOps Manifest State"
-    needs: build_and_test
+    needs: [detect_changes, build_and_test]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     
@@ -89,10 +128,11 @@ jobs:
       - name: Bump Kustomize Image Tags
         run: |
           cd infrastructure/k8s/overlays/dev 
-          kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image db-migrations=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/db-migrations:${{ needs.build_and_test.outputs.image_tag }}
+          SERVICES_JSON='${{ needs.detect_changes.outputs.services }}'
+          for service in $(echo "$SERVICES_JSON" | jq -r '.[]'); do
+            echo "Bumping image tag for service: $service"
+            kustomize edit set image "${service}=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${service}:${{ needs.build_and_test.outputs.image_tag }}"
+          done
 
       - name: Create Pull Request for GitOps bump
         uses: peter-evans/create-pull-request@v6
@@ -101,18 +141,15 @@ jobs:
           commit-message: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
           title: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
           body: |
-            Bumps Kubernetes manifest image tags for dev environment to:
-            - API: `${{ needs.build_and_test.outputs.image_tag }}`
-            - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
-            - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
-            - DB Migrations: `${{ needs.build_and_test.outputs.image_tag }}`
+            Bumps Kubernetes manifest image tags for dev environment to ${{ needs.build_and_test.outputs.image_tag }} for the following services:
+            ${{ needs.detect_changes.outputs.services }}
           branch: "gitops-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
           base: main
           delete-branch: true
 
   promote_to_prod:
     name: "Promote to Production (GitOps)"
-    needs: build_and_test
+    needs: [detect_changes, build_and_test]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: prod
@@ -135,10 +172,11 @@ jobs:
       - name: Bump Production Kustomize Image Tags
         run: |
           cd infrastructure/k8s/overlays/prod
-          kustomize edit set image api=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/api:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image dashboard=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/dashboard:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image etl-processor=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/etl-processor:${{ needs.build_and_test.outputs.image_tag }}
-          kustomize edit set image db-migrations=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/db-migrations:${{ needs.build_and_test.outputs.image_tag }}
+          SERVICES_JSON='${{ needs.detect_changes.outputs.services }}'
+          for service in $(echo "$SERVICES_JSON" | jq -r '.[]'); do
+            echo "Bumping image tag for service: $service"
+            kustomize edit set image "${service}=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${service}:${{ needs.build_and_test.outputs.image_tag }}"
+          done
 
       - name: Create Pull Request for Production GitOps bump
         uses: peter-evans/create-pull-request@v6
@@ -147,11 +185,8 @@ jobs:
           commit-message: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
           title: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
           body: |
-            Promotes Kubernetes manifest image tags for production environment to:
-            - API: `${{ needs.build_and_test.outputs.image_tag }}`
-            - Dashboard: `${{ needs.build_and_test.outputs.image_tag }}`
-            - ETL Processor: `${{ needs.build_and_test.outputs.image_tag }}`
-            - DB Migrations: `${{ needs.build_and_test.outputs.image_tag }}`
+            Promotes Kubernetes manifest image tags for production environment to ${{ needs.build_and_test.outputs.image_tag }} for the following services:
+            ${{ needs.detect_changes.outputs.services }}
           branch: "gitops-prod-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
           base: main
           delete-branch: true

@@ -84,3 +84,6 @@ configMapGenerator:
       - V7__Standardize_Timezone_Schema.sql=sql/V7__Standardize_Timezone_Schema.sql
       - V8__Add_Persistent_Sessions.sql=sql/V8__Add_Persistent_Sessions.sql
       - V9__Add_Telemetry_Unique_Constraint.sql=sql/V9__Add_Telemetry_Unique_Constraint.sql
+    options:
+      annotations:
+        argocd.argoproj.io/hook: PreSync

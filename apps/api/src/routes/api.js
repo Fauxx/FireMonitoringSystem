@@ -145,7 +145,7 @@ router.get("/dashboard/stats", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
   try {
     const metricsResult = await req.pool.query(
-      `SELECT active_devices, alerts_today, system_uptime, total_locations 
+      `SELECT active_devices, alerts_today, system_uptime, total_locations, timestamp 
        FROM system_metrics ORDER BY timestamp DESC LIMIT 1`
     );
 
@@ -153,7 +153,13 @@ router.get("/dashboard/stats", async (req, res) => {
 
     if (metricsResult.rows.length > 0) {
       const m = metricsResult.rows[0];
-      stats.activeDevices = parseInt(m.active_devices || 0);
+      const diffMins = Math.floor((new Date() - new Date(m.timestamp)) / 60000);
+      
+      if (diffMins > 15) {
+        stats.activeDevices = 0;
+      } else {
+        stats.activeDevices = parseInt(m.active_devices || 0);
+      }
       stats.todayAlerts = parseInt(m.alerts_today || 0);
       stats.systemUptime = `${parseFloat(m.system_uptime || 100).toFixed(1)}%`;
       stats.totalLocations = parseInt(m.total_locations || 0);
@@ -185,12 +191,16 @@ router.get("/dashboard/status", async (req, res) => {
 
     const metricRes = await req.pool.query(`SELECT active_devices, timestamp FROM system_metrics ORDER BY timestamp DESC LIMIT 1`);
     const lastUpdate = metricRes.rows[0]?.timestamp || new Date();
-    const activeDevs = parseInt(metricRes.rows[0]?.active_devices || 0);
+    let activeDevs = parseInt(metricRes.rows[0]?.active_devices || 0);
     
     const diffMins = Math.floor((new Date() - new Date(lastUpdate)) / 60000);
 
-    if (diffMins > 15) status = "No Live Data";
-    else if (activeDevs === 0 && status === "Operational") status = "Monitoring";
+    if (diffMins > 15) {
+      status = "No Live Data";
+      activeDevs = 0;
+    } else if (activeDevs === 0 && status === "Operational") {
+      status = "Monitoring";
+    }
 
     res.json({
       systemStatus: status,
@@ -208,9 +218,17 @@ router.get("/dashboard/status", async (req, res) => {
 router.get("/devices/stats", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
   try {
-    const metricRes = await req.pool.query(`SELECT active_devices, total_locations FROM system_metrics ORDER BY timestamp DESC LIMIT 1`);
-    const online = parseInt(metricRes.rows[0]?.active_devices || 0);
+    const metricRes = await req.pool.query(`SELECT active_devices, total_locations, timestamp FROM system_metrics ORDER BY timestamp DESC LIMIT 1`);
+    let online = 0;
     const locs = parseInt(metricRes.rows[0]?.total_locations || 0);
+    
+    if (metricRes.rows.length > 0) {
+      const m = metricRes.rows[0];
+      const diffMins = Math.floor((new Date() - new Date(m.timestamp)) / 60000);
+      if (diffMins <= 15) {
+        online = parseInt(m.active_devices || 0);
+      }
+    }
 
     const totalRes = await req.pool.query(`SELECT COUNT(DISTINCT m) as count FROM sensor_data_aggregated`);
     const total = parseInt(totalRes.rows[0]?.count || 0);

@@ -114,6 +114,17 @@ flowchart TD
 
 ---
 
+### 🟠 7. Automated CI/CD Pipelines (`.github/workflows/`)
+*   **Top-Level Explanation:** Houses the automated GitHub Actions pipelines that orchestrate application continuous integration, validation checks, and GitOps image tag promotion.
+*   **Key Technical Implementations:**
+    *   **Change-Detection Matrix Parallelism:** Uses `dorny/paths-filter` to only compile and test the specific services that modified files belong to, optimizing workflow run times.
+    *   **GitOps Manifest PR Auto-Generation:** Automatically runs Kustomize image tag overrides and registers a new Pull Request against `main` using GitHub App credentials.
+    *   **Manifest Validation Safeguards:** Automatically tests Kustomize layout compiles on dev, prod, and local environments on push triggers.
+*   **Direct Link to Guide:**
+    *   👉 [**Automated CI/CD Pipelines Complete Guide 📖**](./docs/portfolio/03_CI_CD_PIPELINES.md)
+
+---
+
 ## 🚦 Local Developer Quickstart
 
 To boot the system locally using Docker (or Podman) Compose for verification:

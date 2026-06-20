@@ -7,38 +7,11 @@
 
 Welcome to the **IoT-Based Fire Monitoring & Cloud-Native Analytics Platform**! This repository serves as a high-fidelity platform for exploring **Cloud-Native Infrastructure**, **GitOps**, and **Zero-Trust Security**. 
 
-Rather than a monolithic configuration, this codebase is structured modularly. This root README acts as the central hub to help you navigate through the documentation and source directories.
+Rather than a monolithic setup, this repository is designed as a decoupled microservice topology. This root README acts as the central hub and navigation index.
 
 ---
 
-## 📂 Codebase Navigation Index
-
-Use the links below to navigate directly to the detailed configuration, deployment, and execution runbooks for each component:
-
-```
-.
-├── 📂 apps/                                 # Click below to view microservices guides:
-│   ├── 📄 README.md ────────────────────────> [Apps Hub Navigation Page] (apps/README.md)
-│   ├── 📂 api/ ─────────────────────────────> [Express REST API Guide] (apps/api/README.md)
-│   ├── 📂 dashboard/ ───────────────────────> [Nginx Web Dashboard Guide] (apps/dashboard/README.md)
-│   ├── 📂 etl-processor/ ───────────────────> [Python pandas ETL Worker Guide] (apps/etl-processor/README.md)
-│   └── 📂 simulators/ ──────────────────────> [MQTT IoT Device Simulator Guide] (apps/simulators/README.md)
-│
-├── 📂 infrastructure/                       # Click below to view IaC & Kubernetes manifests:
-│   ├── 📂 k8s/ ─────────────────────────────> [Kubernetes Manifests & Ingress Guide] (infrastructure/k8s/README.md)
-│   │   ├── 📄 NETWORKING_SETUP.md ──────────> [Dev/Prod Port-Forwarding & Cert-Manager Runbook] (infrastructure/k8s/NETWORKING_SETUP.md)
-│   │   └── 📂 base/sql/ ────────────────────> [Flyway Relational Schema Upgrades] (infrastructure/k8s/base/sql/README.md)
-│   │
-│   └── 📂 terraform/ ───────────────────────> [Multi-Layer Terraform IaC Guide] (infrastructure/terraform/README.md)
-│
-└── 📂 docs/                                 # Click below to view design decision reports:
-    ├── 📄 README.md ────────────────────────> [Architecture Decision Records & Portfolios Hub] (docs/README.md)
-    └── 📂 portfolio/ ───────────────────────> [Operational Runbooks & Setup Guide] (docs/portfolio/README.md)
-```
-
----
-
-## ⚡ High-Level System Architecture
+## 🛰️ High-Level System Architecture & Ingestion Flow
 
 The platform implements a real-time reactive streaming architecture, processing high-volume time-series sensor data and piping it safely into relational analytical logs.
 
@@ -67,11 +40,77 @@ flowchart TD
     end
 ```
 
-### 🛰️ Data Lifecycle Details
-1.  **Ingestion:** IoT Simulators publish sensor data containing household tags (`h_id`) and status metrics (`status` where `0=Normal`, `1=Warning`, `2=Critical`) to topic `fire/sensors/H_ID`.
-2.  **Collection:** A **Telegraf** agent parses incoming JSON payloads and writes them directly to **InfluxDB** (`node_telemetry` measurement).
-3.  **ETL Synchronization:** The **Python ETL Processor** queries raw InfluxDB data, downsamples normal signals into 5-minute rollups to avoid PostgreSQL bloat, debounces anomalies using a **30-minute window**, and updates active incident records in **PostgreSQL**.
-4.  **Security Handshake:** All requests to protected UI paths or Grafana are verified. Nginx sends an internal subrequest to the API's `/auth/verify` endpoint. If valid, the user is logged into Grafana using its header-based Auth-Proxy model.
+---
+
+## 📂 System Component Directory Mapping
+
+---
+
+### 🟢 1. Node.js Express REST API (`apps/api/`)
+*   **Top-Level Explanation:** The backend server acts as the primary data orchestrator and user session controller. It manages user authentication (gated approval queue), serves dashboard metrics, maps historical chart queries, registers official fire reports, and exposes raw Prometheus metrics.
+*   **Key Technical Implementations:**
+    *   **Persistent Sessions:** Integrates `express-session` with `connect-pg-simple` to store active cookie sessions inside a PostgreSQL table, preventing session drops during pod restarts.
+    *   **Prometheus Instrumentation:** Uses `prom-client` to export garbage collection, CPU utilization, and HTTP request duration histograms (`http_request_duration_seconds`).
+    *   **Secure Routing Gate:** Implements trust proxy configurations and acts as an Nginx Auth-Proxy subrequest target for gating access to Grafana.
+*   **Direct Link to Guide:** 
+    *   👉 [**Express REST API Complete Guide 📖**](./apps/api/README.md)
+
+---
+
+### 🔵 2. Nginx Web Dashboard (`apps/dashboard/`)
+*   **Top-Level Explanation:** The web portal acts as the user interface, serving static HTML5, CSS3, and client-side JavaScript analytics dashboards.
+*   **Key Technical Implementations:**
+    *   **Reverse Proxy Gating:** Configured with Nginx `auth_request` to run session handshakes on the Express API `/auth/verify` endpoint before serving protected routes or assets.
+    *   **Embedded Analytics:** Proxies traffic to the Grafana endpoint (`/grafana`) while dynamically injecting authenticated user headers and roles to support secure embedded iframe dashboards.
+    *   **Performance Tuning:** Enforced with Gzip compression and custom static caching rules (30-day cache-control headers).
+*   **Direct Link to Guide:**
+    *   👉 [**Nginx Web Dashboard Complete Guide 📖**](./apps/dashboard/README.md)
+
+---
+
+### 🟡 3. Python pandas ETL Processor (`apps/etl-processor/`)
+*   **Top-Level Explanation:** A Python worker service running on a loop to bridge time-series storage and relational PostgreSQL layers.
+*   **Key Technical Implementations:**
+    *   **Data Wrangling & Downsampling:** Uses `pandas` to query raw telemetry from InfluxDB and aggregate normal status signals into 5-minute rollups to prevent PostgreSQL database bloat.
+    *   **30-Minute Anomaly Debouncing:** Implements debouncing logic that checks if an active incident exists for a household tag. If active, it updates the `last_seen_at` and upserts severity to the greatest value; if resolved, it closes the incident.
+    *   **Connection Resilience:** Uses a singleton PostgreSQL pool connection pattern with robust error rollback blocks to handle network disconnects.
+*   **Direct Link to Guide:**
+    *   👉 [**Python pandas ETL Complete Guide 📖**](./apps/etl-processor/README.md)
+
+---
+
+### 🟣 4. IoT Fleet Simulator (`apps/simulators/`)
+*   **Top-Level Explanation:** A lightweight Python MQTT publisher that emulates physical microcontrollers streaming real-world sensor data.
+*   **Key Technical Implementations:**
+    *   **MQTT Streaming:** Uses `paho-mqtt` to publish flat JSON telemetry packages containing household ID (`h_id`), coordinate maps (`lat`, `lon`), and alert values (`status`).
+    *   **Edge State Machine:** Emulates realistic environmental conditions by running a randomized state selector generating 85% normal, 12% warning, and 3% critical alert readings.
+*   **Direct Link to Guide:**
+    *   👉 [**IoT Fleet Simulator Complete Guide 📖**](./apps/simulators/README.md)
+
+---
+
+### 🟤 5. Multi-Layer Terraform IaC (`infrastructure/terraform/`)
+*   **Top-Level Explanation:** Infrastructure-as-code orchestration mapping DigitalOcean resources across environments using an isolated sequential structure.
+*   **Key Technical Implementations:**
+    *   **Sequential Orchestration Layers:** 
+        *   `00-bootstrap`: Configures remote DO Spaces state buckets and locking.
+        *   `01-infra`: Provisions VPCs, managed DOKS clusters, and DNS delegation.
+        *   `02-platform`: Deploys cluster Helm charts (ArgoCD, Ingress-Nginx) and base secrets.
+        *   `03-argocd`: Orchestrates Github App secrets sync and registers the root ArgoCD application.
+    *   **S3/Spaces Remote State Split:** Restructures state paths so `dev` and `prod` state keys remain isolated, eliminating concurrent modification risks.
+*   **Direct Link to Guide:**
+    *   👉 [**Terraform IaC Complete Guide 📖**](./infrastructure/terraform/README.md)
+
+---
+
+### 🔘 6. Kubernetes GitOps Manifests & Ingress (`infrastructure/k8s/`)
+*   **Top-Level Explanation:** Contains declarative manifests and configurations managed by Kustomize and reconciled by ArgoCD.
+*   **Key Technical Implementations:**
+    *   **Kustomize Overlays:** Base manifests represent shared components, while overlays for `dev` and `prod` inject unique namespaces, scale limits, and domain configs.
+    *   **PreSync Schema Hooks:** Launches Flyway migration Docker containers as a Kubernetes `Job` inside a PreSync hook, ensuring schemas are upgraded before updating app pods.
+    *   **Network Policies:** Standardizes Zero-Trust security rules, enforcing default-deny firewalls that restrict pod-to-pod network paths.
+*   **Direct Link to Guide:**
+    *   👉 [**Kubernetes Manifests & Ingress Complete Guide 📖**](./infrastructure/k8s/README.md)
 
 ---
 

@@ -1,440 +1,192 @@
-# Fire Monitoring Platform: DevOps & Engineering Laboratory
+# IoT-Based Fire Monitoring & Cloud-Native Analytics Platform
 
-**Status:** 🚀 *Active Engineering Laboratory (Work in Progress)*  
-This repository serves as a high-fidelity platform for exploring **Cloud-Native Infrastructure**, **GitOps**, and **Zero-Trust Security**. While the application layer is in active development, the core **Infrastructure as Code (IaC)** and **Automated Delivery Pipelines** are fully functional and production-hardened.
+[![Status](https://img.shields.io/badge/Status-🚀%20Active%20Engineering%20Laboratory-brightgreen.svg)](#)
+[![Infrastructure](https://img.shields.io/badge/IaC-Terraform%20%7C%20DigitalOcean-blue.svg)](#)
+[![Orchestration](https://img.shields.io/badge/Orchestration-Kubernetes%20(DOKS)%20%7C%20ArgoCD-red.svg)](#)
+[![Security](https://img.shields.io/badge/Security-Zero%20Trust%20%7C%20NetworkPolicies-orange.svg)](#)
 
-## 🏗️ Core Engineering Pillars (Fully Functional)
+A high-fidelity, production-hardened platform for exploring **Cloud-Native Infrastructure**, **GitOps**, and **Zero-Trust Security** through a real-world Internet of Things (IoT) telemetry and analytics system. 
 
--   **Multi-Layer IaC:** Modular Terraform architecture managing DigitalOcean resources, DNS, and K8s clusters with environment-isolated state.
--   **GitOps Reconciliation:** Automated cluster state management via **ArgoCD** and **Kustomize**, ensuring zero configuration drift.
--   **Automated CI/CD:** High-velocity pipelines using **GitHub Actions** that build, tag (via Git SHA), and auto-bump Kubernetes manifests via Pull Requests.
--   **Zero-Trust Networking:** "Default Deny" security posture implemented through granular Kubernetes **NetworkPolicies**.
--   **Full-Stack Observability:** Production-grade monitoring stack (Prometheus, Grafana, Loki, Alloy) for deep system visibility.
+---
 
-## 📂 Documentation & Deep-Dives
+## 🗺️ System Topology & Data Flow
 
-1.  **[DevOps & Platform Engineering Portfolio](./docs/portfolio/README.md)** (Architecture, Pipelines, and IaC Deep-Dive)
-2.  **[Architecture Decisions (ADRs)](./docs/ADR/README.md)** (The "Why" behind the technical choices)
-3.  **[Operational Guide](./docs/portfolio/OPERATIONS_GITOPS.md)** (How the GitOps flow works)
-4.  **[Setup & Credentials](./docs/portfolio/SETUP_GUIDE.md)** (Local execution and secret management)
+This monorepo powers a complete fire monitoring ecosystem. The data pipeline is built for resilience, low-latency, and high observability, routing telemetry from edge devices to time-series and relational databases:
 
-## 🛠️ Current Roadmap & Active Challenges
+```mermaid
+flowchart TD
+    subgraph Edge ["1. IoT Edge (Simulated / Physical)"]
+        MCU[ESP32 / MCU Simulator] -->|MQTT / JSON Payload| Broker[Mosquitto Broker:1883]
+    end
+    
+    subgraph Ingestion ["2. Time-Series Ingestion Stack"]
+        Broker -->|fire/sensors/# sub| Telegraf[Telegraf Agent]
+        Telegraf -->|json_v2 parse| Influx[InfluxDB:8086]
+    end
 
-The platform is designed as an evolving laboratory. Current active engineering tasks include:
--   **[In Progress]** Refining secure Auth-Proxy handshakes for embedded Grafana analytics.
--   **[In Progress]** Expanding cross-namespace NetworkPolicies for centralized monitoring.
--   **[Planned]** Transitioning to cloud-managed persistent storage for high-availability.
+    subgraph ETL ["3. Python ETL Processor"]
+        Influx -->|Poll raw telemetry| PyETL[Python pandas Worker]
+        PyETL -->|Debounce & Aggregate| Postgres[(PostgreSQL:5432)]
+    end
 
-## 🛰️ High-Level Tech Stack
--   **Orchestration:** Kubernetes (DOKS), ArgoCD, Kustomize
--   **IaC:** Terraform
--   **CI/CD:** GitHub Actions, GHCR
--   **Observability:** Grafana, Prometheus, Loki, Alloy
--   **Backend:** Node.js (API), Python (ETL), Nginx (Dashboard)
--   **Persistence:** PostgreSQL, InfluxDB, Mosquitto (MQTT)
+    subgraph Serving ["4. Serving & Security Proxy Layer"]
+        Postgres -->|Query metrics/incidents| API[Node.js / Express API]
+        Nginx[Nginx Ingress / Reverse Proxy] -->|Gate protected resources| Dashboard[Nginx Web UI]
+        Dashboard -->|REST requests| Nginx
+        Nginx -->|Proxy pass /auth/verify| API
+        Nginx -->|Proxy pass /grafana| Grafana[Grafana Analytics]
+    end
+```
 
-## Repository Guide (Codebase Structure + Tech Stack)
+### 🛰️ Telemetry Lifecycle
+1. **MQTT Edge Ingestion:** Simulated edge MCUs publish flat telemetry payloads containing coordinates (`lat`, `lon`), household ID (`h_id`), and alert state (`status` where `0=Normal`, `1=Warning`, `2=Critical`) to topic `fire/sensors/H_ID`.
+2. **Telegraf Collection:** The Telegraf consumer agent parses incoming MQTT JSON metrics and stores them as structured fields in InfluxDB (`node_telemetry` measurement).
+3. **Python ETL & Anomaly Debouncing:** The Python worker runs on a periodic batch loop. It cleans raw time-series data, aggregates normal signals into 5-minute rollups to prevent PostgreSQL bloat, and runs a **30-minute debouncing window** on anomalies, tracking ongoing alerts under the `historical_fire_incidents` registry.
+4. **REST API & Serving:** A Node.js Express server exposes secured endpoints for statistics, Manila-timezone standardized hourly charts, and user/admin controls.
+5. **Secure Reverse Proxy:** An Nginx gateway acts as a single ingress point, using the Express API as an auth-proxy delegate before serving protected pages or exposing Grafana.
 
-### 1) What this repository does
-This monorepo powers an IoT fire monitoring platform. Sensor readings flow through MQTT into time-series storage, are transformed by an ETL service, then exposed through an API and dashboard.
+---
 
-### 2) High-level data flow
-`MCU/Sensor -> MQTT (Mosquitto) -> Telegraf -> InfluxDB -> ETL Processor -> PostgreSQL -> API -> Dashboard`
+## 🧱 Core Engineering Pillars
 
-### 3) Core directories
-- `.github/workflows/`: CI/CD pipelines (build, deploy, terraform checks)
-- `apps/api/`: Node.js + Express backend (auth, sensor, analytics, metrics, sessions)
-- `apps/dashboard/public/`: static frontend pages (login/signup/protected dashboard)
-- `apps/etl-processor/`: Python ETL worker that syncs InfluxDB data into PostgreSQL
-- `apps/simulators/`: sensor data simulator that publishes mock MQTT payloads
-- `infrastructure/`: deployment/runtime configs (Nginx, MQTT, Telegraf, SQL, Terraform, Prometheus/Loki/Grafana/Alloy)
-- `build/compose/docker-compose.base.yml` + `build/compose/*.yml`: local/dev/prod-style service orchestration (root `docker-compose.yml` remains a compatibility shim)
+*   **Multi-Layer Infrastructure as Code (IaC):** Modular Terraform code managed in sequential stages (**Bootstrap → Infra → Platform → GitOps**) on DigitalOcean to isolate state and limit blast radius.
+*   **GitOps Continuous Delivery:** Fully declarative state reconciliation using **ArgoCD** and **Kustomize** to align the cluster state directly with version-controlled manifests.
+*   **Zero-Trust Networking:** Logical and network isolation using Kubernetes **NetworkPolicies**. Services operate under a "Default Deny" posture, explicitly allow-listing only validated network paths.
+*   **Secure Auth-Proxy Handshake:** The system uses Nginx `auth_request` sub-routing to delegate route authorization. Direct document navigation to Grafana is locked behind the API's authentication middleware.
+*   **Full-Stack Observability (LGMA):** Standardized logging and monitoring utilizing **Loki, Grafana, Prometheus, and Grafana Alloy**, featuring pre-provisioned system, database, applications, and network dashboards.
 
-### 4) Key technologies used
-- **Backend API:** Node.js, Express, `pg`, `express-session`, `prom-client`
-- **ETL/Data Processing:** Python, pandas, psycopg2, influxdb-client, loguru
-- **Messaging/Ingestion:** Mosquitto (MQTT), Telegraf
-- **Datastores:** InfluxDB (time-series), PostgreSQL (reporting/relational)
-- **Web/UI Delivery:** Nginx + static HTML/CSS/JS dashboard
-- **Observability:** Prometheus, Loki, Grafana, Grafana Alloy, cAdvisor, node-exporter
-- **Infrastructure/Automation:** Docker Compose, Flyway, Terraform, GitHub Actions
+---
 
-### 5) How code is organized
-- **API app entrypoint:** `apps/api/src/server.js`
-  - wires middleware, sessions, auth-gated routes, metrics endpoint (`/metrics`), and Grafana proxy (`/grafana`)
-- **API routes:** `apps/api/src/routes/`
-  - `auth.js`, `api.js`, `analytics.js`, `messages.js`, `finalSensors.js`
-- **ETL entrypoint:** `apps/etl-processor/src/main.py`
-  - fetches from Influx, transforms records, writes to `final_sensor_events`, `sensor_data_aggregated`, and `system_metrics`
-- **MQTT simulator:** `apps/simulators/mcu_sim.py`
-  - publishes mock fire sensor payloads for local testing
-- **Infra config:** `infrastructure/**`
-  - service configs, SQL migrations, dashboards, monitoring, and IaC
-
-## Directory Overview
+## 📂 Repository Layout
 
 ```
 .
-├── .github/workflows        # CI/CD pipelines (build + deploy)
+├── .github/workflows/          # CI/CD pipelines (Builds, tag bumps, validation)
 ├── apps/
-│   ├── api/                 # Node.js / Express backend
-│   ├── dashboard/           # Static web UI served via Nginx
-│   ├── etl-processor/       # Python data mover (InfluxDB -> Postgres)
-│   └── simulators/          # MQTT sensor data simulator
-├── infrastructure/          # DevOps hub (configs + IaC)
-│   ├── terraform/           # Modular DigitalOcean-first IaC (providers, variables, DO resources, GitHub secret sync)
-│   ├── nginx/conf.d/        # Reverse proxy config
-│   ├── mqtt/                # Mosquitto config/data/log directories
-│   ├── telegraf/            # Agent configuration
-│   └── sql/                 # Database migrations and seed scripts
-├── iot-firmware/            # ESP32 / Arduino sketches (placeholder)
-├── docker-compose.yml       # Compatibility shim -> build/compose/docker-compose.base.yml
-├── build/compose/           # Canonical compose base + environment overlays
-├── .env / .env.example      # Centralized environment variables
-└── .dockerignore / .gitignore
+│   ├── api/                    # Node.js / Express API (Scraped via prom-client)
+│   ├── dashboard/              # HTML/CSS/JS frontend dashboard served via Nginx
+│   ├── etl-processor/          # Python data processing worker (pandas + psycopg2)
+│   └── simulators/             # Python MQTT IoT device simulator
+├── infrastructure/
+│   ├── k8s/                    # GitOps manifests & configurations
+│   │   ├── base/               # Shared resources (db, influx, mqtt, api, observability)
+│   │   │   └── sql/            # Flyway database schema migration scripts
+│   │   └── overlays/           # Env overrides (dev, prod, local)
+│   ├── nginx/                  # Local Nginx configuration templates
+│   ├── telegraf/               # Telegraf parsing definitions
+│   └── terraform/              # Multi-layer IaC root
+│       ├── modules/            # Reusable modules (cluster, dns, argocd, secrets)
+│       └── environments/       # Environment roots (dev, prod)
+├── docker-compose.yml          # Root compose mapping to canonical configs
+└── build/compose/              # Local docker-compose environments (dev, prod, base)
 ```
-
-## Getting Started
-
-1. **Copy the environment template**
-   ```bash
-   cp .env.example .env
-   ```
-   Set secure values for database, JWT, and Influx tokens before running anything. Ensure `INFLUXDB_URL` points to `http://influxdb:8086` for local Docker networking (or your managed Influx endpoint in prod).
-
-2. **Choose a compose stack**
-   ```bash
-   # Development: reopens internal ports for easy access
-  docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
-
-   # Production-like: only Nginx is exposed; all other services stay on the bridge network
-  docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml up -d
-   ```
-   - Base/prod: exposes only Nginx on 80/443; everything else remains internal.
-  - Dev override: adds Postgres 5432, InfluxDB 8086, Grafana 3000, API 8000, MQTT 1883/9001, plus Nginx 80/443. Hot-reloads API by mounting `./apps/api` into the container.
-
-3. **Network sanity checks**
-   ```bash
-   docker compose ps
-   docker compose exec api getent hosts postgres influxdb mqtt-broker
-   docker compose exec api curl -f http://postgres:5432 || true
-   # If running dev overrides: curl -f http://localhost:8000/health
-   curl -f http://localhost/health
-   ```
-   Verifies container DNS inside the bridge network and host reachability via Nginx (and API directly when using the dev override).
-
-4. **CI/CD**
-   - `.github/workflows/terraform-infra.yml` is the only infrastructure workflow (PR validate + manual plan/apply/destroy-recreate).
-   - `.github/workflows/app-ci-build.yml` builds images and publishes to GHCR.
-   - `.github/workflows/app-cd-deploy.yml` is a manual Argo CD sync for dev/prod.
-
-## Runbook (What You Need + How To Run)
-
-### Prerequisites
-
-- Docker Engine + Docker Compose plugin **or** Podman + Podman Compose
-- Terraform >= 1.5
-- GitHub repository admin access (for Actions secrets and workflow runs)
-- DigitalOcean account + API token + SSH key registered in DO
-
-### Required configuration
-
-1. Local app runtime (`.env`):
-   - Copy `.env.example` to `.env`
-   - Fill DB, JWT, and Influx values before starting containers
-
-2. Terraform secrets (used by `.github/workflows/terraform-infra.yml`):
-   - `TF_VAR_do_token`
-   - `TF_VAR_github_owner`
-   - `TF_VAR_github_repo`
-  - `TF_VAR_github_app_id`
-  - `TF_VAR_github_app_installation_id`
-  - `TF_VAR_github_app_private_key`
-   - `TF_VAR_argocd_server`
-   - `TF_VAR_argocd_auth_token`
-   - `TF_VAR_ssh_key_ids` (must be HCL list string like `["fingerprint-or-id"]`)
-   - `TF_VAR_do_ssh_host_fingerprint`
-   - `TF_STATE_BUCKET`
-   - `TF_STATE_REGION`
-   - `TF_STATE_ENDPOINT`
-   - `TF_STATE_ACCESS_KEY`
-   - `TF_STATE_SECRET_KEY`
-   - Optional key prefix override: `TF_STATE_KEY_PREFIX`
-
-3. Deploy workflow secrets (used by `.github/workflows/app-cd-deploy.yml`):
-   - Set these in GitHub Environment secrets (not repository-level only):
-     - `development` for `deploy-dev`
-     - `production` for `deploy-prod`
-   - `ARGOCD_SERVER`
-   - `ARGOCD_AUTH_TOKEN`
-
-### Run locally
-
-Fedora-native (recommended):
-
-```bash
-cp .env.example .env
-podman compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
-podman compose ps
-```
-
-Development stack:
-
-```bash
-cp .env.example .env
-docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
-docker compose ps
-```
-
-Production-like local stack:
-
-```bash
-cp .env.example .env
-docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml up -d
-docker compose ps
-```
-
-Stop and clean local stack:
-
-```bash
-docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml down
-docker compose -f docker-compose.yml -f build/compose/docker-compose.prod.yml down
-```
-
-If you are on Fedora with SELinux enforcing and Docker daemon is not active, use Podman directly:
-
-```bash
-systemctl --user enable --now podman.socket
-podman compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
-```
-
-### Run Terraform (environment roots)
-
-Validate `dev` without backend:
-
-```bash
-cd infrastructure/terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars
-terraform init -backend=false -input=false
-terraform validate
-terraform plan -input=false
-```
-
-Validate `prod` without backend:
-
-```bash
-cd infrastructure/terraform/environments/prod
-cp terraform.tfvars.example terraform.tfvars
-terraform init -backend=false -input=false
-terraform validate
-terraform plan -input=false
-```
-
-Remote backend mode (per environment):
-
-```bash
-cd infrastructure/terraform/environments/dev
-terraform init -reconfigure -backend-config=backend.conf -backend-config="key=environments/dev/terraform.tfstate"
-terraform plan -input=false
-```
-
-Root shortcuts (recommended):
-
-```bash
-make tf-init-dev
-make tf-init-prod
-```
-
-State migration details are in `infrastructure/terraform/MIGRATION.md`.
-
-### Workflow usage
-
-- `terraform-infra.yml`
-  - PR to `main`: fmt + validate on Terraform changes
-  - Manual run: choose `environment` (`dev`/`prod`) and mode (`plan-only`/`apply`/`destroy-recreate`)
-- `app-ci-build.yml`
-  - PR to `main`: build/validate only
-  - Push to `main` or tag `v*`: build and push GHCR images
-- `app-cd-deploy.yml`
-  - Manual run: trigger Argo CD sync for `dev`/`prod`
-
-## Terraform clean slate
-
-Terraform now runs only from environment roots:
-
-- `infrastructure/terraform/environments/dev`
-- `infrastructure/terraform/environments/prod`
-
-Quick local check:
-
-```bash
-cd infrastructure/terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars
-terraform init -backend=false -input=false
-terraform validate
-terraform plan -input=false
-```
-
-Use the runbooks for backend/state work:
-
-- `infrastructure/terraform/README.md`
-- `infrastructure/terraform/MIGRATION.md`
-
-## Current CI/CD + Observability Flow (2026)
-
-### Required secrets by phase
-
-- **Bootstrap-required (hard fail if missing):**
-  - `TF_VAR_do_token`
-  - `TF_VAR_github_owner`
-  - `TF_VAR_github_repo`
-  - `TF_VAR_github_app_id`
-  - `TF_VAR_github_app_installation_id`
-  - `TF_VAR_github_app_private_key`
-  - `TF_VAR_ssh_key_ids`
-  - `TF_VAR_do_ssh_host_fingerprint`
-  - `TF_STATE_BUCKET`
-  - `TF_STATE_REGION`
-  - `TF_STATE_ENDPOINT`
-  - `TF_STATE_ACCESS_KEY`
-  - `TF_STATE_SECRET_KEY`
-- **Post-provision/generated (warning-only if missing during clean-slate bootstrap):**
-  - `DO_SSH_HOST`
-  - `DO_SSH_PORT`
-  - `DO_SSH_USER`
-  - `TF_VAR_argocd_server`
-  - `TF_VAR_argocd_auth_token`
-
-### State key convention
-
-- Environment-only state split is used.
-- State key format:
-  - `${TF_STATE_KEY_PREFIX:-environments}/{environment}/terraform.tfstate`
-
-### Service dependency map (single-host runtime)
-
-- **API**: requires PostgreSQL and internal bridge connectivity.
-- **Dashboard**: requires API routes and Grafana proxy path `/grafana`.
-- **ETL-Processor**: requires InfluxDB and PostgreSQL reachability.
-- **MQTT pipeline**: MQTT broker ingress + Telegraf -> InfluxDB chain.
-- **Terraform intent alignment**: current droplet/firewall model keeps service-to-service traffic internal on Docker network while exposing ingress through Nginx.
-
-### Restart simulation outcomes
-
-- **blank-project:** new workspace or empty state should show full-create plan.
-- **existing-state:** converged infra should plan to no-op/minimal delta.
-- **recovery:** partial drift should produce targeted reconciliation plan.
-
-### Observability stack in Compose
-
-- **Prometheus** scrapes service and host/container metrics.
-- **Loki** stores centralized logs.
-- **Grafana Alloy** collects Docker logs and forwards them to Loki.
-- **Grafana** provides dashboards with provisioned datasources/dashboards from `infrastructure/k8s/base/grafana/**`.
-- The stack is wired in `docker-compose.yml` with configs under `infrastructure/k8s/base/prometheus/`, `infrastructure/k8s/base/loki/`, and `infrastructure/k8s/base/alloy/`.
-
-## Next Steps
-
-- Wire the ETL container into Telegraf/MQTT once real sensor feeds are available.
-- Extend Terraform with firewalls, managed databases, and monitoring as infrastructure requirements solidify.
-- Add automated test coverage under `apps/api/tests` and a frontend build pipeline when the dashboard grows.
-- [Practice safe secrets management]
-- another practice
-
-## Grafana dashboards (versioned)
-- Dashboards are provisioned from `infrastructure/k8s/base/grafana/dashboards` via `infrastructure/k8s/base/grafana/provisioning/dashboards/fire-dashboards.yaml`. Any JSON you commit there is auto-loaded on container start.
-- Export updates from a running Grafana with an API token:
-  ```bash
-  GRAFANA_URL=http://localhost:3000 \
-  GRAFANA_TOKEN=<admin-or-editor-token> \
-  ./infrastructure/k8s/base/grafana/export_dashboards.sh <dashboard_uid>
-  ```
-  Commit the resulting `infrastructure/k8s/base/grafana/dashboards/<uid>.json` so prod/dev stay in sync.
-- The web app proxies Grafana at `/grafana`; in dev you can disable auth by setting `GRAFANA_PROXY_PROTECT=false` (now the default in `docker-compose.yml`). In prod, set it to `true` and require a logged-in session before embedding.
-
-## GHCR clean slate
-
-If you want to purge existing container versions and Actions caches before rebuilding the pipeline:
-
-```bash
-chmod +x infrastructure/scripts/ghcr-clean-slate.sh
-infrastructure/scripts/ghcr-clean-slate.sh <github_owner> FireMonitoringSystem
-```
-
-The script deletes package versions for `api`, `etl-processor`, and `dashboard`, then clears GitHub Actions caches for the repository.
-
-## Terraform migration quick links
-
-- Layout and local usage: `infrastructure/terraform/README.md`
-- Safe state address migration: `infrastructure/terraform/MIGRATION.md`
-
-## GitOps Deployment (Argo CD)
-
-This repository uses **Argo CD** for GitOps-based automated deployments. Git is the single source of truth for infrastructure and applications.
-
-### How It Works
-
-1. **Code changes** → GitHub Actions builds and pushes images
-2. **Argo CD detects** new images and automatically syncs cluster state
-3. **Deployment is automatic** - no manual triggers needed
-
-### Key Documents
-
-- **[GITOPS_GUIDE.md](./GITOPS_GUIDE.md)** - Complete GitOps deployment guide for developers
-  - How deployments work
-  - Making configuration changes
-  - Checking deployment status
-  - Best practices
-
-- **[OPERATIONAL_RUNBOOK.md](./OPERATIONAL_RUNBOOK.md)** - Emergency procedures and troubleshooting
-  - Manual sync procedures
-  - Rollback strategies
-  - Troubleshooting sync failures
-  - Health checks and diagnostics
-
-### Quick Start
-
-```bash
-# Deploy automatically (no action needed)
-git commit -am "Your changes"
-git push origin main
-# → CI builds images → Argo CD deploys automatically (~5-10 min)
-
-# Check deployment status
-argocd app get fire-monitoring-dev
-kubectl get pods -n fire-monitoring-dev
-
-# Manually sync if needed (emergency)
-argocd app sync fire-monitoring-dev --server $ARGOCD_SERVER --auth-token $ARGOCD_AUTH_TOKEN
-```
-
-### Architecture
-
-```
-infrastructure/
-├── k8s/
-│   ├── base/                      # Shared Kubernetes resources
-│   │   ├── api/, dashboard/, ... # Service deployments
-│   │   ├── db/, influx/, mqtt/   # Data infrastructure
-│   │   ├── argocd/               # Argo CD specific configs
-│   │   └── kustomization.yaml    # Base configuration
-│   └── overlays/
-│       ├── dev/                  # Dev environment specifics
-│       └── prod/                 # Production environment specifics
-└── terraform/
-    └── environments/
-        ├── dev/main.tf           # Dev cluster + Argo setup
-        └── prod/main.tf          # Prod cluster + Argo setup
-```
-
-### CI/CD Optimization
-
-The CI/CD pipeline is optimized for cost efficiency:
-
-- **Code changes**: Full CI (compose validate + 3 image builds) → ~9-10 min
-- **Manifest changes**: Lightweight validation only → ~1-2 min
-- **Auto-sync**: Argo detects Git changes and deploys automatically
-
-**Expected monthly CI cost reduction: ~36%** (from cost optimization + auto-sync elimination)
 
 ---
+
+## 🛠️ Multi-Layer Terraform Pipeline (`infrastructure/terraform/`)
+
+Infrastructure provisioning is separated into four sequential, independent roots. This isolates cloud infrastructure deployment from cluster application configuration.
+
+| Layer | Path | Responsibility | Managed Resources |
+| :--- | :--- | :--- | :--- |
+| **00** | `environments/{env}/00-bootstrap` | Remote backend setup | DigitalOcean Spaces (S3 Bucket) for state storage. |
+| **01** | `environments/{env}/01-infra` | Cloud core infrastructure | DigitalOcean VPC, Kubernetes Cluster (DOKS), Domain delegation. |
+| **02** | `environments/{env}/02-platform` | Cluster core utilities | Namespaces, Ingress Controller, Cert Manager, ArgoCD Helm Chart. |
+| **03** | `environments/{env}/03-argocd` | GitOps entry point | Github App secret synchronization, ArgoCD Root Application deployment. |
+
+### Remote State Conventions
+States are stored in DO Spaces and locked:
+*   State Key Format: `environments/{env}/terraform.tfstate`
+*   Common variables and endpoints are specified inside `backend-common.conf`.
+
+---
+
+## 🔄 GitOps & CI/CD Pipelines
+
+The platform follows a **declarative, pull-based delivery pipeline** that prevents configuration drift and isolates secret access.
+
+```
+Code Change pushed (apps/) 
+   ├── 1. GHA triggers Matrix Build & linting
+   ├── 2. Compile image & push to GHCR (tagged with Git commit SHA)
+   ├── 3. GHA runs Kustomize bump & submits Pull Request with updated tags
+   └── 4. Dev merges PR → ArgoCD reconciles and updates the cluster (~1-2 min)
+```
+
+*   **Cost Optimization:** Pipelines use Dorny `paths-filter` to only trigger builds when relevant code changes are detected, reducing build times and CI execution cost by up to 36%.
+*   **Database Schema Safety:** Database migrations are run as an ArgoCD `PreSync` hook using **Flyway**. The migrations run and validate successfully before the application pods are updated.
+
+---
+
+## 🛡️ Zero-Trust Security Posture
+
+1.  **NetworkPolicies:** No pods in the system can talk to each other unless explicitly permit-listed. For instance, the database can only receive traffic on port 5432 from the API and ETL pods; the dashboard static UI is fully network-isolated from the datastore.
+2.  **Express Session Persistence:** Sessions are stored inside a dedicated PostgreSQL table ([V8__Add_Persistent_Sessions.sql](infrastructure/k8s/base/sql/V8__Add_Persistent_Sessions.sql)) using `connect-pg-simple`. Sessions survive API restarts and pods scales.
+3.  **Secure Ingress Auth-Proxy:** Nginx blocks direct path resolution. When a user requests access to protected charts or Grafana, Nginx sends a subrequest to `/auth/verify`. If the Express session is valid, the request is passed with injected metadata headers (`x-user`, `x-user-role`). If access is denied, Nginx rejects it at the edge.
+
+---
+
+## 📊 Observability (LGMA Stack)
+
+Our monitoring architecture is integrated into the Kustomize layouts under [infrastructure/k8s/base/](infrastructure/k8s/base/):
+*   **Prometheus:** Configured to scrape cluster container metrics (`cAdvisor`), Kubernetes host details (`node-exporter`), database metrics (`postgres-exporter`), and Express API request duration histograms (`prom-client`).
+*   **Loki:** Centralized logging backend receiving logs from every container namespace.
+*   **Grafana Alloy:** Collects cluster container logs and maps them dynamically to Loki labels.
+*   **Grafana Provisioning:** Dashboards are pre-provisioned via declarative YAML. Changing dashboard states is as simple as committing JSON files under `grafana/dashboards/`.
+
+---
+
+## 🚦 Local Quickstart
+
+### Prerequisites
+*   Docker & Docker Compose (or Podman / Podman Compose)
+*   Python 3.10+ (for edge simulator testing)
+
+### 1. Configure the Environment
+Copy the environment variables template and customize your credentials:
+```bash
+cp .env.example .env
+```
+Ensure `DATABASE_URL` matches your local Postgres credentials, and set an `INFLUXDB_TOKEN`.
+
+### 2. Launch the Development Stack
+The development stack exposes internal databases, APIs, and brokers for easy testing:
+```bash
+docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
+```
+Verify container statuses:
+```bash
+docker compose ps
+```
+
+### 3. Spin up the MCU Simulator
+Navigate to the simulator directory, configure your virtual environment, and run the simulator to stream mock telemetry into the pipeline:
+```bash
+cd apps/simulators
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python mcu_sim.py --host localhost --port 18830 --h-id REYES_P --interval 5.0
+```
+
+### 4. Check Health & Access Dashboard
+*   **Dashboard UI:** Access via [http://localhost](http://localhost) (routed through Nginx).
+*   **API Health:** Check [http://localhost:8000/health](http://localhost:8000/health) or via Nginx [http://localhost/health](http://localhost/health).
+*   **API Metrics:** Raw Prometheus scrapings are exposed at [http://localhost:8000/metrics](http://localhost:8000/metrics).
+*   **Grafana Analytics:** Access directly at [http://localhost:3000](http://localhost:3000) or embedded inside the dashboard (auth-gated in production-mode).
+
+### 5. Cleaning Up
+To stop all containers and remove networks:
+```bash
+docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml down
+```
+
+---
+
+## 📖 Operational Runbooks & Guides
+
+For detailed guides, please refer to the following documentation:
+1.  **[GitOps & K8s Architecture Guide](./docs/portfolio/02_KUBERNETES_GITOPS.md)**: Details Kustomize configurations and Argo CD setups.
+2.  **[CI/CD Workflow Operations](./docs/portfolio/03_CI_CD_PIPELINES.md)**: Explains path-based filters and manual trigger parameters.
+3.  **[Operational Runbook](./docs/portfolio/OPERATIONS_RUNBOOK.md)**: Emergency rollback instructions, database restoration, and troubleshooting sync failures.
+4.  **[Setup Guide & Remote State Migration](./docs/portfolio/SETUP_GUIDE.md)**: Instructions for setting up DigitalOcean CLI and bootstrapping Terraform.

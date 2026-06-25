@@ -614,6 +614,6 @@
   "timezone": "",
   "title": "MQTT Broker",
   "uid": "mqtt-broker",
-  "version": 5,
+  "version": 10,
   "weekStart": ""
 }

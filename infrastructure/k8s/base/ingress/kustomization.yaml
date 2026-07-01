@@ -4,5 +4,3 @@ kind: Kustomization
 resources:
   - ingress.yaml
   - argocd-service.yaml
-  - grafana-ops-ingress.yaml
-  - grafana-ops-secret.yaml

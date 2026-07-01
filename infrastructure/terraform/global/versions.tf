@@ -1,5 +1,5 @@
 terraform {
-  required_version = "~> 1.11.0" # Allows 1.11.0 up to 1.11.x patches, but not 1.12.0 or later
+  required_version = ">= 1.11.0" # Allows 1.11.0 and any newer version (e.g. 1.15.x)
 
   required_providers {
     digitalocean = {

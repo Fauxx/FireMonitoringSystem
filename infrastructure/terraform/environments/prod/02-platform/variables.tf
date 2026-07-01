@@ -18,10 +18,6 @@ variable "infra_state_key" {
   type = string
 }
 
-variable "argocd_server" {
-  type = string
-}
-
 variable "do_token" {
   type      = string
   sensitive = true

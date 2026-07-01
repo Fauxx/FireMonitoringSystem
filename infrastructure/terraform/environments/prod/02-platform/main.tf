@@ -104,3 +104,51 @@ resource "digitalocean_record" "argocd" {
   value  = data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].ip
   ttl    = 300
 }
+
+# -------------------------
+# Ingress Controller
+# -------------------------
+module "ingress_controller" {
+  source = "../../../modules/ingress-controller"
+}
+
+# -------------------------
+# Cert Manager
+# -------------------------
+resource "kubernetes_namespace" "cert_manager" {
+  metadata {
+    name = "cert-manager"
+  }
+}
+
+resource "helm_release" "cert_manager" {
+  name       = "cert-manager"
+  repository = "https://charts.jetstack.io"
+  chart      = "cert-manager"
+  namespace  = kubernetes_namespace.cert_manager.metadata[0].name
+  version    = "v1.13.0"
+
+  values = [yamlencode({
+    installCRDs = true
+  })]
+}
+
+# -------------------------
+# Production DNS Records
+# -------------------------
+resource "digitalocean_record" "root" {
+  domain = data.terraform_remote_state.infra.outputs.domain_name
+  type   = "A"
+  name   = "@"
+  value  = module.ingress_controller.load_balancer_ip
+  ttl    = 300
+}
+
+resource "digitalocean_record" "ops" {
+  domain = data.terraform_remote_state.infra.outputs.domain_name
+  type   = "A"
+  name   = "ops"
+  value  = module.ingress_controller.load_balancer_ip
+  ttl    = 300
+}
+

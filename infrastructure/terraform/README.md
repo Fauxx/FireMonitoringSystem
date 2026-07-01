@@ -1,51 +1,52 @@
-# Terraform Layout
+# Terraform & Multi-Layer IaC Setup
 
-This Terraform layout is environment-rooted and module-driven:
+This directory houses the Terraform modules and configuration roots used to provision cloud infrastructure and platform components on DigitalOcean.
 
-- `modules/networking`: firewall and ingress rules
-- `modules/compute`: droplet resources
-- `modules/storage`: placeholder for future storage resources
-- `modules/github-secrets`: GitHub Actions secret sync for deployment connection info
-- `environments/dev`: dev root module
-- `environments/prod`: prod root module
+---
 
-## State strategy
+## 🧱 Layer Orchestration
 
-This repository uses environment-only state splitting:
+Infrastructure is deployed sequentially to handle resource dependency chains (such as a VPC needing to exist before provisioning the cluster, or the cluster needing to exist before installing Helm charts).
 
-- `environments/dev/terraform.tfstate`
-- `environments/prod/terraform.tfstate`
-
-Backend config strategy:
-
-- Keep a shared, non-sensitive common backend config at `infrastructure/terraform/backend-common.conf` (example at `backend-common.conf.example`).
-- Keep environment-specific `backend.conf` files in each environment folder that provide the `key` for the state file (do NOT put access keys in these files).
-
-When initializing locally you can combine both files like:
-
-```bash
-cd infrastructure/terraform/environments/dev/02-platform
-terraform init -reconfigure \
-	-backend-config=../../../backend-common.conf \
-	-backend-config=backend.conf
+```
+dev/
+├── 00-bootstrap/     # Sets up remote state buckets (Spaces) & state locks
+├── 01-infra/         # Provisions VPC, domain records, and Managed Kubernetes (DOKS)
+├── 02-platform/      # Deploys Helm charts (ArgoCD, ingress-nginx) and shared secrets
+└── 03-argocd/        # Deploys the root ArgoCD App-of-Apps manifest & GitHub App credentials
 ```
 
-## Local init and plan
+### 📂 Directory Directory Index
 
+*   [**`modules/`**](./modules/): Houses reusable module logic:
+    *   `cluster/`: Provisions the DigitalOcean Kubernetes Service (DOKS) with optimized node pools.
+    *   `ingress-controller/`: Deploys ingress-nginx.
+    *   `cert-manager/`: Installs cert-manager for automatic HTTPS certificate issuance.
+    *   `argocd/`: Boots the ArgoCD Helm chart.
+    *   `dns/`: Configures DNS A records in DigitalOcean.
+    *   `github-secrets/`: Syncs cloud outputs back to GitHub Repository Secrets for Actions pipelines.
+*   [**`environments/`**](./environments/): Configurations for specific deployment targets:
+    *   `dev/`: Core development cluster setup.
+    *   `prod/`: Core production cluster setup.
+
+---
+
+## 💾 State Management Strategy
+
+This project uses an **environment-only state split** stored securely in DigitalOcean Spaces:
+*   State Key: `environments/{env}/terraform.tfstate`
+*   Shared configurations are defined at `infrastructure/terraform/backend-common.conf`.
+
+### Local Initialization Example:
+To run Terraform commands locally, combine the common backend parameters with the environment key files:
 ```bash
-cd infrastructure/terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars
-terraform init -reconfigure -backend-config=backend.conf -backend-config="key=environments/dev/terraform.tfstate"
-terraform validate
+cd infrastructure/terraform/environments/dev/01-infra
+terraform init -reconfigure \
+  -backend-config=../../../backend-common.conf \
+  -backend-config=backend.conf
+```
+Confirm the dry-run plan before deploying:
+```bash
 terraform plan -input=false
 ```
-
-## Migration notes
-
-To avoid accidental deletion while migrating existing state addresses, perform one environment at a time:
-
-1. Backup current remote state.
-2. Initialize target environment root.
-3. Use `terraform state mv` from old root addresses to module addresses.
-4. Run `terraform plan` and confirm zero/expected changes before apply.
-
+Applying resources requires proper environment variables (e.g. `TF_VAR_do_token`) injected locally or via CI secrets.

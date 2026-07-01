@@ -83,7 +83,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 12,
         "w": 24,
         "x": 0,
         "y": 0
@@ -123,10 +123,10 @@
         "uid": "loki-fire"
       },
       "gridPos": {
-        "h": 14,
+        "h": 22,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 12
       },
       "id": 2,
       "options": {
@@ -173,6 +173,6 @@
   "timezone": "",
   "title": "Loki Error Logs",
   "uid": "loki-error-logs",
-  "version": 10,
+  "version": 16,
   "weekStart": ""
 }

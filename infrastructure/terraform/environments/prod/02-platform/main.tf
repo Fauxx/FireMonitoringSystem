@@ -37,22 +37,22 @@ provider "helm" {
   }
 }
 
-provider "argocd" {
-  server_addr = var.argocd_server
-  auth_token  = data.terraform_remote_state.infra.outputs.argocd_manager_token
-  insecure    = true
-}
-
 provider "digitalocean" {
   token = var.do_token
 }
 
 # -------------------------
-# Namespace
+# Namespaces
 # -------------------------
 resource "kubernetes_namespace" "argocd" {
   metadata {
     name = "argocd"
+  }
+}
+
+resource "kubernetes_namespace" "fire_monitoring_prod" {
+  metadata {
+    name = "fire-monitoring-prod"
   }
 }
 

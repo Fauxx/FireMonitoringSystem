@@ -5,6 +5,7 @@ namespace: fire-monitoring-prod
 
 resources:
   - ../../base
+  - grafana-ops-ingress.yaml
 
 patchesStrategicMerge:
   - ingress-patch.yaml

@@ -109,7 +109,8 @@ resource "digitalocean_record" "argocd" {
 # Ingress Controller
 # -------------------------
 module "ingress_controller" {
-  source = "../../../modules/ingress-controller"
+  source            = "../../../modules/ingress-controller"
+  loadbalancer_name = "doks-prod-ingress-loadbalancer"
 }
 
 # -------------------------

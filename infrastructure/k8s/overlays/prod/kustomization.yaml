@@ -4,31 +4,30 @@ kind: Kustomization
 namespace: fire-monitoring-prod
 
 resources:
-  - ../../base
-  - grafana-ops-ingress.yaml
+- ../../base
+- grafana-ops-ingress.yaml
 
 patchesStrategicMerge:
-  - ingress-patch.yaml
-  - api-replicas-patch.yaml
-  - dashboard-replicas-patch.yaml
+- ingress-patch.yaml
+- api-replicas-patch.yaml
+- dashboard-replicas-patch.yaml
 
 # Removed patchesJson6902 targeting nginx-ingress-controller as it is managed via Helm outside Kustomize
 
 images:
-  - name: api
-    newName: ghcr.io/fauxx/firemonitoringsystem/api
-    newTag: sha-000000000000
-  - name: etl-processor
-    newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-    newTag: sha-000000000000
-  - name: dashboard
-    newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-    newTag: sha-000000000000
-  - name: db-migrations
-    newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-    newTag: sha-000000000000
+- name: api
+  newName: ghcr.io/fauxx/firemonitoringsystem/api
+  newTag: 02aa627
+- name: dashboard
+  newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
+  newTag: sha-000000000000
+- name: db-migrations
+  newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
+  newTag: sha-000000000000
+- name: etl-processor
+  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
+  newTag: sha-000000000000
 
 commonLabels:
-  environment: prod
   deployment-type: production
-
+  environment: prod

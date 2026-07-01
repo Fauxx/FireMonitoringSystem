@@ -36,7 +36,7 @@ resource "helm_release" "ingress_nginx" {
       }
       service = {
         annotations = {
-          "service.beta.kubernetes.io/do-loadbalancer-name"                  = "doks-ingress-loadbalancer"
+          "service.beta.kubernetes.io/do-loadbalancer-name"                  = var.loadbalancer_name
           "service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol" = "true"
         }
       }

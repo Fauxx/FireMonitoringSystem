@@ -3,6 +3,10 @@ kind: Kustomization
 
 namespace: fire-monitoring-dev
 
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+
 configMapGenerator:
 - behavior: replace
   envs:
@@ -11,6 +15,7 @@ configMapGenerator:
 
 resources:
 - ../../base
+- collaboration-rbac.yaml
 
 replicas:
 - count: 1

@@ -3,9 +3,20 @@ kind: Kustomization
 
 namespace: fire-monitoring-prod
 
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+
+configMapGenerator:
+- behavior: replace
+  envs:
+  - prod-public.env
+  name: fire-monitoring-config
+
 resources:
 - ../../base
 - grafana-ops-ingress.yaml
+- collaboration-rbac.yaml
 
 patchesStrategicMerge:
 - ingress-patch.yaml

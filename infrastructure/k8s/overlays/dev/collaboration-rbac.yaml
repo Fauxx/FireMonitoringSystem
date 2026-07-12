@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: List
+items:
+# --- Teammate Viewer (View-Only) ---
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: teammate-viewer
+    namespace: fire-monitoring-dev
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: teammate-viewer-binding
+    namespace: fire-monitoring-dev
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: view
+  subjects:
+  - kind: ServiceAccount
+    name: teammate-viewer
+    namespace: fire-monitoring-dev
+
+# --- Teammate Admin (Sudo/Edit) ---
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: teammate-admin
+    namespace: fire-monitoring-dev
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: teammate-admin-binding
+    namespace: fire-monitoring-dev
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: edit
+  subjects:
+  - kind: ServiceAccount
+    name: teammate-admin
+    namespace: fire-monitoring-dev

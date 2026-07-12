@@ -29,6 +29,9 @@ images:
 - name: etl-processor
   newName: localhost/etl-processor
   newTag: local
+- name: db-migrations
+  newName: localhost/db-migrations
+  newTag: local
 
 labels:
 - includeSelectors: true
@@ -61,6 +64,13 @@ patches:
     patch: |
       - op: remove
         path: /spec/template/spec/imagePullSecrets
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
+      kind: Job
+      name: flyway-migrate
+    patch: |
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never

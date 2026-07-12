@@ -161,6 +161,7 @@ python mcu_sim.py --host localhost --port 18830 --h-id REYES_P --interval 5.0
 ---
 
 ## 📖 Related Operational Runbooks
+*   [**End-to-End Deployment & Verification Guide 📖**](./docs/portfolio/DEPLOYMENT_GUIDE.md): Step-by-step pipeline lifecycle from local sandbox (Docker/Kind) to production cloud (DigitalOcean/ArgoCD) with credit-saving strategies.
 *   [**GitOps Operations Runbook 📖**](./docs/portfolio/OPERATIONS_GITOPS.md): ArgoCD sync parameters, manual bumps, and deployment pipelines.
 *   [**Emergency Runbook & Diagnostics 📖**](./docs/portfolio/OPERATIONS_RUNBOOK.md): DB restore commands, rollback plans, and sync troubleshooting.
 *   [**DigitalOcean Cloud Setup Guide 📖**](./docs/portfolio/SETUP_GUIDE.md): Infrastructure boot parameters and remote TF backend setup.

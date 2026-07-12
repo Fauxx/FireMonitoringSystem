@@ -3,10 +3,6 @@ kind: Kustomization
 
 namespace: fire-monitoring-prod
 
-generatorOptions:
-  annotations:
-    argocd.argoproj.io/hook: PreSync
-
 configMapGenerator:
 - behavior: replace
   envs:

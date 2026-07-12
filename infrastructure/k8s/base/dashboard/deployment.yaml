@@ -4,6 +4,8 @@ metadata:
   name: dashboard
   labels:
     app: dashboard
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
 spec:
   replicas: 1
   strategy:

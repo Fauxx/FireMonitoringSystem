@@ -20,19 +20,23 @@ data "terraform_remote_state" "infra" {
   }
 }
 
+data "digitalocean_kubernetes_cluster" "live" {
+  name = data.terraform_remote_state.infra.outputs.cluster_name
+}
+
 # -------------------------
 # Providers
 # -------------------------
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-  token                  = data.terraform_remote_state.infra.outputs.cluster_token
+  token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
 }
 
 provider "helm" {
   kubernetes {
     host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
-    token                  = data.terraform_remote_state.infra.outputs.cluster_token
+    token                  = data.digitalocean_kubernetes_cluster.live.kube_config[0].token
     cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
   }
 }
@@ -152,4 +156,26 @@ resource "digitalocean_record" "ops" {
   value  = module.ingress_controller.load_balancer_ip
   ttl    = 300
 }
+
+# -------------------------
+# Shared Application Secrets
+# -------------------------
+resource "kubernetes_secret_v1" "fire_monitoring_secrets" {
+  metadata {
+    name      = "fire-monitoring-secrets"
+    namespace = kubernetes_namespace.fire_monitoring_prod.metadata[0].name
+  }
+
+  data = {
+    "github-app-private-key.pem" = var.github_app_private_key
+    "github-app-id"              = var.github_app_id
+    "github-app-installation-id" = var.github_app_installation_id
+
+    "POSTGRES_PASSWORD"          = "prodsecuredbpass123"
+    "DATABASE_URL"               = "postgresql://postgres:prodsecuredbpass123@db:5432/fire_monitoring"
+  }
+
+  type = "Opaque"
+}
+
 

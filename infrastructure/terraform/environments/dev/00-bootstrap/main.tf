@@ -23,9 +23,10 @@ provider "github" {
 
 # Mount or maintain your central state storage bucket
 resource "digitalocean_spaces_bucket" "terraform_state" {
-  name   = var.state_bucket_name
-  region = var.state_bucket_region
-  acl    = "private"
+  name          = var.state_bucket_name
+  region        = var.state_bucket_region
+  acl           = "private"
+  force_destroy = true
 }
 
 # Core secret injection module to populate your GitHub Dev Environment

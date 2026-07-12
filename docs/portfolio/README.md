@@ -51,6 +51,10 @@ To explore specific technical domains, please refer to the following guides:
     *   Microservices overview (API, ETL, Dashboard).
     *   Data persistence (PostgreSQL + InfluxDB).
     *   IoT Integration (MQTT/Mosquitto).
+5.  **[05: End-to-End Deployment & Verification](./DEPLOYMENT_GUIDE.md)**
+    *   Step-by-step local validation (Docker Compose & Kind).
+    *   DigitalOcean cloud setup and Terraform layer apply.
+    *   GitOps promotion and credit-saving cost control strategies.
 
 ## 🚀 Project Status & Active Roadmap
 

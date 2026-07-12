@@ -6,8 +6,6 @@ metadata:
     # Security and rate limiting for production
     nginx.ingress.kubernetes.io/limit-rps: "50"
     nginx.ingress.kubernetes.io/limit-connections: "10"
-    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
-    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     # WebSocket Timeouts
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"

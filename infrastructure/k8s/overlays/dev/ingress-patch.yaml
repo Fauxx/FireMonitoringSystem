@@ -7,9 +7,15 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     # Development annotations - no rate limiting needed
     nginx.ingress.kubernetes.io/limit-rps: "100"
-    # --- NEW: WebSocket Timeouts ---
+    # WebSocket Timeouts
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Cloudflare handles TLS termination at the edge - disable nginx SSL redirect
+    # to prevent self-signed cert errors (MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT / HSTS)
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # Trust Cloudflare's X-Forwarded-Proto header so apps know the request came in as HTTPS
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
 spec:
   rules:
     - host: argocd.local

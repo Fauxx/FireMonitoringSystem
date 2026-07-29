@@ -1,0 +1,262 @@
+name: "Azure Infrastructure Pipeline Orchestrator"
+
+# ==============================================================================
+# ORCHESTRATOR — Azure AKS Terraform Deploy
+#
+# Architecture mirrors terraform-deploy.yml (DOKS orchestrator) exactly:
+#   This file decides WHAT runs (which layer, which env, which mode).
+#   azure-terraform-reusable.yml decides HOW it runs (init/plan/apply pattern).
+#
+# Trigger: Manual only (workflow_dispatch)
+# Environments: aks-dev, aks-prod
+# Layers: 00-bootstrap → 01-infra → 02-platform → 03-argocd (sequential)
+# Modes:
+#   plan-only → validate matrix runs (all layers concurrently), no apply
+#   apply     → sequential 4-layer deployment chain
+#
+# State Backend: Azure Blob Storage (azurerm — native, no S3 compatibility hacks)
+# State Locking: Azure Blob lease (hardware-enforced, not just CI concurrency)
+# Auth: ARM_* Service Principal (AZURE_CLIENT_ID/SECRET/TENANT/SUBSCRIPTION_ID)
+# ==============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - aks-dev
+          - aks-prod
+        default: aks-dev
+      layer:
+        description: "Target layer (single layer or all)"
+        required: true
+        type: choice
+        options:
+          - 00-bootstrap
+          - 01-infra
+          - 02-platform
+          - 03-argocd
+          - all
+        default: all
+      execution_mode:
+        description: "Execution track"
+        required: true
+        type: choice
+        options:
+          - plan-only
+          - apply
+        default: plan-only
+
+concurrency:
+  group: azure-terraform-deploy-${{ github.ref }}-${{ inputs.environment }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write   # required for future OIDC upgrade (ARM_USE_OIDC=true)
+  actions: write
+
+# ==============================================================================
+# VALIDATE — Runs all 4 layers concurrently for fast drift detection
+# Triggered when: plan-only + layer=all
+# ==============================================================================
+
+jobs:
+  validate_aks_dev:
+    name: "Validate: aks-dev"
+    if: |
+      inputs.environment == 'aks-dev' &&
+      inputs.execution_mode == 'plan-only' &&
+      inputs.layer == 'all'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - directory: "infrastructure/terraform/environments/aks-dev/00-bootstrap"
+            layer_kind: "bootstrap"
+          - directory: "infrastructure/terraform/environments/aks-dev/01-infra"
+            layer_kind: "infra"
+          - directory: "infrastructure/terraform/environments/aks-dev/02-platform"
+            layer_kind: "platform"
+          - directory: "infrastructure/terraform/environments/aks-dev/03-argocd"
+            layer_kind: "gitops"
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  ${{ matrix.directory }}
+      layer_kind: ${{ matrix.layer_kind }}
+      env:        "aks-dev"
+      mode:       "validate"
+    secrets: inherit
+
+  validate_aks_prod:
+    name: "Validate: aks-prod"
+    if: |
+      inputs.environment == 'aks-prod' &&
+      inputs.execution_mode == 'plan-only' &&
+      inputs.layer == 'all'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - directory: "infrastructure/terraform/environments/aks-prod/00-bootstrap"
+            layer_kind: "bootstrap"
+          - directory: "infrastructure/terraform/environments/aks-prod/01-infra"
+            layer_kind: "infra"
+          - directory: "infrastructure/terraform/environments/aks-prod/02-platform"
+            layer_kind: "platform"
+          - directory: "infrastructure/terraform/environments/aks-prod/03-argocd"
+            layer_kind: "gitops"
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  ${{ matrix.directory }}
+      layer_kind: ${{ matrix.layer_kind }}
+      env:        "aks-prod"
+      mode:       "validate"
+    secrets: inherit
+
+  # ============================================================================
+  # AKS-DEV SEQUENTIAL DEPLOYMENT CHAIN
+  # Each layer gates on the previous one completing successfully.
+  # Layer can be skipped if inputs.layer targets a specific layer downstream.
+  # ============================================================================
+
+  deploy_aks_dev_bootstrap:
+    name: "Deploy aks-dev: Bootstrap Layer (00)"
+    if: |
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-dev' &&
+      (inputs.layer == '00-bootstrap' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-dev/00-bootstrap"
+      layer_kind: "bootstrap"
+      env:        "aks-dev"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_dev_infra:
+    name: "Deploy aks-dev: Infrastructure Layer (01)"
+    needs: deploy_aks_dev_bootstrap
+    if: |
+      always() &&
+      (needs.deploy_aks_dev_bootstrap.result == 'success' || needs.deploy_aks_dev_bootstrap.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-dev' &&
+      (inputs.layer == '01-infra' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-dev/01-infra"
+      layer_kind: "infra"
+      env:        "aks-dev"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_dev_platform:
+    name: "Deploy aks-dev: Platform Core Layer (02)"
+    needs: deploy_aks_dev_infra
+    if: |
+      always() &&
+      (needs.deploy_aks_dev_infra.result == 'success' || needs.deploy_aks_dev_infra.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-dev' &&
+      (inputs.layer == '02-platform' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-dev/02-platform"
+      layer_kind: "platform"
+      env:        "aks-dev"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_dev_argocd:
+    name: "Deploy aks-dev: GitOps ArgoCD Layer (03)"
+    needs: deploy_aks_dev_platform
+    if: |
+      always() &&
+      (needs.deploy_aks_dev_platform.result == 'success' || needs.deploy_aks_dev_platform.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-dev' &&
+      (inputs.layer == '03-argocd' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-dev/03-argocd"
+      layer_kind: "gitops"
+      env:        "aks-dev"
+      mode:       "deploy"
+    secrets: inherit
+
+  # ============================================================================
+  # AKS-PROD SEQUENTIAL DEPLOYMENT CHAIN
+  # Prod gates on aks-dev argocd layer completing first when deploying 'all'.
+  # ============================================================================
+
+  deploy_aks_prod_bootstrap:
+    name: "Deploy aks-prod: Bootstrap Layer (00)"
+    needs: deploy_aks_dev_argocd
+    if: |
+      always() &&
+      (needs.deploy_aks_dev_argocd.result == 'success' || needs.deploy_aks_dev_argocd.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-prod' &&
+      (inputs.layer == '00-bootstrap' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-prod/00-bootstrap"
+      layer_kind: "bootstrap"
+      env:        "aks-prod"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_prod_infra:
+    name: "Deploy aks-prod: Infrastructure Layer (01)"
+    needs: deploy_aks_prod_bootstrap
+    if: |
+      always() &&
+      (needs.deploy_aks_prod_bootstrap.result == 'success' || needs.deploy_aks_prod_bootstrap.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-prod' &&
+      (inputs.layer == '01-infra' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-prod/01-infra"
+      layer_kind: "infra"
+      env:        "aks-prod"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_prod_platform:
+    name: "Deploy aks-prod: Platform Core Layer (02)"
+    needs: deploy_aks_prod_infra
+    if: |
+      always() &&
+      (needs.deploy_aks_prod_infra.result == 'success' || needs.deploy_aks_prod_infra.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-prod' &&
+      (inputs.layer == '02-platform' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-prod/02-platform"
+      layer_kind: "platform"
+      env:        "aks-prod"
+      mode:       "deploy"
+    secrets: inherit
+
+  deploy_aks_prod_argocd:
+    name: "Deploy aks-prod: GitOps ArgoCD Layer (03)"
+    needs: deploy_aks_prod_platform
+    if: |
+      always() &&
+      (needs.deploy_aks_prod_platform.result == 'success' || needs.deploy_aks_prod_platform.result == 'skipped') &&
+      inputs.execution_mode == 'apply' &&
+      inputs.environment == 'aks-prod' &&
+      (inputs.layer == '03-argocd' || inputs.layer == 'all')
+    uses: ./.github/workflows/azure-terraform-reusable.yml
+    with:
+      directory:  "infrastructure/terraform/environments/aks-prod/03-argocd"
+      layer_kind: "gitops"
+      env:        "aks-prod"
+      mode:       "deploy"
+    secrets: inherit

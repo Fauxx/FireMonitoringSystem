@@ -1,0 +1,22 @@
+# ==============================================================================
+# 03-ARGOCD TERRAFORM VARIABLES EXAMPLE
+# ==============================================================================
+# Rename this file to terraform.tfvars and populate with real values
+
+azure_subscription_id      = "00000000-0000-0000-0000-000000000000"
+azure_tenant_id            = "00000000-0000-0000-0000-000000000000"
+azure_client_id            = "00000000-0000-0000-0000-000000000000"
+azure_client_secret        = "your-client-secret-here"
+
+tfstate_resource_group     = "fire-monitoring-tfstate-rg"
+tfstate_storage_account    = "firemonitfstate"
+tfstate_container          = "tfstate"
+infra_state_key            = "aks-dev/01-infra/terraform.tfstate"
+
+gitops_repo_url            = "https://github.com/your-org/FireMonitoringSystem.git"
+gitops_repo_branch         = "main"
+gitops_repo_apps_path      = "infrastructure/k8s/overlays/dev"
+
+github_app_id              = "123456"
+github_app_installation_id = "7890123"
+github_app_private_key     = "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"

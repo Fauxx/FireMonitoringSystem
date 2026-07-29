@@ -1,0 +1,17 @@
+# =============================================================================
+# AZURE DEV — Infra Layer
+# =============================================================================
+
+azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
+azure_client_id       = "00000000-0000-0000-0000-000000000000"
+azure_client_secret   = "dummy-secret-value"
+azure_location        = "southeastasia"
+
+resource_group_name    = "fire-monitoring-aks-dev-rg"
+cluster_name           = "aks-fire-monitoring-dev"
+node_vm_size           = "Standard_B2s"
+node_count             = 2
+vnet_address_space     = "10.10.0.0/16"
+subnet_address_prefix  = "10.10.1.0/24"
+kubernetes_version     = "1.31"

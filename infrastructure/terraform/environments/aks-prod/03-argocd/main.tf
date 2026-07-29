@@ -15,6 +15,7 @@ data "terraform_remote_state" "infra" {
     storage_account_name = var.tfstate_storage_account
     container_name       = var.tfstate_container
     key                  = var.infra_state_key
+    use_azuread_auth     = true
   }
 }
 
@@ -23,25 +24,23 @@ data "terraform_remote_state" "infra" {
 # ==============================================================================
 provider "azurerm" {
   features {}
+  use_oidc        = true
   subscription_id = var.azure_subscription_id
   tenant_id       = var.azure_tenant_id
   client_id       = var.azure_client_id
-  client_secret   = var.azure_client_secret
 }
 
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "kubelogin"
     args = [
-      "convert-kubeconfig",
-      "-l", "spn",
-      "--client-id", var.azure_client_id,
-      "--client-secret", var.azure_client_secret,
-      "--tenant-id", var.azure_tenant_id
+      "get-token",
+      "--login", "azurecli",
+      "--server-id", "6dae42f8-4368-4678-94ff-3960e28e3630"
     ]
   }
 }

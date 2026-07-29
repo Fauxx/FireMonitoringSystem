@@ -1,78 +1,63 @@
 variable "github_repository" {
   type        = string
-  description = "The target GitHub repository name where the environments are configured."
+  description = "The target GitHub repository name (without owner prefix)."
 }
 
 variable "github_environment" {
   type        = string
-  description = "The target environment context slot (e.g., aks-dev, aks-prod) within GitHub."
+  description = "The GitHub Actions environment name (e.g., aks-dev, aks-prod)."
 }
+
+# --- Azure Identity (OIDC — GUIDs only, not secrets) ---
+
+variable "azure_client_id" {
+  description = "The Client ID of the GitHub Actions Entra ID App Registration. Used as a non-secret environment variable."
+  type        = string
+}
+
+variable "azure_tenant_id" {
+  description = "The Microsoft Entra ID Tenant ID. Used as a non-secret environment variable."
+  type        = string
+}
+
+variable "azure_subscription_id" {
+  description = "The Azure Subscription ID. Used as a non-secret environment variable."
+  type        = string
+}
+
+variable "tf_state_storage_account" {
+  description = "The name of the Azure Storage Account holding Terraform remote state."
+  type        = string
+  default     = "stfiremonitortfstate"
+}
+
+variable "tf_state_resource_group" {
+  description = "The name of the Resource Group holding the Terraform state storage account."
+  type        = string
+  default     = "rg-firemonitoring-tfstate-01"
+}
+
+variable "gitops_repo_url" {
+  type        = string
+  description = "The HTTPS URL of the GitOps repository (used by ArgoCD)."
+}
+
+# --- GitHub App (Encrypted Secrets) ---
 
 variable "github_app_id" {
   type        = string
   sensitive   = true
-  description = "The unique numerical identification string of your custom GitHub App."
+  description = "The numeric ID of the GitHub App used for CI token generation and ArgoCD access."
 }
 
 variable "github_app_installation_id" {
   type        = string
   sensitive   = true
-  description = "The application installation mapping ID pointing to your target repository space."
+  description = "The installation ID of the GitHub App scoped to the target repository."
 }
 
 variable "github_app_private_key" {
-  description = "The raw GitHub App private key (PEM format)."
+  description = "The PEM-format private key for the GitHub App."
   type        = string
   sensitive   = true
-}
-
-variable "github_app_state_secret_key" {
-  description = "Azure Storage Account secondary access key for Terraform state authentication."
-  type        = string
-  sensitive   = true
-}
-
-variable "github_app_state_access_key" {
-  description = "Azure Storage Account primary access key for Terraform state authentication."
-  type        = string
-  sensitive   = true
-}
-
-variable "azure_client_secret" {
-  description = "The Azure Service Principal client secret injected into the CI environment."
-  type        = string
-  sensitive   = true
-}
-
-# --- Infrastructure Variables ---
-variable "root_domain" {
-  type = string
-}
-
-variable "cluster_name" {
-  type = string
-}
-
-variable "node_size" {
-  type = string
-}
-
-variable "node_count" {
-  type = string
-}
-
-# --- State Plumbing ---
-variable "remote_state_bucket" {
-  type        = string
-  description = "Azure Storage container name for remote Terraform state."
-}
-
-variable "infra_state_key" {
-  type        = string
-  description = "Blob key path to the infrastructure state artifact."
-}
-
-# --- GitOps ---
-variable "gitops_repo_url" {
-  type = string
 }

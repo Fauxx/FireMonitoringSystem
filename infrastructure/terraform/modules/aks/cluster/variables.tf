@@ -1,43 +1,73 @@
-# ==============================================================================
-# Variables for AKS Cluster Module
-# ==============================================================================
-
-variable "cluster_name" {
-  description = "The name of the AKS cluster."
+variable "resource_group_name" {
   type        = string
+  description = "Resource group name"
 }
 
 variable "location" {
-  description = "The Azure region where the AKS cluster will be deployed."
   type        = string
+  description = "Azure region"
 }
 
-variable "resource_group_name" {
-  description = "The name of the Resource Group to hold the AKS cluster."
+variable "cluster_name" {
   type        = string
-}
-
-variable "node_count" {
-  description = "The number of nodes in the default node pool."
-  type        = number
-}
-
-variable "node_vm_size" {
-  description = "The VM size for the default node pool."
-  type        = string
+  description = "AKS cluster name"
+  default     = "aks-firemonitoring-dev-01"
 }
 
 variable "kubernetes_version" {
-  description = "The version of Kubernetes to use."
   type        = string
+  description = "Kubernetes version"
+  default     = "1.32"
 }
 
-variable "subnet_id" {
-  description = "The ID of the subnet where the AKS nodes will be attached."
+variable "node_vm_size" {
   type        = string
+  description = "VM size for the default node pool"
+  default     = "Standard_B2s"
 }
 
-variable "dns_prefix" {
-  description = "The DNS prefix to use with the AKS cluster."
+variable "min_node_count" {
+  type        = number
+  description = "Minimum node count for the default node pool"
+  default     = 1
+}
+
+variable "max_node_count" {
+  type        = number
+  description = "Maximum node count for the default node pool"
+  default     = 3
+}
+
+variable "aks_subnet_id" {
   type        = string
+  description = "Subnet ID where nodes are placed"
+}
+
+variable "service_cidr" {
+  type        = string
+  description = "Kubernetes service CIDR"
+  default     = "10.100.0.0/16"
+}
+
+variable "dns_service_ip" {
+  type        = string
+  description = "Kubernetes DNS service IP"
+  default     = "10.100.0.10"
+}
+
+variable "acr_id" {
+  type        = string
+  description = "ACR resource ID for AcrPull role assignment"
+}
+
+variable "tags" {
+  type        = map(string)
+  description = "Tags to apply to resources"
+  default     = {}
+}
+
+variable "admin_group_object_ids" {
+  type        = list(string)
+  description = "Entra group IDs for AKS RBAC admin access"
+  default     = []
 }

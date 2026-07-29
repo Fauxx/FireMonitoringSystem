@@ -1,19 +1,14 @@
-# ==============================================================================
-# 1. STATE & BACKEND PLUMBING
-# ==============================================================================
+# This layer uses data sources for the shared OIDC identity created in aks-dev/00-bootstrap. 
+# Run aks-dev bootstrap first.
+
 terraform {
   backend "azurerm" {}
 }
 
-# ------------------------------------------------------------------------------
-# 2. PROVIDERS
-# ------------------------------------------------------------------------------
-provider "azurerm" {
-  features {}
-  subscription_id = var.azure_subscription_id
-  tenant_id       = var.azure_tenant_id
-  client_id       = var.azure_client_id
-  client_secret   = var.azure_client_secret
+provider "azuread" {
+  client_id     = var.azure_client_id
+  client_secret = var.azure_client_secret
+  tenant_id     = var.azure_tenant_id
 }
 
 provider "github" {
@@ -21,51 +16,86 @@ provider "github" {
   owner = var.github_owner
 }
 
-# ------------------------------------------------------------------------------
-# 3. STORAGE & SECRET PROVISIONING ENGINE
-# ------------------------------------------------------------------------------
-resource "azurerm_resource_group" "tfstate" {
-  name     = var.resource_group_name
-  location = var.azure_location
+data "azuread_application" "github_actions" {
+  display_name = "sp-firemonitoring-github-actions"
 }
 
-resource "azurerm_storage_account" "terraform_state" {
-  name                              = var.storage_account_name
-  resource_group_name               = azurerm_resource_group.tfstate.name
-  location                          = azurerm_resource_group.tfstate.location
-  account_tier                      = "Standard"
-  account_replication_type          = "LRS"
-  allow_nested_items_to_be_public   = false
+data "azuread_service_principal" "github_actions" {
+  client_id = data.azuread_application.github_actions.client_id
 }
 
-resource "azurerm_storage_container" "tfstate" {
-  name                  = var.storage_container_name
-  storage_account_name  = azurerm_storage_account.terraform_state.name
-  container_access_type = "private"
+resource "github_repository_environment" "aks_prod" {
+  repository  = var.github_repository
+  environment = "aks-prod"
 }
 
-module "github_secrets" {
-  source = "../../../modules/shared/github-secrets"
-
-  github_environment          = var.github_environment
-  github_repository           = var.github_repository
-  github_app_id               = var.github_app_id
-  github_app_installation_id  = var.github_app_installation_id
-  github_app_private_key      = var.github_app_private_key
-  github_app_state_access_key = var.github_app_state_access_key
-  github_app_state_secret_key = var.github_app_state_secret_key
-  do_token                    = var.azure_client_secret # Used as SP secret injection equivalent
-
-  root_domain         = "fires.systems" # Place holder domain to match DO injection pattern
-  cluster_name        = var.cluster_name
-  node_size           = var.node_vm_size
-  node_count          = var.node_count
-  remote_state_bucket = var.remote_state_container
-  infra_state_key     = var.infra_state_key
-  gitops_repo_url     = var.gitops_repo_url
+# Provide the necessary variables to the prod environment
+resource "github_actions_environment_variable" "azure_client_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.aks_prod.environment
+  variable_name = "AZURE_CLIENT_ID"
+  value         = data.azuread_application.github_actions.client_id
 }
 
-# ------------------------------------------------------------------------------
-# 4. EXPORTED BASELINE OUTPUTS
-# ------------------------------------------------------------------------------
-# Provided via outputs.tf
+resource "github_actions_environment_variable" "azure_tenant_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.aks_prod.environment
+  variable_name = "AZURE_TENANT_ID"
+  value         = var.azure_tenant_id
+}
+
+resource "github_actions_environment_variable" "azure_subscription_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.aks_prod.environment
+  variable_name = "AZURE_SUBSCRIPTION_ID"
+  value         = var.azure_subscription_id
+}
+
+resource "github_actions_environment_variable" "tf_state_resource_group" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.aks_prod.environment
+  variable_name = "TF_STATE_RESOURCE_GROUP"
+  value         = var.tfstate_resource_group
+}
+
+resource "github_actions_environment_variable" "tf_state_storage_account" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.aks_prod.environment
+  variable_name = "TF_STATE_STORAGE_ACCOUNT"
+  value         = var.tfstate_storage_account
+}
+
+resource "github_actions_environment_secret" "app_id" {
+  repository      = var.github_repository
+  environment     = github_repository_environment.aks_prod.environment
+  secret_name     = "APP_ID"
+  plaintext_value = var.github_app_id
+}
+
+resource "github_actions_environment_secret" "app_installation_id" {
+  repository      = var.github_repository
+  environment     = github_repository_environment.aks_prod.environment
+  secret_name     = "APP_INSTALLATION_ID"
+  plaintext_value = var.github_app_installation_id
+}
+
+resource "github_actions_environment_secret" "app_private_key" {
+  repository      = var.github_repository
+  environment     = github_repository_environment.aks_prod.environment
+  secret_name     = "APP_PRIVATE_KEY"
+  plaintext_value = var.github_app_private_key
+}
+
+resource "azuread_application_federated_identity_credential" "github_actions_prod" {
+  application_id = data.azuread_application.github_actions.id
+  display_name   = "github-actions-aks-prod"
+  description    = "Deploy from GitHub Actions for aks-prod environment"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_owner}/${var.github_repository}:environment:aks-prod"
+
+  # Prevent failure if already created in dev layer or elsewhere
+  lifecycle {
+    ignore_changes = all
+  }
+}

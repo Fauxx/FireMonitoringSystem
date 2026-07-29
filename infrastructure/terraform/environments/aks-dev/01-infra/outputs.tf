@@ -1,45 +1,53 @@
-# ==============================================================================
-# Outputs for Azure Dev 01-Infra
-# ==============================================================================
-
 output "resource_group_name" {
-  description = "The name of the resource group holding the AKS cluster."
-  value       = azurerm_resource_group.this.name
-}
-
-output "cluster_id" {
-  description = "The ID of the Kubernetes cluster."
-  value       = module.aks_cluster.cluster_id
+  value = azurerm_resource_group.main.name
 }
 
 output "cluster_name" {
-  description = "The human-readable name of the AKS cluster passed to Layer 2."
-  value       = module.aks_cluster.cluster_name
+  value = module.aks.cluster_name
 }
 
 output "cluster_endpoint" {
-  description = "The API endpoint (host) for the Kubernetes cluster."
-  value       = module.aks_cluster.cluster_endpoint
+  value     = module.aks.cluster_endpoint
+  sensitive = true
 }
 
 output "cluster_ca_certificate" {
-  description = "The base64 encoded CA certificate for the Kubernetes cluster."
-  value       = module.aks_cluster.cluster_ca_certificate
-  sensitive   = true
+  value     = module.aks.cluster_ca_certificate
+  sensitive = true
 }
 
-output "kubeconfig_raw" {
-  description = "The raw kubeconfig for the fire monitoring cluster."
-  value       = module.aks_cluster.kubeconfig_raw
-  sensitive   = true
+output "oidc_issuer_url" {
+  value = module.aks.oidc_issuer_url
+}
+
+output "kubelet_identity_object_id" {
+  value = module.aks.kubelet_identity_object_id
+}
+
+output "acr_login_server" {
+  value = azurerm_container_registry.main.login_server
+}
+
+output "acr_id" {
+  value = azurerm_container_registry.main.id
+}
+
+output "key_vault_id" {
+  value = azurerm_key_vault.main.id
+}
+
+output "key_vault_uri" {
+  value = azurerm_key_vault.main.vault_uri
+}
+
+output "key_vault_name" {
+  value = azurerm_key_vault.main.name
 }
 
 output "vnet_id" {
-  description = "The ID of the Virtual Network."
-  value       = azurerm_virtual_network.this.id
+  value = azurerm_virtual_network.main.id
 }
 
-output "subnet_id" {
-  description = "The ID of the Subnet used by AKS."
-  value       = azurerm_subnet.aks.id
+output "aks_subnet_id" {
+  value = azurerm_subnet.aks.id
 }

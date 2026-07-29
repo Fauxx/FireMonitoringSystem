@@ -20,25 +20,19 @@ variable "azure_client_id" {
   description = "The Azure Service Principal Client ID used for provider authentication."
 }
 
-variable "azure_client_secret" {
-  type        = string
-  sensitive   = true
-  description = "The Azure Service Principal Client Secret."
-}
-
 # ==============================================================================
 # 2. REMOTE STATE DISCOVERY (LAYER 1 INTERFACE)
 # ==============================================================================
 
 variable "tfstate_resource_group" {
   type        = string
-  default     = "fire-monitoring-tfstate-rg"
+  default     = "rg-firemonitoring-tfstate-01"
   description = "The Azure Resource Group holding the Blob state backend."
 }
 
 variable "tfstate_storage_account" {
   type        = string
-  default     = "firemonitfstate"
+  default     = "stfiremonitortfstate"
   description = "The Azure Storage Account holding the Terraform state."
 }
 
@@ -92,7 +86,6 @@ variable "github_app_installation_id" {
 }
 
 variable "github_app_private_key" {
-  type        = string
-  sensitive   = true
-  description = "The private PEM key content used locally by the cluster to request hourly tokens."
+  type      = string
+  sensitive = true
 }

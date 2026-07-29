@@ -12,7 +12,7 @@
 #
 # ⚠️  BOOTSTRAP CHICKEN-AND-EGG NOTE:
 #   This layer CREATES the OIDC identity — so it CANNOT use OIDC to run itself.
-#   It is designed to run ONCE with a temporary admin Service Principal:
+#   It is designed to run ONCE with a temporary admin Service Principal:'
 #
 #     az ad sp create-for-rbac \
 #       --name "sp-firemonitoring-bootstrap-temp" \
@@ -70,9 +70,9 @@ resource "azurerm_resource_group" "tfstate" {
   location = var.azure_location
 
   tags = {
-    workload    = "firemonitoring"
-    layer       = "bootstrap"
-    managed-by  = "terraform"
+    workload   = "firemonitoring"
+    layer      = "bootstrap"
+    managed-by = "terraform"
   }
 }
 

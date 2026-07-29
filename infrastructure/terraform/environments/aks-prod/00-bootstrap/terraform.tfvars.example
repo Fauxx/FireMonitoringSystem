@@ -1,34 +1,13 @@
-# =============================================================================
-# AZURE DEV — Bootstrap Layer
-# One-time manual pre-step (run ONCE before terraform init):
-#   az group create --name fire-monitoring-tfstate-rg --location southeastasia
-#   az storage account create --name firemonitfstate --resource-group fire-monitoring-tfstate-rg --sku Standard_LRS
-#   az storage container create --name tfstate --account-name firemonitfstate
-# =============================================================================
+# Run aks-dev/00-bootstrap first!
+azure_subscription_id = "..."
+azure_tenant_id       = "..."
+azure_client_id       = "..."
+azure_client_secret   = "..."
 
-azure_subscription_id = "00000000-0000-0000-0000-000000000000"
-azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
-azure_client_id       = "00000000-0000-0000-0000-000000000000"
-azure_client_secret   = "dummy-secret-value"
-azure_location        = "southeastasia"
+github_token          = "ghp_..."
+github_owner          = "MyOrg"
+github_repository     = "FireMonitoringSystem"
 
-resource_group_name    = "fire-monitoring-tfstate-rg"
-storage_account_name   = "firemonitfstate"
-storage_container_name = "tfstate"
-
-github_token                = "ghp_xxxxxxxxxxxxxxxxxxxxxx"
-github_owner                = "firemonitoring-org"
-github_repository           = "fire-monitoring"
-github_environment          = "aks-prod"
-github_app_id               = "123456"
-github_app_installation_id  = "7890123"
-github_app_private_key      = "-----BEGIN RSA PRIVATE KEY-----\n..."
-github_app_state_access_key = "firemonitfstate"
-github_app_state_secret_key = "storage-account-key-value"
-
-cluster_name           = "aks-fire-monitoring-prod"
-node_vm_size           = "Standard_B2s"
-node_count             = 2
-remote_state_container = "tfstate"
-infra_state_key        = "aks-prod/01-infra/terraform.tfstate"
-gitops_repo_url        = "https://github.com/firemonitoring-org/gitops.git"
+github_app_id              = "..."
+github_app_installation_id = "..."
+github_app_private_key     = "..."

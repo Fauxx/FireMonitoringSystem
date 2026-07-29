@@ -1,53 +1,46 @@
-terraform {
-  required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.35.0"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.15.0"
-    }
-  }
-}
-
-resource "kubernetes_namespace_v1" "ingress_nginx" {
-  metadata {
-    name = var.namespace
-  }
-}
-
 resource "helm_release" "ingress_nginx" {
-  name       = "ingress-nginx"
-  repository = "https://kubernetes.github.io/ingress-nginx"
-  chart      = "ingress-nginx"
-  namespace  = kubernetes_namespace_v1.ingress_nginx.metadata[0].name
-  version    = "4.10.1"
+  name             = "ingress-nginx"
+  repository       = "https://kubernetes.github.io/ingress-nginx"
+  chart            = "ingress-nginx"
+  version          = var.chart_version
+  namespace        = "ingress-nginx"
+  create_namespace = true
 
-  values = [yamlencode({
-    controller = {
-      publishService = {
-        enabled = true
-      }
-      config = {
-        "use-proxy-protocol"         = "true"
-        "compute-full-forwarded-for" = "true"
-        "use-forwarded-headers"      = "true"
-      }
-      service = {
-        annotations = {
-          "service.beta.kubernetes.io/do-loadbalancer-name"                  = var.loadbalancer_name
-          "service.beta.kubernetes.io/do-loadbalancer-enable-proxy-protocol" = "true"
-        }
-      }
-    }
-  })]
-}
-
-data "kubernetes_service_v1" "ingress_nginx_controller" {
-  metadata {
-    name      = "ingress-nginx-controller"
-    namespace = kubernetes_namespace_v1.ingress_nginx.metadata[0].name
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-load-balancer-health-probe-request-path"
+    value = "/healthz"
   }
-  depends_on = [helm_release.ingress_nginx]
+
+  set {
+    name  = "controller.service.externalTrafficPolicy"
+    value = "Local"
+  }
+
+  set {
+    name  = "controller.config.use-proxy-protocol"
+    value = "false"
+  }
+
+  set {
+    name  = "controller.config.use-forwarded-headers"
+    value = "true"
+  }
+
+  set {
+    name  = "controller.config.proxy-real-ip-cidr"
+    value = "0.0.0.0/0"
+  }
+
+  set {
+    name  = "controller.metrics.enabled"
+    value = "true"
+  }
+
+  dynamic "set" {
+    for_each = var.additional_set_values
+    content {
+      name  = set.value.name
+      value = set.value.value
+    }
+  }
 }

@@ -2,7 +2,13 @@
 # 1. STATE & BACKEND PLUMBING (Configured via CLI/Backend Files)
 # ==============================================================================
 terraform {
-  backend "azurerm" {}
+  backend "azurerm" {
+    resource_group_name  = "rg-firemonitoring-tfstate-01"
+    storage_account_name = "stfiremonitortfstate"
+    container_name       = "tfstate"
+    key                  = "aks-dev/03-argocd/terraform.tfstate"
+    use_azuread_auth     = true
+  }
 }
 
 # ------------------------------------------------------------------------------
@@ -11,10 +17,11 @@ terraform {
 data "terraform_remote_state" "infra" {
   backend = "azurerm"
   config = {
-    resource_group_name  = var.tfstate_resource_group
-    storage_account_name = var.tfstate_storage_account
-    container_name       = var.tfstate_container
-    key                  = var.infra_state_key
+    resource_group_name  = "rg-firemonitoring-tfstate-01"
+    storage_account_name = "stfiremonitortfstate"
+    container_name       = "tfstate"
+    key                  = "aks-dev/01-infra/terraform.tfstate"
+    use_azuread_auth     = true
   }
 }
 
@@ -23,25 +30,25 @@ data "terraform_remote_state" "infra" {
 # ==============================================================================
 provider "azurerm" {
   features {}
+  use_oidc        = true
   subscription_id = var.azure_subscription_id
   tenant_id       = var.azure_tenant_id
   client_id       = var.azure_client_id
-  client_secret   = var.azure_client_secret
 }
 
 provider "kubernetes" {
   host                   = data.terraform_remote_state.infra.outputs.cluster_endpoint
   cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_certificate)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "kubelogin"
     args = [
-      "convert-kubeconfig",
-      "-l", "spn",
-      "--client-id", var.azure_client_id,
-      "--client-secret", var.azure_client_secret,
-      "--tenant-id", var.azure_tenant_id
+      "get-token",
+      "--login",
+      "azurecli",
+      "--server-id",
+      "6dae42f8-4368-4678-94ff-3960e28e3630"
     ]
   }
 }
@@ -73,7 +80,7 @@ resource "kubernetes_secret_v1" "argocd_github_app_creds" {
 # 4. THE ROOT APPLICATION (App-of-Apps Pattern Deployment)
 # ==============================================================================
 # The existing K8s manifests and Kustomize overlays are cloud-agnostic.
-# ArgoCD on AKS will reconcile the SAME overlays used by the DigitalOcean cluster.
+# ArgoCD on AKS will reconcile the SAME overlays used by the development cluster.
 resource "kubernetes_manifest" "argocd_apps" {
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"

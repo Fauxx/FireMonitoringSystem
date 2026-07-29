@@ -1,11 +1,14 @@
-variable "namespace" {
+variable "chart_version" {
   type        = string
-  default     = "ingress-nginx"
-  description = "The isolated namespace hosting the active Ingress Controller."
+  description = "Helm chart version for ingress-nginx"
+  default     = "4.12.0"
 }
 
-variable "loadbalancer_name" {
-  type        = string
-  default     = "doks-ingress-loadbalancer"
-  description = "The name of the DigitalOcean Load Balancer."
+variable "additional_set_values" {
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  description = "Additional Helm set values"
+  default     = []
 }

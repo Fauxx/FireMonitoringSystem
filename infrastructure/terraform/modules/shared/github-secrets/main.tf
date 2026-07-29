@@ -1,3 +1,17 @@
+# ==============================================================================
+# shared/github-secrets — OIDC-Aligned GitHub Environment Module
+# ==============================================================================
+#
+# Provisions a GitHub Actions environment with the correct variable and secret
+# configuration for OIDC-based Azure authentication.
+#
+# IMPORTANT: This module injects NON-SECRET identity GUIDs as environment
+# VARIABLES (not secrets) and stores only genuinely sensitive values
+# (GitHub App keys) as encrypted secrets.
+#
+# No AZURE_CLIENT_SECRET is injected — OIDC tokens replace long-lived credentials.
+# ==============================================================================
+
 terraform {
   required_providers {
     github = {
@@ -8,7 +22,7 @@ terraform {
 }
 
 # ==============================================================================
-# 1. ENVIRONMENT CONTAINER PLATFORM
+# GITHUB ENVIRONMENT
 # ==============================================================================
 
 resource "github_repository_environment" "this" {
@@ -18,10 +32,60 @@ resource "github_repository_environment" "this" {
 }
 
 # ==============================================================================
-# 2. ENCRYPTED VALIDATION SECRETS VAULT
+# AZURE IDENTITY VARIABLES (Non-Sensitive — GUIDs only)
+# These are safe to store as environment variables, not secrets.
+# They identify the workload but cannot authenticate alone.
 # ==============================================================================
 
-resource "github_actions_environment_secret" "github_app_id" {
+resource "github_actions_environment_variable" "azure_client_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "AZURE_CLIENT_ID"
+  value         = var.azure_client_id
+}
+
+resource "github_actions_environment_variable" "azure_tenant_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "AZURE_TENANT_ID"
+  value         = var.azure_tenant_id
+}
+
+resource "github_actions_environment_variable" "azure_subscription_id" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "AZURE_SUBSCRIPTION_ID"
+  value         = var.azure_subscription_id
+}
+
+resource "github_actions_environment_variable" "tf_state_storage_account" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "TF_STATE_STORAGE_ACCOUNT"
+  value         = var.tf_state_storage_account
+}
+
+resource "github_actions_environment_variable" "tf_state_resource_group" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "TF_STATE_RESOURCE_GROUP"
+  value         = var.tf_state_resource_group
+}
+
+resource "github_actions_environment_variable" "gitops_repo_url" {
+  repository    = var.github_repository
+  environment   = github_repository_environment.this.environment
+  variable_name = "GITOPS_REPO_URL"
+  value         = var.gitops_repo_url
+}
+
+# ==============================================================================
+# GITHUB APP SECRETS (Sensitive — encrypted at rest in GitHub)
+# Used for: CI token generation (actions/create-github-app-token)
+#           and ArgoCD repository access
+# ==============================================================================
+
+resource "github_actions_environment_secret" "app_id" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_ID"
@@ -32,7 +96,7 @@ resource "github_actions_environment_secret" "github_app_id" {
   }
 }
 
-resource "github_actions_environment_secret" "github_app_installation_id" {
+resource "github_actions_environment_secret" "app_installation_id" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_INSTALLATION_ID"
@@ -43,7 +107,7 @@ resource "github_actions_environment_secret" "github_app_installation_id" {
   }
 }
 
-resource "github_actions_environment_secret" "github_app_private_key" {
+resource "github_actions_environment_secret" "app_private_key" {
   repository  = var.github_repository
   environment = github_repository_environment.this.environment
   secret_name = "APP_PRIVATE_KEY"
@@ -53,92 +117,3 @@ resource "github_actions_environment_secret" "github_app_private_key" {
     ignore_changes = [value, encrypted_value]
   }
 }
-
-resource "github_actions_environment_secret" "github_app_state_access_key" {
-  repository  = var.github_repository
-  environment = github_repository_environment.this.environment
-  secret_name = "TF_STATE_ACCESS_KEY"
-  value       = var.github_app_state_access_key
-
-  lifecycle {
-    ignore_changes = [value, encrypted_value]
-  }
-}
-
-resource "github_actions_environment_secret" "github_app_state_secret_key" {
-  repository  = var.github_repository
-  environment = github_repository_environment.this.environment
-  secret_name = "TF_STATE_SECRET_KEY"
-  value       = var.github_app_state_secret_key
-
-  lifecycle {
-    ignore_changes = [value, encrypted_value]
-  }
-}
-
-resource "github_actions_environment_secret" "azure_client_secret" {
-  repository  = var.github_repository
-  environment = github_repository_environment.this.environment
-  secret_name = "AZURE_CLIENT_SECRET"
-  value       = var.azure_client_secret
-
-  lifecycle {
-    ignore_changes = [value, encrypted_value]
-  }
-}
-
-# ==============================================================================
-# 3. ENVIRONMENT VARIABLES (Non-Sensitive)
-# ==============================================================================
-
-resource "github_actions_environment_variable" "root_domain" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "ROOT_DOMAIN"
-  value         = var.root_domain
-}
-
-resource "github_actions_environment_variable" "cluster_name" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "CLUSTER_NAME"
-  value         = var.cluster_name
-}
-
-resource "github_actions_environment_variable" "node_size" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "NODE_SIZE"
-  value         = var.node_size
-}
-
-resource "github_actions_environment_variable" "node_count" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "NODE_COUNT"
-  value         = tostring(var.node_count)
-}
-
-resource "github_actions_environment_variable" "remote_state_bucket" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "REMOTE_STATE_BUCKET"
-  value         = var.remote_state_bucket
-}
-
-resource "github_actions_environment_variable" "infra_state_key" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "INFRA_STATE_KEY"
-  value         = var.infra_state_key
-}
-
-resource "github_actions_environment_variable" "gitops_repo_url" {
-  repository    = var.github_repository
-  environment   = github_repository_environment.this.environment
-  variable_name = "GITOPS_REPO_URL"
-  value         = var.gitops_repo_url
-}
-
-
-

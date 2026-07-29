@@ -1,18 +1,9 @@
-# ==============================================================================
-# Outputs for Azure Dev 00-Bootstrap
-# ==============================================================================
-
-output "resource_group_name" {
-  description = "The name of the resource group holding the state storage."
-  value       = azurerm_resource_group.tfstate.name
+output "github_actions_client_id" {
+  value       = data.azuread_application.github_actions.client_id
+  description = "The client ID of the shared GitHub Actions SP."
 }
 
-output "storage_account_name" {
-  description = "The globally unique name of the state storage account."
-  value       = azurerm_storage_account.terraform_state.name
-}
-
-output "container_name" {
-  description = "The name of the container used for storing terraform state."
-  value       = azurerm_storage_container.tfstate.name
+output "federated_subjects" {
+  value       = "Managed primarily in aks-dev/00-bootstrap"
+  description = "Info"
 }

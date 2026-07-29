@@ -1,75 +1,95 @@
-# ==============================================================================
-# Variables for Azure Dev 01-Infra
-# ==============================================================================
-
 variable "azure_subscription_id" {
-  description = "The Azure subscription ID where resources will be provisioned."
   type        = string
   sensitive   = true
+  description = "The Azure Subscription ID used for resource provisioning."
 }
 
 variable "azure_tenant_id" {
-  description = "The Azure tenant ID for the Service Principal."
   type        = string
   sensitive   = true
+  description = "The Azure AD Tenant ID for the Service Principal."
 }
 
 variable "azure_client_id" {
-  description = "The Azure client ID (app ID) for the Service Principal."
   type        = string
   sensitive   = true
-}
-
-variable "azure_client_secret" {
-  description = "The Azure client secret (password) for the Service Principal."
-  type        = string
-  sensitive   = true
+  description = "The Azure Service Principal Client ID used for provider authentication."
 }
 
 variable "azure_location" {
-  description = "The Azure region to deploy resources."
   type        = string
   default     = "southeastasia"
+  description = "Azure region to deploy resources."
 }
 
 variable "resource_group_name" {
-  description = "The resource group for the AKS cluster and network resources."
   type        = string
-  default     = "fire-monitoring-aks-dev-rg"
+  default     = "rg-firemonitoring-dev-01"
+  description = "Name of the resource group."
+}
+
+variable "vnet_cidr" {
+  type        = string
+  default     = "10.10.0.0/16"
+  description = "CIDR block for the Virtual Network."
+}
+
+variable "aks_subnet_cidr" {
+  type        = string
+  default     = "10.10.1.0/24"
+  description = "CIDR block for the AKS subnet."
 }
 
 variable "cluster_name" {
-  description = "The name of the Kubernetes cluster."
   type        = string
-  default     = "aks-fire-monitoring-dev"
-}
-
-variable "node_vm_size" {
-  description = "VM size for the AKS worker nodes (Budget-conscious SKU, ~$30/mo per node)."
-  type        = string
-  default     = "Standard_B2s"
-}
-
-variable "node_count" {
-  description = "Number of worker nodes."
-  type        = number
-  default     = 2
-}
-
-variable "vnet_address_space" {
-  description = "Address space for the Virtual Network."
-  type        = string
-  default     = "10.10.0.0/16"
-}
-
-variable "subnet_address_prefix" {
-  description = "Address prefix for the AKS subnet."
-  type        = string
-  default     = "10.10.1.0/24"
+  default     = "aks-firemonitoring-dev-01"
+  description = "Name of the AKS cluster."
 }
 
 variable "kubernetes_version" {
-  description = "The version of Kubernetes to use for the AKS cluster (check latest supported)."
   type        = string
-  default     = "1.31"
+  default     = "1.32"
+  description = "Kubernetes version for the AKS cluster."
+}
+
+variable "node_vm_size" {
+  type        = string
+  default     = "Standard_B2s"
+  description = "VM size for the default node pool."
+}
+
+variable "min_node_count" {
+  type        = number
+  default     = 1
+  description = "Minimum number of nodes in the node pool."
+}
+
+variable "max_node_count" {
+  type        = number
+  default     = 3
+  description = "Maximum number of nodes in the node pool."
+}
+
+variable "service_cidr" {
+  type        = string
+  default     = "10.100.0.0/16"
+  description = "CIDR block for Kubernetes services."
+}
+
+variable "dns_service_ip" {
+  type        = string
+  default     = "10.100.0.10"
+  description = "IP address within the Kubernetes service address range that will be used by cluster service discovery (kube-dns)."
+}
+
+variable "acr_name" {
+  type        = string
+  default     = "acrfiremonitordev"
+  description = "Name of the Azure Container Registry."
+}
+
+variable "key_vault_name" {
+  type        = string
+  default     = "kv-firemonitoring-dev-01"
+  description = "Name of the Azure Key Vault."
 }

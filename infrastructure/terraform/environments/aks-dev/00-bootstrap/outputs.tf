@@ -26,8 +26,8 @@ output "github_actions_sp_object_id" {
 output "federated_credential_subjects" {
   description = "The OIDC subject claims registered for this workload identity."
   value = {
-    aks_dev    = azuread_application_federated_identity_credential.aks_dev.subject
-    aks_prod   = azuread_application_federated_identity_credential.aks_prod.subject
+    aks_dev     = azuread_application_federated_identity_credential.aks_dev.subject
+    aks_prod    = azuread_application_federated_identity_credential.aks_prod.subject
     main_branch = azuread_application_federated_identity_credential.main_branch.subject
   }
 }

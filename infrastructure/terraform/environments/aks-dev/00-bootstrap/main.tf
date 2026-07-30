@@ -283,7 +283,7 @@ resource "github_actions_environment_secret" "app_private_key" {
   repository  = var.github_repository
   environment = each.key
   secret_name = "APP_PRIVATE_KEY"
-  value       = var.github_app_private_key
+  value       = var.github_app_private_key_path != "" ? file(var.github_app_private_key_path) : var.github_app_private_key
 
   lifecycle {
     ignore_changes = [value, encrypted_value]

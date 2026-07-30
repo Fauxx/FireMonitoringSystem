@@ -102,5 +102,12 @@ variable "github_app_installation_id" {
 variable "github_app_private_key" {
   description = "The PEM-format private key for the GitHub App. Stored encrypted in GitHub secrets."
   type        = string
+  default     = ""
   sensitive   = true
+}
+
+variable "github_app_private_key_path" {
+  description = "Optional file path to the PEM-format private key for the GitHub App."
+  type        = string
+  default     = ""
 }

@@ -83,7 +83,7 @@ resource "github_actions_environment_secret" "app_private_key" {
   repository      = var.github_repository
   environment     = github_repository_environment.aks_prod.environment
   secret_name     = "APP_PRIVATE_KEY"
-  plaintext_value = var.github_app_private_key
+  plaintext_value = var.github_app_private_key_path != "" ? file(var.github_app_private_key_path) : var.github_app_private_key
 }
 
 resource "azuread_application_federated_identity_credential" "github_actions_prod" {

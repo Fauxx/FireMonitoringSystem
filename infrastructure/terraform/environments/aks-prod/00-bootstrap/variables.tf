@@ -59,5 +59,11 @@ variable "github_app_installation_id" {
 
 variable "github_app_private_key" {
   type      = string
+  default   = ""
   sensitive = true
+}
+
+variable "github_app_private_key_path" {
+  type    = string
+  default = ""
 }

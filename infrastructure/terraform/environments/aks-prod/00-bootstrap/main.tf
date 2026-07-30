@@ -6,8 +6,8 @@ terraform {
 }
 
 provider "azuread" {
-  client_id     = var.azure_client_id
-  client_secret = var.azure_client_secret
+  client_id     = var.azure_client_id != "" ? var.azure_client_id : null
+  client_secret = var.azure_client_secret != "" ? var.azure_client_secret : null
   tenant_id     = var.azure_tenant_id
 }
 

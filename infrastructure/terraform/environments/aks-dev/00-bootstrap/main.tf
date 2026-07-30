@@ -44,15 +44,15 @@ provider "azurerm" {
   features {}
   subscription_id = var.azure_subscription_id
   tenant_id       = var.azure_tenant_id
-  client_id       = var.azure_client_id
-  client_secret   = var.azure_client_secret # TEMPORARY — only used on first bootstrap run
+  client_id       = var.azure_client_id != "" ? var.azure_client_id : null
+  client_secret   = var.azure_client_secret != "" ? var.azure_client_secret : null
 }
 
 # Microsoft Graph API — manages Entra ID objects (App Registrations, Federated Creds)
 provider "azuread" {
   tenant_id     = var.azure_tenant_id
-  client_id     = var.azure_client_id
-  client_secret = var.azure_client_secret # TEMPORARY — only used on first bootstrap run
+  client_id     = var.azure_client_id != "" ? var.azure_client_id : null
+  client_secret = var.azure_client_secret != "" ? var.azure_client_secret : null
 }
 
 # GitHub — injects non-secret identity values into the repo environment
@@ -65,49 +65,18 @@ provider "github" {
 # 1. REMOTE STATE BACKEND (CAF Naming: rg-<workload>-tfstate-01)
 # ==============================================================================
 
-resource "azurerm_resource_group" "tfstate" {
-  name     = var.tfstate_resource_group_name
-  location = var.azure_location
-
-  tags = {
-    workload   = "firemonitoring"
-    layer      = "bootstrap"
-    managed-by = "terraform"
-  }
+data "azurerm_resource_group" "tfstate" {
+  name = var.tfstate_resource_group_name
 }
 
-resource "azurerm_storage_account" "tfstate" {
-  name                            = var.tfstate_storage_account_name
-  resource_group_name             = azurerm_resource_group.tfstate.name
-  location                        = azurerm_resource_group.tfstate.location
-  account_tier                    = "Standard"
-  account_replication_type        = "LRS"
-  allow_nested_items_to_be_public = false
-  min_tls_version                 = "TLS1_2"
-
-  # Versioning enables point-in-time state recovery if corruption occurs
-  blob_properties {
-    versioning_enabled = true
-  }
-
-  tags = {
-    workload   = "firemonitoring"
-    layer      = "bootstrap"
-    managed-by = "terraform"
-  }
-}
-
-resource "azurerm_storage_container" "tfstate" {
-  name                  = "tfstate"
-  storage_account_id    = azurerm_storage_account.tfstate.id
-  container_access_type = "private"
+data "azurerm_storage_account" "tfstate" {
+  name                = var.tfstate_storage_account_name
+  resource_group_name = data.azurerm_resource_group.tfstate.name
 }
 
 # ==============================================================================
 # 2. ENTRA ID — CI/CD WORKLOAD IDENTITY (The GitHub Actions Identity)
 # ==============================================================================
-
-data "azuread_client_config" "current" {}
 
 # The App Registration represents the GitHub Actions pipeline identity in Entra ID.
 # It has NO password / client secret — it authenticates exclusively via OIDC federation.
@@ -177,7 +146,7 @@ resource "azurerm_role_assignment" "contributor" {
 # state blobs using its Entra ID token — NO storage account key required.
 # This enables `use_azuread_auth = true` in backend.conf.
 resource "azurerm_role_assignment" "state_blob_contributor" {
-  scope                = azurerm_storage_account.tfstate.id
+  scope                = data.azurerm_storage_account.tfstate.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azuread_service_principal.github_actions.object_id
 }

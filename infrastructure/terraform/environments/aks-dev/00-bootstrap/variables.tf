@@ -40,7 +40,7 @@ variable "azure_client_secret" {
 variable "azure_location" {
   description = "The Azure region for all bootstrap resources. Match your AKS target region."
   type        = string
-  default     = "southeastasia"
+  default     = "eastasia"
 }
 
 # ------------------------------------------------------------------------------

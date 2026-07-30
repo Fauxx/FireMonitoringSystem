@@ -18,7 +18,7 @@ variable "azure_client_id" {
 
 variable "azure_location" {
   type        = string
-  default     = "southeastasia"
+  default     = "eastasia"
   description = "Azure region to deploy resources."
 }
 

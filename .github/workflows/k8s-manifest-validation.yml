@@ -38,16 +38,16 @@ jobs:
       - name: Build Changed Overlay Matrix
         id: set_overlays
         run: |
-          OVERLAYS=[]
+          OVERLAYS='[]'
           # base changes affect ALL overlays → validate both dev + prod
           if [ "${{ steps.filter.outputs.base }}" = "true" ]; then
-            OVERLAYS=$(echo '[]' | jq '. + ["dev", "prod"]')
+            OVERLAYS=$(echo '[]' | jq -c '. + ["dev", "prod"]')
           else
             if [ "${{ steps.filter.outputs.dev }}" = "true" ]; then
-              OVERLAYS=$(echo $OVERLAYS | jq '. + ["dev"]')
+              OVERLAYS=$(echo "$OVERLAYS" | jq -c '. + ["dev"]')
             fi
             if [ "${{ steps.filter.outputs.prod }}" = "true" ]; then
-              OVERLAYS=$(echo $OVERLAYS | jq '. + ["prod"]')
+              OVERLAYS=$(echo "$OVERLAYS" | jq -c '. + ["prod"]')
             fi
           fi
           if [ "$OVERLAYS" = "[]" ] || [ -z "$OVERLAYS" ]; then

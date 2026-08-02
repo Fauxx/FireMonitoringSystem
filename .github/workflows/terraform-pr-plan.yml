@@ -42,15 +42,15 @@ jobs:
       - name: Build Changed Layer Matrix
         id: set_layers
         run: |
-          LAYERS=[]
+          LAYERS='[]'
           if [ "${{ steps.filter.outputs.infra }}" = "true" ]; then
-            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/aks-dev/01-infra"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/aks-dev/01-infra"}]')
           fi
           if [ "${{ steps.filter.outputs.platform }}" = "true" ]; then
-            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/aks-dev/02-platform"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/aks-dev/02-platform"}]')
           fi
           if [ "${{ steps.filter.outputs.argocd }}" = "true" ]; then
-            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/aks-dev/03-argocd"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/aks-dev/03-argocd"}]')
           fi
           if [ "$LAYERS" = "[]" ] || [ -z "$LAYERS" ]; then
             echo "any_changed=false" >> $GITHUB_OUTPUT

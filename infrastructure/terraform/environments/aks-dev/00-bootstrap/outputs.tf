@@ -1,16 +1,16 @@
 output "tfstate_resource_group_name" {
   description = "The CAF-named Resource Group holding the Terraform state storage account."
-  value       = azurerm_resource_group.tfstate.name
+  value       = data.azurerm_resource_group.tfstate.name
 }
 
 output "tfstate_storage_account_name" {
   description = "The CAF-named Storage Account holding all Terraform state blobs."
-  value       = azurerm_storage_account.tfstate.name
+  value       = data.azurerm_storage_account.tfstate.name
 }
 
 output "tfstate_container_name" {
   description = "The blob container name within the storage account."
-  value       = azurerm_storage_container.tfstate.name
+  value       = var.tfstate_container_name
 }
 
 output "github_actions_client_id" {

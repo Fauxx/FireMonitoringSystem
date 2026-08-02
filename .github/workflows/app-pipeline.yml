@@ -1,7 +1,7 @@
-name: "Application Continuous Integration & Deployment"
+name: "Application CI/CD — Build, Secure & Deploy"
 
 on:
-  workflow_dispatch: # 1. FIX: Added manual trigger button
+  workflow_dispatch: # Emergency manual trigger — builds ALL services
   pull_request:
     paths:
       - 'apps/**'
@@ -13,29 +13,32 @@ on:
       - 'apps/**'
       - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
+    tags:
+      - 'v*.*.*'   # Production release-only trigger
 
 permissions:
   contents: write
   packages: write
+  pull-requests: write
+  id-token: write
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/fauxx/firemonitoringsystem
 
 jobs:
-  # -------------------------------------------------------------
-  # Stage 0: Change Detection
-  # -------------------------------------------------------------
+  # ─────────────────────────────────────────────────────────────
+  # Stage 0: Path-Based Change Detection
+  # ─────────────────────────────────────────────────────────────
   detect_changes:
     name: "Detect Changed Services"
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.set_services.outputs.services }}
     steps:
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Detect Changes
-        uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
@@ -52,17 +55,20 @@ jobs:
         id: set_services
         run: |
           CHANGES='${{ steps.filter.outputs.changes }}'
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -z "$CHANGES" ] || [ "$CHANGES" = "[]" ]; then
-            echo "services=[\"api\", \"dashboard\", \"etl-processor\", \"db-migrations\"]" >> $GITHUB_OUTPUT
+          # On manual trigger or release tag → build everything
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
+             [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ] || \
+             [ -z "$CHANGES" ] || [ "$CHANGES" = "[]" ]; then
+            echo 'services=["api", "dashboard", "etl-processor", "db-migrations"]' >> $GITHUB_OUTPUT
           else
             echo "services=$CHANGES" >> $GITHUB_OUTPUT
           fi
 
-  # -------------------------------------------------------------
-  # Stage 1: Code Verification & Container Compilation
-  # -------------------------------------------------------------
-  build_and_test:
-    name: "Compile & Verify ${{ matrix.service }}"
+  # ─────────────────────────────────────────────────────────────
+  # Stage 1: Build → Scan → Push
+  # ─────────────────────────────────────────────────────────────
+  build_scan_push:
+    name: "Build & Scan: ${{ matrix.service }}"
     needs: detect_changes
     runs-on: ubuntu-latest
     strategy:
@@ -71,122 +77,169 @@ jobs:
         service: ${{ fromJSON(needs.detect_changes.outputs.services) }}
     outputs:
       image_tag: ${{ steps.set_tag.outputs.tag }}
-      
-    steps:
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
 
-      - name: Log in to the Container Registry
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set Image Tag (Git SHA)
+      - name: Resolve Image Tag
         id: set_tag
-        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}"  >> $GITHUB_OUTPUT  # e.g. v1.0.0
+          else
+            echo "tag=${GITHUB_SHA::7}"        >> $GITHUB_OUTPUT  # e.g. 7542de2
+          fi
 
-      - name: Build and Push Container
-        uses: docker/build-push-action@v5
+      - name: Resolve Build Context
+        id: ctx
+        run: |
+          if [ "${{ matrix.service }}" = "db-migrations" ]; then
+            echo "path=./infrastructure/k8s/base/sql" >> $GITHUB_OUTPUT
+          else
+            echo "path=./apps/${{ matrix.service }}"  >> $GITHUB_OUTPUT
+          fi
+
+      # ── Step A: Build locally (no push) so Trivy can scan ──
+      - name: Build Container Image (local, no push)
+        uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.service == 'db-migrations' && './infrastructure/k8s/base/sql' || format('./apps/{0}', matrix.service) }}
-          # Allow push on manual workflow_dispatch as well
-          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }} 
-          tags: |
-            ${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${{ matrix.service }}:${{ steps.set_tag.outputs.tag }}
-            ${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${{ matrix.service }}:latest
+          context: ${{ steps.ctx.outputs.path }}
+          push: false
+          load: true
+          tags: scan-target:${{ steps.set_tag.outputs.tag }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
 
-  # -------------------------------------------------------------
-  # Stage 2: Manifest GitOps Trigger
-  # -------------------------------------------------------------
-  deploy_via_gitops:
-    name: "Update GitOps Manifest State"
-    needs: [detect_changes, build_and_test]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      # ── Step B: Vulnerability scan ──
+      - name: Trivy Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref:  scan-target:${{ steps.set_tag.outputs.tag }}
+          format:     table
+          exit-code:  '0'          # Report-only. Change to '1' to block on HIGH/CRITICAL.
+          severity:   HIGH,CRITICAL
+          trivyignores: .trivyignore
+
+      # ── Step C: Push to registry (only on real deployments) ──
+      - name: Push Container Image to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.ctx.outputs.path }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.set_tag.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────
+  # Stage 2a: Dev Deploy — Direct Commit to overlays/dev
+  # Triggers: push to main only (NOT on tags, NOT on PR)
+  # ─────────────────────────────────────────────────────────────
+  deploy_dev:
+    name: "Deploy to Dev (GitOps direct commit)"
+    needs: [detect_changes, build_scan_push]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    
-    # 3. FIX: Link this job to your dev environment so it can read APP_ID
-    environment: dev 
-    
+    environment: aks-dev
+
     steps:
-      - name: Generate App Token
-        id: generate_token
+      - name: Generate GitHub App Token
+        id: app_token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.APP_ID }}
+          app-id:      ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate_token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
-      - name: Setup Kustomize
-        uses: imranismail/setup-kustomize@v2
+      - uses: imranismail/setup-kustomize@v2
 
-      - name: Bump Kustomize Image Tags
+      - name: Bump Dev Overlay Image Tags
         run: |
-          cd infrastructure/k8s/overlays/dev 
-          SERVICES_JSON='${{ needs.detect_changes.outputs.services }}'
-          for service in $(echo "$SERVICES_JSON" | jq -r '.[]'); do
-            echo "Bumping image tag for service: $service"
-            kustomize edit set image "${service}=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${service}:${{ needs.build_and_test.outputs.image_tag }}"
+          cd infrastructure/k8s/overlays/dev
+          for service in $(echo '${{ needs.detect_changes.outputs.services }}' | jq -r '.[]'); do
+            kustomize edit set image \
+              "${service}=${{ env.IMAGE_PREFIX }}/${service}:${{ needs.build_scan_push.outputs.image_tag }}"
           done
 
-      - name: Create Pull Request for GitOps bump
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ steps.generate_token.outputs.token }}
-          commit-message: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
-          title: "chore(gitops): bump application images to ${{ needs.build_and_test.outputs.image_tag }}"
-          body: |
-            Bumps Kubernetes manifest image tags for dev environment to ${{ needs.build_and_test.outputs.image_tag }} for the following services:
-            ${{ needs.detect_changes.outputs.services }}
-          branch: "gitops-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
-          base: main
-          delete-branch: true
+      - name: Commit & Push Dev Overlay
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/k8s/overlays/dev/kustomization.yaml
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "chore(gitops/dev): bump images → ${{ needs.build_scan_push.outputs.image_tag }} [skip ci]"
+          git push
 
-  promote_to_prod:
-    name: "Promote to Production (GitOps)"
-    needs: [detect_changes, build_and_test]
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+  # ─────────────────────────────────────────────────────────────
+  # Stage 2b: Prod Release — Open Promotion PR
+  # Triggers: Git Release Tag push ONLY (v*.*.*)
+  # ─────────────────────────────────────────────────────────────
+  promote_prod:
+    name: "Open Production Promotion PR"
+    needs: [detect_changes, build_scan_push]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    environment: prod
+    environment: aks-prod
+
     steps:
-      - name: Generate App Token
-        id: generate_token
+      - name: Generate GitHub App Token
+        id: app_token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.APP_ID }}
+          app-id:      ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          token: ${{ steps.generate_token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
-      - name: Setup Kustomize
-        uses: imranismail/setup-kustomize@v2
+      - uses: imranismail/setup-kustomize@v2
 
-      - name: Bump Production Kustomize Image Tags
+      - name: Bump Prod Overlay Image Tags
         run: |
           cd infrastructure/k8s/overlays/prod
-          SERVICES_JSON='${{ needs.detect_changes.outputs.services }}'
-          for service in $(echo "$SERVICES_JSON" | jq -r '.[]'); do
-            echo "Bumping image tag for service: $service"
-            kustomize edit set image "${service}=${{ env.REGISTRY }}/fauxx/firemonitoringsystem/${service}:${{ needs.build_and_test.outputs.image_tag }}"
+          for service in $(echo '${{ needs.detect_changes.outputs.services }}' | jq -r '.[]'); do
+            kustomize edit set image \
+              "${service}=${{ env.IMAGE_PREFIX }}/${service}:${{ needs.build_scan_push.outputs.image_tag }}"
           done
 
-      - name: Create Pull Request for Production GitOps bump
+      - name: Open Prod Promotion PR
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ steps.generate_token.outputs.token }}
-          commit-message: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
-          title: "chore(gitops): promote application images to prod:${{ needs.build_and_test.outputs.image_tag }}"
+          token:          ${{ steps.app_token.outputs.token }}
+          commit-message: "chore(gitops/prod): promote release ${{ github.ref_name }}"
+          title:          "🚀 Release ${{ github.ref_name }} → Production"
           body: |
-            Promotes Kubernetes manifest image tags for production environment to ${{ needs.build_and_test.outputs.image_tag }} for the following services:
+            ## Production Promotion — ${{ github.ref_name }}
+
+            This PR was automatically generated when release tag `${{ github.ref_name }}` was published.
+
+            ### Services Updated
             ${{ needs.detect_changes.outputs.services }}
-          branch: "gitops-prod-image-bump-${{ needs.build_and_test.outputs.image_tag }}"
-          base: main
+
+            ### Image Tag
+            `${{ needs.build_scan_push.outputs.image_tag }}`
+
+            ---
+            **Review checklist before merging:**
+            - [ ] Dev environment tested and stable
+            - [ ] No critical Trivy findings requiring remediation
+            - [ ] Changelog reviewed
+          branch:        "release/prod-${{ github.ref_name }}"
+          base:          main
           delete-branch: true
+          labels:        "production-release,gitops"

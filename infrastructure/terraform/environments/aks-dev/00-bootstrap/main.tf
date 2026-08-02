@@ -195,8 +195,8 @@ locals {
     AZURE_TENANT_ID       = var.azure_tenant_id
     AZURE_SUBSCRIPTION_ID = var.azure_subscription_id
     # Storage account name is not secret — needed by backend.conf generation
-    TF_STATE_STORAGE_ACCOUNT = azurerm_storage_account.tfstate.name
-    TF_STATE_RESOURCE_GROUP  = azurerm_resource_group.tfstate.name
+    TF_STATE_STORAGE_ACCOUNT = data.azurerm_storage_account.tfstate.name
+    TF_STATE_RESOURCE_GROUP  = data.azurerm_resource_group.tfstate.name
   }
 }
 
@@ -252,7 +252,7 @@ resource "github_actions_environment_secret" "app_private_key" {
   repository  = var.github_repository
   environment = each.key
   secret_name = "APP_PRIVATE_KEY"
-  value       = var.github_app_private_key_path != "" ? file(var.github_app_private_key_path) : var.github_app_private_key
+  value       = var.github_app_private_key_path != "" && fileexists(var.github_app_private_key_path) ? file(var.github_app_private_key_path) : var.github_app_private_key
 
   lifecycle {
     ignore_changes = [value, encrypted_value]

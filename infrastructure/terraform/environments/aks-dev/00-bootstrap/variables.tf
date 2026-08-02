@@ -59,6 +59,12 @@ variable "tfstate_storage_account_name" {
   default     = "stfiremonitortfstate"
 }
 
+variable "tfstate_container_name" {
+  description = "Blob container name holding Terraform state."
+  type        = string
+  default     = "tfstate"
+}
+
 # ------------------------------------------------------------------------------
 # GITHUB — OIDC TRUST CONFIGURATION
 # ------------------------------------------------------------------------------

@@ -1,0 +1,146 @@
+name: "Terraform PR Plan Review"
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/terraform/environments/aks-dev/**'
+      - '.github/workflows/terraform-pr-plan.yml'
+
+permissions:
+  contents:      read
+  id-token:      write
+  pull-requests: write
+
+concurrency:
+  group: tf-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Step 1: Detect which terraform layers have changes
+  # ─────────────────────────────────────────────────────────────
+  detect_layers:
+    name: "Detect Changed TF Layers"
+    runs-on: ubuntu-latest
+    outputs:
+      layers: ${{ steps.set_layers.outputs.layers }}
+      any_changed: ${{ steps.set_layers.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infrastructure/terraform/environments/aks-dev/01-infra/**'
+            platform:
+              - 'infrastructure/terraform/environments/aks-dev/02-platform/**'
+            argocd:
+              - 'infrastructure/terraform/environments/aks-dev/03-argocd/**'
+
+      - name: Build Changed Layer Matrix
+        id: set_layers
+        run: |
+          LAYERS=[]
+          if [ "${{ steps.filter.outputs.infra }}" = "true" ]; then
+            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/aks-dev/01-infra"}]')
+          fi
+          if [ "${{ steps.filter.outputs.platform }}" = "true" ]; then
+            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/aks-dev/02-platform"}]')
+          fi
+          if [ "${{ steps.filter.outputs.argocd }}" = "true" ]; then
+            LAYERS=$(echo $LAYERS | jq '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/aks-dev/03-argocd"}]')
+          fi
+          if [ "$LAYERS" = "[]" ] || [ -z "$LAYERS" ]; then
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+            echo "layers=[]"         >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=true"   >> $GITHUB_OUTPUT
+            echo "layers=$LAYERS"     >> $GITHUB_OUTPUT
+          fi
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 2: Run plans ONLY for detected layers
+  # ─────────────────────────────────────────────────────────────
+  plan:
+    name: "TF Plan: aks-dev/${{ matrix.layer }}"
+    needs: detect_layers
+    if: needs.detect_layers.outputs.any_changed == 'true'
+    runs-on: ubuntu-latest
+    environment: aks-dev
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect_layers.outputs.layers) }}
+
+    env:
+      ARM_USE_OIDC:        "true"
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_tenant_id:       ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id:       ${{ vars.AZURE_CLIENT_ID }}
+      TF_VAR_github_owner:          ${{ github.repository_owner }}
+      TF_VAR_github_repository:     ${{ github.event.repository.name }}
+      TF_VAR_github_app_id:               ${{ secrets.APP_ID }}
+      TF_VAR_github_app_installation_id:  ${{ secrets.APP_INSTALLATION_ID }}
+      TF_VAR_github_app_private_key:      ${{ secrets.APP_PRIVATE_KEY }}
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure via OIDC
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.11.0
+          terraform_wrapper: true
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -reconfigure -backend-config=backend.conf
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -refresh=true
+        continue-on-error: true
+
+      - name: Post Sticky Plan Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: tf-plan-${{ matrix.layer }}
+          message: |
+            ## 🏗️ Terraform Plan — `aks-dev/${{ matrix.layer }}`
+
+            | Step | Status |
+            |------|--------|
+            | fmt      | ${{ steps.fmt.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | validate | ${{ steps.validate.outcome == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | plan     | ${{ steps.plan.outcome == 'success' && '✅ No errors' || '❌ Has errors' }} |
+
+            <details><summary>📋 Plan Output</summary>
+
+            ```
+            ${{ steps.plan.outputs.stdout }}
+            ```
+            </details>

@@ -1,0 +1,13 @@
+# Run aks-dev/00-bootstrap first!
+azure_subscription_id = "..."
+azure_tenant_id       = "..."
+azure_client_id       = "..."
+azure_client_secret   = "..."
+
+github_token          = "ghp_..."
+github_owner          = "MyOrg"
+github_repository     = "FireMonitoringSystem"
+
+github_app_id              = "..."
+github_app_installation_id = "..."
+github_app_private_key     = "..."

@@ -6,8 +6,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
-    # Microsoft Graph API — manages Entra ID App Registrations,
-    # Service Principals, and Federated Identity Credentials (OIDC trust).
     azuread = {
       source  = "hashicorp/azuread"
       version = "~> 3.0"
@@ -15,14 +13,6 @@ terraform {
     github = {
       source  = "integrations/github"
       version = "~> 6.12.0"
-    }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.35.0"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.15.0"
     }
   }
 }

@@ -1,0 +1,54 @@
+# ==============================================================================
+# 00-Bootstrap — Example Variables (aks-dev)
+# ==============================================================================
+#
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to source control.
+#
+# IMPORTANT — BOOTSTRAP FLOW:
+#
+# Step 1: Create the remote state storage account manually (see backend.conf).
+#
+# Step 2: Create a temporary admin Service Principal:
+#   az ad sp create-for-rbac \
+#     --name "sp-firemonitoring-bootstrap-temp" \
+#     --role "Owner" \
+#     --scopes "/subscriptions/<SUBSCRIPTION_ID>"
+#
+#   Copy the output values into azure_* variables below.
+#
+# Step 3: Run terraform init and apply.
+#   terraform init -backend-config=backend.conf
+#   terraform apply
+#
+# Step 4: Delete the temporary SP immediately after apply succeeds:
+#   az ad sp delete --id <SP_OBJECT_ID>
+#
+# From this point forward, GitHub Actions uses OIDC — zero secrets.
+# ==============================================================================
+
+# --- Temporary Bootstrap SP (delete after first apply) ---
+azure_subscription_id = "00000000-0000-0000-0000-000000000000"
+azure_tenant_id       = "00000000-0000-0000-0000-000000000000"
+azure_client_id       = "00000000-0000-0000-0000-000000000000"
+azure_client_secret   = "TEMPORARY-SECRET-DELETE-AFTER-APPLY"
+
+# --- Azure Region ---
+azure_location = "southeastasia"
+
+# --- CAF State Backend Naming ---
+tfstate_resource_group_name  = "rg-firemonitoring-tfstate-01"
+tfstate_storage_account_name = "stfiremonitortfstate"
+
+# --- GitHub OIDC Trust Configuration ---
+github_owner      = "your-github-org-or-username"
+github_repository = "FireMonitoringSystem"
+
+# GitHub PAT or App token with: repo, admin:repo_hook, read:org scopes.
+# Used only during bootstrap to create environments and inject variables.
+github_token = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# --- GitHub App (ArgoCD repo access + CI token generation) ---
+github_app_id               = "123456"
+github_app_installation_id  = "12345678"
+github_app_private_key      = "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"

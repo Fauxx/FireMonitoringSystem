@@ -1,0 +1,259 @@
+name: "Azure Terraform Core Engine"
+
+# ==============================================================================
+# REUSABLE WORKFLOW — Azure AKS Terraform Layer Runner (OIDC Edition)
+#
+# Authentication: GitHub Actions OIDC → Microsoft Entra ID Federated Credential
+#   - No ARM_CLIENT_SECRET. No long-lived credentials of any kind.
+#   - Each job mints a short-lived (~5 min) OIDC JWT for its specific environment.
+#   - The Entra ID Federated Credential validates the token against the registered
+#     subject (repo:owner/repo:environment:aks-dev) before granting access.
+#
+# State Backend: Azure Blob Storage with Entra ID auth (use_azuread_auth = true)
+#   - The OIDC identity has Storage Blob Data Contributor on the state account.
+#   - Native blob lease provides state locking — no DynamoDB workaround needed.
+#
+# Immutable Plan Pattern:
+#   Job 1 (plan): terraform init → fmt → validate → plan → upload tfplan.binary
+#   Job 2 (apply): re-init backend → download tfplan.binary → apply exact plan
+# ==============================================================================
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        required: true
+        type: string
+        description: "Terraform layer path (e.g. infrastructure/terraform/environments/aks-dev/01-infra)"
+      layer_kind:
+        required: true
+        type: string
+        description: "bootstrap | infra | platform | gitops"
+      env:
+        required: true
+        type: string
+        description: "aks-dev | aks-prod"
+      mode:
+        required: true
+        type: string
+        description: "validate | deploy"
+
+jobs:
+  # ============================================================================
+  # JOB 1: PLAN
+  # ============================================================================
+  terraform_plan:
+    name: "Plan [${{ inputs.env }}/${{ inputs.layer_kind }}]"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+
+    # Belt-and-suspenders: Azure Blob lease is the authoritative lock.
+    # CI concurrency prevents duplicate plan uploads overwriting each other.
+    concurrency:
+      group: azure-tf-${{ inputs.env }}-${{ inputs.directory }}
+      cancel-in-progress: false
+
+    permissions:
+      id-token: write  # Required: allows this job to mint an OIDC JWT
+      contents: read
+
+    env:
+      # -------------------------------------------------------------------------
+      # OIDC Authentication — no client secret, no storage key
+      # ARM_* variables are picked up by both the azurerm provider AND backend.
+      # ARM_USE_OIDC instructs the azurerm provider to exchange the OIDC JWT
+      # for a short-lived Azure access token at runtime.
+      # -------------------------------------------------------------------------
+      ARM_USE_OIDC:        "true"
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}       # GUID, not a secret
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}       # GUID, not a secret
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }} # GUID, not a secret
+
+      # -------------------------------------------------------------------------
+      # Terraform variable injection — non-sensitive Azure identity values
+      # -------------------------------------------------------------------------
+      TF_VAR_azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_tenant_id:       ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id:       ${{ vars.AZURE_CLIENT_ID }}
+
+      # GitHub App credentials for CI token generation and ArgoCD repo access
+      TF_VAR_github_app_id:               ${{ secrets.APP_ID }}
+      TF_VAR_github_app_installation_id:  ${{ secrets.APP_INSTALLATION_ID }}
+      TF_VAR_github_app_private_key:      ${{ secrets.APP_PRIVATE_KEY }}
+
+      # Repository context — auto-populated from GitHub context
+      TF_VAR_github_owner:       ${{ github.repository_owner }}
+      TF_VAR_github_repository:  ${{ github.event.repository.name }}
+      TF_VAR_github_environment: ${{ inputs.env }}
+      TF_VAR_gitops_repo_url:    ${{ vars.GITOPS_REPO_URL }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.directory }}
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # OIDC Login — exchanges the GitHub OIDC JWT for an Azure access token.
+      # This step is what makes ARM_USE_OIDC work. It configures the az CLI
+      # with a federated credential login, which the azurerm provider and
+      # kubelogin can subsequently use.
+      # -----------------------------------------------------------------------
+      - name: Login to Azure via OIDC
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.11.0
+          terraform_wrapper: false
+
+      # -----------------------------------------------------------------------
+      # INIT — Connects to Azure Blob backend using OIDC identity.
+      # use_azuread_auth = true in backend.conf means no ARM_ACCESS_KEY needed.
+      # -----------------------------------------------------------------------
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -reconfigure \
+            -backend-config=backend.conf
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run tflint
+        run: |
+          tflint --init
+          tflint --no-color
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      # -----------------------------------------------------------------------
+      # PLAN (validate mode) — Drift check, no artifact saved.
+      # -----------------------------------------------------------------------
+      - name: Terraform Plan (Drift Check)
+        if: inputs.mode == 'validate'
+        run: |
+          terraform plan \
+            -no-color \
+            -refresh=true
+
+      # -----------------------------------------------------------------------
+      # PLAN (deploy mode) — Generates immutable binary plan artifact.
+      # -----------------------------------------------------------------------
+      - name: Generate Immutable Plan Artifact
+        if: inputs.mode == 'deploy'
+        run: |
+          terraform plan \
+            -no-color \
+            -refresh=true \
+            -out=tfplan.binary
+
+      - name: Upload Immutable Plan Artifact
+        if: inputs.mode == 'deploy'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.env }}-${{ inputs.layer_kind }}-${{ github.run_id }}
+          path: ${{ inputs.directory }}/tfplan.binary
+          if-no-files-found: error
+          retention-days: 1
+
+  # ============================================================================
+  # JOB 2: APPLY
+  # ============================================================================
+  terraform_apply:
+    name: "Apply [${{ inputs.env }}/${{ inputs.layer_kind }}]"
+    needs: terraform_plan
+    if: inputs.mode == 'deploy'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+
+    concurrency:
+      group: azure-tf-${{ inputs.env }}-${{ inputs.directory }}
+      cancel-in-progress: false
+
+    permissions:
+      id-token: write  # Required: mint OIDC JWT on the apply runner too
+      contents: read
+
+    env:
+      ARM_USE_OIDC:        "true"
+      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      TF_VAR_azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_azure_tenant_id:       ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_azure_client_id:       ${{ vars.AZURE_CLIENT_ID }}
+
+      TF_VAR_github_app_id:               ${{ secrets.APP_ID }}
+      TF_VAR_github_app_installation_id:  ${{ secrets.APP_INSTALLATION_ID }}
+      TF_VAR_github_app_private_key:      ${{ secrets.APP_PRIVATE_KEY }}
+
+      TF_VAR_github_owner:       ${{ github.repository_owner }}
+      TF_VAR_github_repository:  ${{ github.event.repository.name }}
+      TF_VAR_github_environment: ${{ inputs.env }}
+      TF_VAR_gitops_repo_url:    ${{ vars.GITOPS_REPO_URL }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.directory }}
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      # Mint short-lived GitHub App token for Terraform's GitHub provider.
+      # This token is valid for ~1 hour and is gone when the job ends.
+      # It is NOT stored in any variable or secret.
+      - name: Mint Short-Lived GitHub App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id:      ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # OIDC login on the apply runner — each runner is a fresh ephemeral VM
+      - name: Login to Azure via OIDC
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~> 1.11.0
+          terraform_wrapper: false
+
+      # Re-init on the fresh apply runner — .terraform/ does not persist between jobs
+      - name: Terraform Init (Re-connect Backend)
+        run: |
+          terraform init \
+            -reconfigure \
+            -backend-config=backend.conf
+
+      - name: Download Immutable Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.env }}-${{ inputs.layer_kind }}-${{ github.run_id }}
+          path: ${{ inputs.directory }}
+
+      - name: Execute Immutable Apply
+        env:
+          TF_VAR_github_token: ${{ steps.generate_token.outputs.token }}
+        run: |
+          terraform apply -auto-approve tfplan.binary

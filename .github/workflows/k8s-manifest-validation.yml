@@ -12,25 +12,95 @@ on:
       - '.github/workflows/k8s-manifest-validation.yml'
 
 jobs:
-  validate:
-    name: Validate Kustomize Layouts
+  # ─────────────────────────────────────────────────────────────
+  # Step 1: Detect which overlays were touched
+  # ─────────────────────────────────────────────────────────────
+  detect_overlays:
+    name: "Detect Changed Overlays"
     runs-on: ubuntu-latest
+    outputs:
+      overlays: ${{ steps.set_overlays.outputs.overlays }}
+      any_changed: ${{ steps.set_overlays.outputs.any_changed }}
     steps:
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            base:
+              - 'infrastructure/k8s/base/**'
+            dev:
+              - 'infrastructure/k8s/overlays/dev/**'
+            prod:
+              - 'infrastructure/k8s/overlays/prod/**'
+
+      - name: Build Changed Overlay Matrix
+        id: set_overlays
+        run: |
+          OVERLAYS='[]'
+          # base changes affect ALL overlays → validate both dev + prod
+          if [ "${{ steps.filter.outputs.base }}" = "true" ]; then
+            OVERLAYS=$(echo '[]' | jq -c '. + ["dev", "prod"]')
+          else
+            if [ "${{ steps.filter.outputs.dev }}" = "true" ]; then
+              OVERLAYS=$(echo "$OVERLAYS" | jq -c '. + ["dev"]')
+            fi
+            if [ "${{ steps.filter.outputs.prod }}" = "true" ]; then
+              OVERLAYS=$(echo "$OVERLAYS" | jq -c '. + ["prod"]')
+            fi
+          fi
+          if [ "$OVERLAYS" = "[]" ] || [ -z "$OVERLAYS" ]; then
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+            echo "overlays=[]"       >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=true"  >> $GITHUB_OUTPUT
+            echo "overlays=$OVERLAYS" >> $GITHUB_OUTPUT
+          fi
+
+  # ─────────────────────────────────────────────────────────────
+  # Step 2: Validate only the overlays that changed
+  # ─────────────────────────────────────────────────────────────
+  validate:
+    name: "Validate ${{ matrix.overlay }} Overlay"
+    needs: detect_overlays
+    if: needs.detect_overlays.outputs.any_changed == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        overlay: ${{ fromJSON(needs.detect_overlays.outputs.overlays) }}
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
 
-      - name: Validate Dev Overlay
+      - name: Install kubeconform
         run: |
-          if [ ! -f infrastructure/k8s/overlays/dev/secrets.yaml ]; then
-            cp infrastructure/k8s/overlays/dev/secrets.yaml.example infrastructure/k8s/overlays/dev/secrets.yaml
-          fi
-          kustomize build infrastructure/k8s/overlays/dev > /dev/null
+          curl -sSLo kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
+          tar -xf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/
 
-      - name: Validate Prod Overlay
-        run: kustomize build infrastructure/k8s/overlays/prod > /dev/null
+      - name: Prepare secrets stub (dev only)
+        if: matrix.overlay == 'dev'
+        run: |
+          [ ! -f infrastructure/k8s/overlays/dev/secrets.yaml ] && \
+            cp infrastructure/k8s/overlays/dev/secrets.yaml.example \
+               infrastructure/k8s/overlays/dev/secrets.yaml || true
 
-      - name: Validate Local Overlay
+      - name: Build & kubeconform Validate (${{ matrix.overlay }})
+        run: |
+          kustomize build infrastructure/k8s/overlays/${{ matrix.overlay }} \
+            | kubeconform \
+                -strict \
+                -kubernetes-version 1.30.0 \
+                -ignore-missing-schemas \
+                -summary \
+                -output tap
+
+      - name: Validate Local Overlay (smoke test)
+        if: matrix.overlay == 'dev'
         run: kustomize build infrastructure/k8s/overlays/local > /dev/null

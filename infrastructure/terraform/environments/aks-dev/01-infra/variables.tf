@@ -48,13 +48,13 @@ variable "cluster_name" {
 
 variable "kubernetes_version" {
   type        = string
-  default     = "1.32"
+  default     = "1.34"
   description = "Kubernetes version for the AKS cluster."
 }
 
 variable "node_vm_size" {
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_B2s_v2"
   description = "VM size for the default node pool."
 }
 

@@ -23,7 +23,7 @@ variable "kubernetes_version" {
 variable "node_vm_size" {
   type        = string
   description = "VM size for the default node pool"
-  default     = "Standard_B2s"
+  default     = "Standard_B2s_v2"
 }
 
 variable "min_node_count" {

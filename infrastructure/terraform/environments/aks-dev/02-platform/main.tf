@@ -126,13 +126,3 @@ module "ingress_dns" {
   resource_group_name = data.terraform_remote_state.infra.outputs.resource_group_name
 }
 
-module "argocd" {
-  source = "../../../modules/shared/argocd"
-
-  gitops_repo_url            = var.gitops_repo_url
-  gitops_revision            = var.gitops_revision
-  github_app_id              = var.github_app_id
-  github_app_installation_id = var.github_app_installation_id
-  github_app_private_key     = var.github_app_private_key
-  argocd_version             = var.argocd_version
-}

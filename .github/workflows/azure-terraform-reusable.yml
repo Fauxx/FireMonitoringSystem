@@ -114,6 +114,11 @@ jobs:
           terraform_version: ~> 1.11.0
           terraform_wrapper: false
 
+      - name: Setup kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.1.7'
+
       # -----------------------------------------------------------------------
       # INIT — Connects to Azure Blob backend using OIDC identity.
       # use_azuread_auth = true in backend.conf means no ARM_ACCESS_KEY needed.
@@ -238,6 +243,11 @@ jobs:
         with:
           terraform_version: ~> 1.11.0
           terraform_wrapper: false
+
+      - name: Setup kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.1.7'
 
       # Re-init on the fresh apply runner — .terraform/ does not persist between jobs
       - name: Terraform Init (Re-connect Backend)

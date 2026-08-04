@@ -98,6 +98,20 @@ resource "helm_release" "cert_manager" {
   }
 }
 
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = kubernetes_namespace.argocd.metadata[0].name
+  create_namespace = false
+  version          = "7.9.0"
+
+  set {
+    name  = "crds.install"
+    value = "true"
+  }
+}
+
 # CSI Driver
 resource "helm_release" "csi_secrets_store_provider_azure" {
   name       = "csi-secrets-store-provider-azure"

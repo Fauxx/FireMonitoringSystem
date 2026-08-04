@@ -126,3 +126,17 @@ module "ingress_dns" {
   resource_group_name = data.terraform_remote_state.infra.outputs.resource_group_name
 }
 
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = "argocd"
+  create_namespace = true
+  version          = "7.9.0"
+
+  set {
+    name  = "crds.install"
+    value = "true"
+  }
+}
+

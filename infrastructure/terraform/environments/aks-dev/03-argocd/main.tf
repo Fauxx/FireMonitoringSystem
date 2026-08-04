@@ -17,10 +17,10 @@ terraform {
 data "terraform_remote_state" "infra" {
   backend = "azurerm"
   config = {
-    resource_group_name  = "rg-firemonitoring-tfstate-01"
-    storage_account_name = "stfiremonitortfstate"
-    container_name       = "tfstate"
-    key                  = "aks-dev/01-infra/terraform.tfstate"
+    resource_group_name  = var.tfstate_resource_group
+    storage_account_name = var.tfstate_storage_account
+    container_name       = var.tfstate_container
+    key                  = var.infra_state_key
     use_azuread_auth     = true
   }
 }

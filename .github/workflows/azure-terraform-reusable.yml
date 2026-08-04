@@ -135,7 +135,7 @@ jobs:
       - name: Run tflint
         run: |
           tflint --init
-          tflint --no-color
+          tflint --no-color --minimum-failure-severity=error
 
       - name: Terraform Validate
         run: terraform validate

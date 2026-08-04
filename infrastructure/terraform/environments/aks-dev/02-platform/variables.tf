@@ -34,6 +34,7 @@ variable "github_app_private_key" {
 variable "github_token" {
   type      = string
   sensitive = true
+  default   = ""
 }
 
 variable "dns_zone_name" {
@@ -42,7 +43,8 @@ variable "dns_zone_name" {
 }
 
 variable "gitops_repo_url" {
-  type = string
+  type    = string
+  default = "https://github.com/Fauxx/FireMonitoringSystem.git"
 }
 
 variable "gitops_revision" {

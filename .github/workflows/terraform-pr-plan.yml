@@ -87,6 +87,7 @@ jobs:
       TF_VAR_github_app_id:               ${{ secrets.APP_ID }}
       TF_VAR_github_app_installation_id:  ${{ secrets.APP_INSTALLATION_ID }}
       TF_VAR_github_app_private_key:      ${{ secrets.APP_PRIVATE_KEY }}
+      TF_VAR_cloudflare_tunnel_credentials_json: ${{ secrets.CLOUDFLARE_TUNNEL_CREDENTIALS_JSON }}
 
     defaults:
       run:

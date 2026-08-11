@@ -20,3 +20,7 @@ gitops_repo_apps_path      = "infrastructure/k8s/overlays/dev"
 github_app_id              = "123456"
 github_app_installation_id = "7890123"
 github_app_private_key     = "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+
+# Cloudflare Tunnel credentials — paste the raw JSON from ~/.cloudflared/<tunnel-id>.json
+# Example: {"AccountTag":"...","TunnelSecret":"...","TunnelID":"...","Endpoint":""}
+cloudflare_tunnel_credentials_json = "{\"AccountTag\":\"...\",\"TunnelSecret\":\"...\",\"TunnelID\":\"8a14c96d-85ef-4623-bad8-c95b57aefe14\",\"Endpoint\":\"\"}"

@@ -146,6 +146,19 @@ gitops-tunnel:
 	@echo "Cleaning up port-forward (PID: $(PF_PID))..."
 	@kill $(PF_PID) 2>/dev/null || true
 
+
+# Push the local Cloudflare Tunnel credentials into AKS as a Kubernetes Secret.
+# This is a ONE-TIME setup step before deploying the cloudflared pods via ArgoCD.
+# The credentials file is NEVER committed to Git — only lives in ~/.cloudflared/
+aks-dev-cloudflared-secret:
+	@echo "🔐 Pushing Cloudflare Tunnel credentials to AKS (fire-monitoring-dev)..."
+	kubectl create namespace fire-monitoring-dev --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create secret generic cloudflare-tunnel-credentials \
+		--from-file=credentials.json=$(HOME)/.cloudflared/8a14c96d-85ef-4623-bad8-c95b57aefe14.json \
+		--namespace=fire-monitoring-dev \
+		--dry-run=client -o yaml | kubectl apply -f -
+	@echo "✅ Secret applied to fire-monitoring-dev."
+
 # Pause development environment (turns off auto-sync and scales down pods to 0)
 gitops-pause-dev:
 	@echo "Pausing dev namespace..."

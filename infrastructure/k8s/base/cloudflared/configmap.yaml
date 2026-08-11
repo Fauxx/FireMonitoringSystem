@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+data:
+  config.yml: |
+    tunnel: 8a14c96d-85ef-4623-bad8-c95b57aefe14
+    credentials-file: /etc/cloudflared/credentials.json
+    no-autoupdate: true
+
+    ingress:
+      # Dev application domain → routes to Nginx Ingress inside the cluster
+      - hostname: dev.fires.systems
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+
+      # Dev observability domain → Grafana via Nginx Ingress
+      - hostname: ops.dev.fires.systems
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+
+      # Catch-all: return 404 for any unmatched hostname
+      - service: http_status:404

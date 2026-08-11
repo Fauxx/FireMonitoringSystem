@@ -90,13 +90,14 @@ resource "kubernetes_manifest" "argocd_apps" {
       }
       destination = {
         server    = "https://kubernetes.default.svc"
-        namespace = "argocd"
+        namespace = "fire-monitoring-prod"
       }
       syncPolicy = {
         automated = {
           prune    = true
           selfHeal = true
         }
+        syncOptions = ["CreateNamespace=true"]
       }
     }
   }

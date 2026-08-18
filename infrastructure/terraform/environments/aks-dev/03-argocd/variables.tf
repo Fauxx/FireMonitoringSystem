@@ -90,3 +90,13 @@ variable "github_app_private_key" {
   sensitive   = true
   description = "The private PEM key content used locally by the cluster to request hourly tokens."
 }
+
+# ==============================================================================
+# 5. CLOUDFLARE TUNNEL CREDENTIALS
+# ==============================================================================
+
+variable "cloudflare_tunnel_credentials_json" {
+  type        = string
+  sensitive   = true
+  description = "The raw JSON content of the Cloudflare Tunnel credentials file (~/.cloudflared/<tunnel-id>.json). Used to create the cloudflare-tunnel-credentials K8s Secret before ArgoCD syncs cloudflared pods."
+}

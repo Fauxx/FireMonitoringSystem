@@ -31,6 +31,7 @@ variable "azure_client_secret" {
   description = "The Client Secret of the TEMPORARY bootstrap Service Principal. Deleted after first run."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 # ------------------------------------------------------------------------------
@@ -83,7 +84,7 @@ variable "github_token" {
   description = "A GitHub Personal Access Token or App token with 'repo' and 'admin:org' scope. Used ONLY during bootstrap to provision GitHub environments and inject variables."
   type        = string
   sensitive   = true
-  ephemeral   = true # Never persisted to Terraform state
+  default     = ""
 }
 
 # ------------------------------------------------------------------------------

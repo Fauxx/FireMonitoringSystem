@@ -42,17 +42,3 @@ variable "dns_zone_name" {
   default = ""
 }
 
-variable "gitops_repo_url" {
-  type    = string
-  default = "https://github.com/Fauxx/FireMonitoringSystem.git"
-}
-
-variable "gitops_revision" {
-  type    = string
-  default = "HEAD"
-}
-
-variable "argocd_version" {
-  type    = string
-  default = "7.9.0"
-}

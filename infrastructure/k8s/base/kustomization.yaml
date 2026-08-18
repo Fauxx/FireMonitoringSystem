@@ -33,6 +33,8 @@ resources:
   - cadvisor/service.yaml
   - alloy/daemonset.yaml
   - ingress
+  - cloudflared/configmap.yaml
+  - cloudflared/deployment.yaml
 
 configMapGenerator:
   - name: mqtt-config

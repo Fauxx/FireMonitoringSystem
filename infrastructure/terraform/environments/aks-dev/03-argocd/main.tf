@@ -77,6 +77,38 @@ resource "kubernetes_secret_v1" "argocd_github_app_creds" {
 }
 
 # ==============================================================================
+# 3b. WORKLOAD NAMESPACE + CLOUDFLARE TUNNEL SECRET (Pre-created before ArgoCD sync)
+# ==============================================================================
+# ArgoCD's syncOptions CreateNamespace=true only runs AFTER Terraform completes.
+# We must explicitly create the namespace first so the Secret can be placed into
+# it — otherwise Terraform fails with "namespaces not found".
+resource "kubernetes_namespace_v1" "fire_monitoring_dev" {
+  metadata {
+    name = "fire-monitoring-dev"
+    labels = {
+      environment  = "dev"
+      "managed-by" = "terraform"
+    }
+  }
+}
+
+# The cloudflared Deployment (in base/cloudflared/deployment.yaml) needs this
+# Secret to exist BEFORE ArgoCD syncs it. Without it, the pod cannot start.
+# This mirrors exactly how argocd_github_app_creds is handled above.
+resource "kubernetes_secret_v1" "cloudflare_tunnel_credentials" {
+  metadata {
+    name      = "cloudflare-tunnel-credentials"
+    namespace = kubernetes_namespace_v1.fire_monitoring_dev.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    "credentials.json" = var.cloudflare_tunnel_credentials_json
+  }
+}
+
+# ==============================================================================
 # 4. THE ROOT APPLICATION (App-of-Apps Pattern Deployment)
 # ==============================================================================
 # The existing K8s manifests and Kustomize overlays are cloud-agnostic.
@@ -98,16 +130,20 @@ resource "kubernetes_manifest" "argocd_apps" {
       }
       destination = {
         server    = "https://kubernetes.default.svc"
-        namespace = "argocd"
+        namespace = "fire-monitoring-dev"
       }
       syncPolicy = {
         automated = {
           prune    = true
           selfHeal = true
         }
+        syncOptions = ["CreateNamespace=true"]
       }
     }
   }
 
-  depends_on = [kubernetes_secret_v1.argocd_github_app_creds]
+  depends_on = [
+    kubernetes_secret_v1.argocd_github_app_creds,
+    kubernetes_secret_v1.cloudflare_tunnel_credentials,
+  ]
 }

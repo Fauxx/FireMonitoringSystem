@@ -5,7 +5,7 @@ metadata:
 data:
   config.yml: |
     tunnel: 8a14c96d-85ef-4623-bad8-c95b57aefe14
-    credentials-file: /etc/cloudflared/credentials.json
+    credentials-file: /etc/cloudflared/credentials/credentials.json
     no-autoupdate: true
 
     ingress:

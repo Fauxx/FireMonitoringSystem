@@ -15,6 +15,7 @@ resources:
 - collaboration-rbac.yaml
 
 patchesStrategicMerge:
+- cloudflared-patch.yaml
 - ingress-patch.yaml
 - api-replicas-patch.yaml
 - dashboard-replicas-patch.yaml

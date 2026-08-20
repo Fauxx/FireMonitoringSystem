@@ -111,7 +111,7 @@ local-up:
 
 local-down:
 	@echo "🛑 Stopping local environment..."
-	@pkill -f "kubectl port-forward.*8080" 2>/dev/null || true
+	@pkill -f "kubectl port-forward.*808[0]" 2>/dev/null || true
 	@podman stop fire-monitoring-control-plane 2>/dev/null || true
 	@echo "✅ Local environment stopped."
 

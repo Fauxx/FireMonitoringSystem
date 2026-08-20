@@ -8,7 +8,7 @@ on:
       - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
   push:
-    branches: [ main ]
+    branches: [ main, dev-zet ]
     paths:
       - 'apps/**'
       - 'infrastructure/k8s/base/sql/**'
@@ -149,7 +149,7 @@ jobs:
   deploy_dev:
     name: "Deploy to Dev (GitOps direct commit)"
     needs: [detect_changes, build_scan_push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev-zet')
     runs-on: ubuntu-latest
     environment: aks-dev
 

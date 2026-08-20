@@ -1,0 +1,100 @@
+name: "GitOps Deployment Notification"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs AFTER app-pipeline.yml completes the deploy_dev stage.
+# Posts a deployment summary comment on the commit, closing the GitOps
+# feedback loop for local (Kind) and future cloud (AKS) deployments.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_run:
+    workflows: ["Application CI/CD — Build, Secure & Deploy"]
+    types:
+      - completed
+    branches:
+      - main
+      - dev-zet
+
+permissions:
+  contents: read
+  statuses: write
+  checks: write
+
+jobs:
+  notify:
+    name: "Post GitOps Deployment Summary"
+    runs-on: ubuntu-latest
+    # Only notify when the upstream pipeline succeeded on a push to main
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.head_branch == 'main' ||
+       github.event.workflow_run.head_branch == 'dev-zet')
+
+    steps:
+      - name: Resolve Short SHA
+        id: sha
+        run: |
+          echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Post Commit Status — GitOps Sync Queued
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ github.event.workflow_run.head_sha }}';
+            const shortSha = sha.slice(0, 7);
+            const runUrl = '${{ github.event.workflow_run.html_url }}';
+
+            // Set a commit status so the green tick appears on the commit
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              sha:   sha,
+              state: 'success',
+              context: 'gitops / argocd-sync-queued',
+              description: `Image ${shortSha} pushed to GHCR & overlay updated — ArgoCD syncing to Kind cluster`,
+              target_url: runUrl,
+            });
+
+            // Post a detailed summary as a check run
+            await github.rest.checks.create({
+              owner:      context.repo.owner,
+              repo:       context.repo.repo,
+              name:       '🚀 GitOps — Local Deployment Status',
+              head_sha:   sha,
+              status:     'completed',
+              conclusion: 'success',
+              output: {
+                title:   `Deployed ${shortSha} → fire-monitoring-dev`,
+                summary: [
+                  '## 🚀 GitOps Deployment Complete',
+                  '',
+                  `| Field         | Value |`,
+                  `|:-------------|:------|`,
+                  `| **Image Tag** | \`${shortSha}\` |`,
+                  `| **Registry**  | \`ghcr.io/Fauxx/FireMonitoringSystem\` |`,
+                  `| **Overlay Updated** | \`infrastructure/k8s/overlays/dev/kustomization.yaml\` |`,
+                  `| **ArgoCD Target** | \`fire-monitoring-dev\` namespace on local Kind cluster |`,
+                  `| **CI Run**    | [View Workflow](${runUrl}) |`,
+                  '',
+                  '## ⏳ What Happens Next',
+                  '',
+                  '1. **ArgoCD** (running in your local Kind cluster) polls GitHub every 3 minutes.',
+                  '2. It detects the updated image tag in `overlays/dev/kustomization.yaml`.',
+                  '3. Pulls the new `ghcr.io` image into Kind nodes and rolls out the deployment.',
+                  '4. **`cloudflared`** in-cluster pod routes live traffic from `https://dev.fires.systems`.',
+                  '',
+                  '> **To force immediate sync** (skip the 3-minute poll):',
+                  '> ```bash',
+                  '> make staging-sync',
+                  '> ```',
+                  '',
+                  '> **To watch the live pod rollout:**',
+                  '> ```bash',
+                  '> make staging-watch',
+                  '> ```',
+                ].join('\n'),
+              },
+            });

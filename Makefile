@@ -98,6 +98,8 @@ local-up:
 	@echo "☸️  Starting Kind cluster for manifest testing..."
 	@podman start fire-monitoring-control-plane 2>/dev/null || kind create cluster --name $(KIND_CLUSTER_NAME) --config $(LOCAL_BUILD_DIR)/kind-config.yaml --wait 60s || true
 	@kubectl config use-context kind-$(KIND_CLUSTER_NAME)
+	@echo "🔌 Installing NGINX Ingress Controller..."
+	@kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
 	@echo "📦 Building & loading local images into Kind..."
 	@$(MAKE) kind-load
 	@echo "🚀 Applying local overlay..."

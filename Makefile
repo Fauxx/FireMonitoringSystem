@@ -100,6 +100,8 @@ local-up:
 	@kubectl config use-context kind-$(KIND_CLUSTER_NAME)
 	@echo "🔌 Installing NGINX Ingress Controller..."
 	@kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+	@echo "🩹 Patching ingress-nginx to remove hostPorts (for rootless Podman support)..."
+	@kubectl patch deployment -n ingress-nginx ingress-nginx-controller --type json -p='[{"op": "remove", "path": "/spec/template/spec/containers/0/ports/0/hostPort"}, {"op": "remove", "path": "/spec/template/spec/containers/0/ports/1/hostPort"}]' 2>/dev/null || true
 	@echo "📦 Building & loading local images into Kind..."
 	@$(MAKE) kind-load
 	@echo "🚀 Applying local overlay..."

@@ -29,7 +29,7 @@ else
 fi
 
 echo "🚀 Step 5: Applying Root ArgoCD App-of-Apps..."
-kubectl apply -f argocd-apps.yaml
-kubectl apply -f argocd-apps-dev.yaml
+kubectl apply -f build/local/argocd-apps.yaml
+kubectl apply -f build/local/argocd-apps-dev.yaml
 
 echo "🎉 Local GitOps Bootstrap Complete!"

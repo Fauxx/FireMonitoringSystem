@@ -70,7 +70,27 @@ patches:
   - target:
       kind: Job
       name: flyway-migrate
-    patch: |
+    patch: |-
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
+  # Remove cloudflared — local manifest testing uses port-forward only.
+  # The tunnel is only needed in dev/prod overlays where it runs in-cluster.
+  - target:
+      kind: Deployment
+      name: cloudflared
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cloudflared
+  - target:
+      kind: ConfigMap
+      name: cloudflared-config
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cloudflared-config

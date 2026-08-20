@@ -1,196 +1,236 @@
 # ==============================================================================
 #                      FIRE MONITORING SYSTEM - DEV TOOLS
 # ==============================================================================
+#   SDLC STAGES:
+#   1. RAPID DEV        - make rapid-up        Docker Compose hot-reload
+#   2. LOCAL MANIFESTS   - make local-up        Kind + port-forward (localhost)
+#   3. STAGING (DEV)     - make staging-up      ArgoCD GitOps → dev.fires.systems
+#   4. PRODUCTION        - make prod-up         ArgoCD GitOps → fires.systems
+#   5. CLOUD (AZURE)     - make aks-dev-*       Terraform AKS pipelines
+#   6. UTILITIES         - make status, clean   Hygiene & validation
+# ==============================================================================
+
 KIND_CLUSTER_NAME   ?= fire-monitoring
 LOCAL_BUILD_DIR     := build/local
 AKS_TF_BASE        := infrastructure/terraform/environments
 
 .PHONY: help \
-        dev-up dev-down dev-logs \
-        k8s-up k8s-down k8s-restart k8s-logs \
-        gitops-bootstrap gitops-ui gitops-tunnel \
-        clean-images build-local kind-load \
-        gitops-dev-only \
+        rapid-up rapid-down rapid-logs \
+        local-up local-down local-restart local-logs local-port-forward \
+        staging-up staging-down staging-sync staging-watch staging-pause staging-resume \
+        prod-up prod-down prod-pause prod-resume \
+        gitops-bootstrap gitops-ui status \
+        build-local kind-load clean-images ci-validate clean \
         aks-dev-bootstrap aks-dev-infra aks-dev-platform aks-dev-argocd aks-dev-plan-all aks-dev-destroy \
         aks-prod-bootstrap aks-prod-infra aks-prod-platform aks-prod-argocd aks-prod-plan-all aks-prod-destroy
 
-# Default target: show help menu
+# ==============================================================================
+# HELP
+# ==============================================================================
+
 help:
 	@echo "==========================================================================="
-	@echo "                      FIRE MONITORING SYSTEM — DEV TOOLS"
+	@echo "              FIRE MONITORING SYSTEM — SDLC DEV TOOLS"
 	@echo "==========================================================================="
 	@echo ""
-	@echo "[RETIRED — Local Only] TRACK 1: Docker Compose Sandbox"
-	@echo "  Config: $(LOCAL_BUILD_DIR)/docker-compose.local.yml"
-	@echo "  make dev-up            - Spin up Docker Compose sandbox (hot-reload)"
-	@echo "  make dev-down          - Tear down Docker Compose sandbox"
-	@echo "  make dev-logs          - Tail API / Dashboard / ETL logs"
+	@echo "🐳 [1] RAPID DEV (Docker Compose — hot-reload, no K8s)"
+	@echo "  make rapid-up          - Start Compose sandbox"
+	@echo "  make rapid-down        - Tear down Compose sandbox"
+	@echo "  make rapid-logs        - Tail application logs"
 	@echo ""
-	@echo "[RETIRED — Local Only] TRACK 2: Kind Kubernetes Cluster"
-	@echo "  Config: $(LOCAL_BUILD_DIR)/kind-config.yaml"
-	@echo "  make k8s-up            - Build images → load to Kind → deploy local overlay"
-	@echo "  make k8s-down          - Delete local namespace & Kind cluster"
-	@echo "  make k8s-restart       - Rollout restart pods after image rebuild"
-	@echo "  make k8s-logs          - Follow logs inside local namespace"
+	@echo "☸️  [2] LOCAL MANIFEST TESTING (Kind — port-forward only, no tunnel)"
+	@echo "  make local-up          - Create Kind cluster, build images, deploy local overlay"
+	@echo "  make local-down        - Stop Kind cluster & clean up port-forwards"
+	@echo "  make local-restart     - Rebuild images & rollout restart pods"
+	@echo "  make local-logs        - Tail local namespace logs"
+	@echo "  make local-port-forward - Port-forward ingress → localhost:8080"
 	@echo ""
-	@echo "[RETIRED — Local Only] TRACK 3: Local GitOps Simulation (ArgoCD + Cloudflare)"
-	@echo "  Config: $(LOCAL_BUILD_DIR)/argocd-apps*.yaml"
-	@echo "  make gitops-bootstrap  - Install ArgoCD, namespaces, replicate secrets"
+	@echo "🚀 [3] STAGING / DEV (ArgoCD GitOps → dev.fires.systems)"
+	@echo "  make staging-up        - Bootstrap ArgoCD + deploy dev overlay (tunnel included)"
+	@echo "  make staging-down      - Tear down dev environment via ArgoCD"
+	@echo "  make staging-sync      - Force ArgoCD sync (skip 3-min poll)"
+	@echo "  make staging-watch     - Live-watch pod rollout"
+	@echo "  make staging-pause     - Pause auto-sync & scale down dev pods"
+	@echo "  make staging-resume    - Restore auto-sync"
+	@echo ""
+	@echo "🔒 [4] PRODUCTION (ArgoCD GitOps → fires.systems)"
+	@echo "  make prod-up           - Deploy prod overlay via ArgoCD"
+	@echo "  make prod-down         - Tear down prod environment via ArgoCD"
+	@echo "  make prod-pause        - Pause auto-sync & scale down prod pods"
+	@echo "  make prod-resume       - Restore auto-sync"
+	@echo ""
+	@echo "🔧 [SHARED] Cluster & GitOps Utilities"
+	@echo "  make gitops-bootstrap  - Install ArgoCD, namespaces, secrets, GHCR creds"
 	@echo "  make gitops-ui         - Port-forward ArgoCD UI → https://localhost:8443"
-	@echo "  make gitops-tunnel     - Start Cloudflare Tunnel (port-forward + cloudflared)"
-	@echo "  make gitops-pause-dev  - Pause auto-sync + scale down dev pods"
-	@echo "  make gitops-resume-dev - Restore auto-sync + scale up dev pods"
-	@echo "  make gitops-pause-prod - Pause auto-sync + scale down prod pods"
-	@echo "  make gitops-resume-prod- Restore auto-sync + scale up prod pods"
-	@echo "  make gitops-dev-only   - Tear down local compose/kind, pause prod, resume dev"
+	@echo "  make status            - Show cluster context, nodes, pods across all namespaces"
 	@echo ""
-	@echo "[ACTIVE] TRACK 4: Azure AKS Terraform Operations"
-	@echo "  --- Dev Environment (aks-dev) ---"
-	@echo "  make aks-dev-bootstrap  - Layer 00: Create Azure Blob state backend"
-	@echo "  make aks-dev-infra      - Layer 01: Provision VNet + AKS cluster"
-	@echo "  make aks-dev-platform   - Layer 02: Deploy ArgoCD + Ingress + DNS"
-	@echo "  make aks-dev-argocd     - Layer 03: Register App-of-Apps in ArgoCD"
-	@echo "  make aks-dev-plan-all   - Dry-run plan across all aks-dev layers"
-	@echo "  make aks-dev-destroy    - ⚠️  Destroy all aks-dev infrastructure"
-	@echo "  --- Prod Environment (aks-prod) ---"
-	@echo "  make aks-prod-bootstrap - Layer 00: Create Azure Blob state backend"
-	@echo "  make aks-prod-infra     - Layer 01: Provision VNet + AKS cluster"
-	@echo "  make aks-prod-platform  - Layer 02: Deploy ArgoCD + Ingress + DNS"
-	@echo "  make aks-prod-argocd    - Layer 03: Register App-of-Apps in ArgoCD"
-	@echo "  make aks-prod-plan-all  - Dry-run plan across all aks-prod layers"
-	@echo "  make aks-prod-destroy   - ⚠️  PRODUCTION: Destroy all aks-prod infrastructure"
+	@echo "☁️  [5] AZURE AKS TERRAFORM (CI/CD)"
+	@echo "  make aks-dev-plan-all  - Dry-run plan across all aks-dev layers"
+	@echo "  make aks-dev-destroy   - Destroy all aks-dev infrastructure"
+	@echo "  make aks-prod-plan-all - Dry-run plan across all aks-prod layers"
+	@echo "  make aks-prod-destroy  - Destroy all aks-prod infrastructure"
+	@echo ""
+	@echo "🧹 [6] UTILITIES"
+	@echo "  make ci-validate       - Validate all Kustomize overlays"
+	@echo "  make clean             - Kill background processes, remove dangling images"
 	@echo "==========================================================================="
 
 # ==============================================================================
-# TRACK 1: RAPID CONTAINER DEVELOPMENT (Docker Compose)
-# [RETIRED] — Config lives in build/local/docker-compose.local.yml
+# [1] RAPID DEV — Docker Compose
 # ==============================================================================
 
-# Spin up Docker Compose local sandbox (code folders are mounted directly for hot-reloading)
-dev-up:
-	docker compose -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml up --build -d
+rapid-up:
+	@echo "🐳 Starting Docker Compose sandbox..."
+	docker compose --project-directory . --env-file $(LOCAL_BUILD_DIR)/.env -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml up --build -d
+	@echo "✅ Rapid dev ready! API: localhost:8000 | Dashboard: localhost:3000"
 
-# Spin down Docker Compose local sandbox (cleans volumes)
-dev-down:
-	docker compose -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml down -v
+rapid-down:
+	docker compose --project-directory . --env-file $(LOCAL_BUILD_DIR)/.env -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml down -v
 
-# Tail Docker Compose logs
-dev-logs:
-	docker compose -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml logs -f api dashboard etl-processor
+rapid-logs:
+	docker compose --project-directory . --env-file $(LOCAL_BUILD_DIR)/.env -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml logs -f api dashboard etl-processor
 
 # ==============================================================================
-# TRACK 2: LOCAL KUBERNETES TESTING (Kind)
-# [RETIRED] — Config lives in build/local/kind-config.yaml
+# [2] LOCAL MANIFEST TESTING — Kind + port-forward (NO cloudflared)
 # ==============================================================================
 
-# One-stop command to build, load, and deploy local Kubernetes overlay
-k8s-up: kind-load
-	kind create cluster --name $(KIND_CLUSTER_NAME) --config $(LOCAL_BUILD_DIR)/kind-config.yaml --wait 60s || true
-	kubectl create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl apply -f -
-	kubectl apply -k infrastructure/k8s/overlays/local
+local-up:
+	@echo "☸️  Starting Kind cluster for manifest testing..."
+	@podman start fire-monitoring-control-plane 2>/dev/null || kind create cluster --name $(KIND_CLUSTER_NAME) --config $(LOCAL_BUILD_DIR)/kind-config.yaml --wait 60s || true
+	@kubectl config use-context kind-$(KIND_CLUSTER_NAME)
+	@echo "📦 Building & loading local images into Kind..."
+	@$(MAKE) kind-load
+	@echo "🚀 Applying local overlay..."
+	@kubectl create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl apply -f -
+	@kubectl apply -k infrastructure/k8s/overlays/local || true
+	@echo "✅ Local manifest testing ready! Run: make local-port-forward"
 
-# Clean up local Kubernetes environment
-k8s-down:
-	kubectl delete namespace fire-monitoring-local --ignore-not-found=true
-	kind delete cluster --name $(KIND_CLUSTER_NAME) || true
+local-down:
+	@echo "🛑 Stopping local environment..."
+	@pkill -f "kubectl port-forward.*8080" 2>/dev/null || true
+	@podman stop fire-monitoring-control-plane 2>/dev/null || true
+	@echo "✅ Local environment stopped."
 
-# Re-roll pods to pick up updated local images after running 'make kind-load'
-k8s-restart:
-	kubectl rollout restart deployment -n fire-monitoring-local api dashboard etl-processor
+local-restart: build-local kind-load
+	@echo "🔄 Rollout restarting local deployments..."
+	kubectl rollout restart deployment -n fire-monitoring-local api dashboard etl-processor || true
+	@echo "✅ Local deployments restarted."
 
-# Tail logs of local Kubernetes applications
-k8s-logs:
+local-logs:
 	kubectl logs -n fire-monitoring-local -f -l deployment-type=local --max-log-requests=10
 
-# Build local docker/podman images
+local-port-forward:
+	@echo "🌐 Port-forwarding ingress → localhost:8080 (Ctrl+C to stop)..."
+	@pkill -f "kubectl port-forward.*8080" 2>/dev/null || true
+	kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80
+
+# ==============================================================================
+# [3] STAGING / DEV — ArgoCD GitOps (in-cluster cloudflared → dev.fires.systems)
+# ==============================================================================
+
+staging-up:
+	@echo "🚀 Deploying STAGING (dev) environment via ArgoCD..."
+	@echo "   Cloudflared runs in-cluster — dev.fires.systems will go live automatically."
+	kubectl apply -f build/local/argocd-apps-dev.yaml
+	@echo "✅ apps-dev applied. ArgoCD will sync automatically."
+	@echo "   Watch progress: make staging-watch"
+
+staging-down:
+	@echo "🛑 Tearing down STAGING (dev) environment..."
+	kubectl delete -f build/local/argocd-apps-dev.yaml
+	@echo "✅ apps-dev deleted. ArgoCD is cleaning up fire-monitoring-dev resources."
+
+staging-sync:
+	@echo "⚡ Forcing ArgoCD to sync apps-dev immediately..."
+	@kubectl patch app apps-dev -n argocd --type merge \
+	  -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"revision":"HEAD","prune":true}}}' \
+	  2>/dev/null || echo "⚠️  Patch failed — ArgoCD may still be starting. Try: make gitops-ui"
+	@echo "✅ Sync triggered. Watch progress: make staging-watch"
+
+staging-watch:
+	@echo "👀 Watching pod rollout in fire-monitoring-dev (Ctrl+C to stop)..."
+	kubectl get pods -n fire-monitoring-dev -w
+
+staging-pause:
+	@echo "⏸️  Pausing staging (dev) namespace..."
+	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-dev
+
+staging-resume:
+	@echo "▶️  Resuming staging (dev) namespace..."
+	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+
+# ==============================================================================
+# [4] PRODUCTION — ArgoCD GitOps (in-cluster cloudflared → fires.systems)
+# ==============================================================================
+
+prod-up:
+	@echo "🔒 Deploying PRODUCTION environment via ArgoCD..."
+	@echo "   Cloudflared runs in-cluster — fires.systems will go live automatically."
+	kubectl apply -f build/local/argocd-apps.yaml
+	@echo "✅ apps applied. ArgoCD will sync automatically."
+
+prod-down:
+	@echo "🛑 Tearing down PRODUCTION environment..."
+	kubectl delete -f build/local/argocd-apps.yaml
+	@echo "✅ apps deleted. ArgoCD is cleaning up fire-monitoring-prod resources."
+
+prod-pause:
+	@echo "⏸️  Pausing production namespace..."
+	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-prod
+
+prod-resume:
+	@echo "▶️  Resuming production namespace..."
+	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+
+# ==============================================================================
+# SHARED — Cluster & GitOps Utilities
+# ==============================================================================
+
+gitops-bootstrap:
+	bash infrastructure/scripts/local-gitops-bootstrap.sh
+
+gitops-ui:
+	@echo "ArgoCD UI starting... open https://localhost:8443 in your browser."
+	kubectl port-forward -n argocd svc/argocd-server 8443:443
+
+status:
+	@echo "=== KUBECTL CONTEXT ==="
+	@kubectl config current-context 2>/dev/null || echo "No active context."
+	@echo ""
+	@echo "=== KUBERNETES NODES ==="
+	@kubectl get nodes 2>/dev/null || echo "Cluster is stopped."
+	@echo ""
+	@echo "=== LOCAL NAMESPACE ==="
+	@kubectl get pods -n fire-monitoring-local 2>/dev/null || true
+	@echo ""
+	@echo "=== DEV (STAGING) NAMESPACE ==="
+	@kubectl get pods -n fire-monitoring-dev 2>/dev/null || true
+	@echo ""
+	@echo "=== PROD NAMESPACE ==="
+	@kubectl get pods -n fire-monitoring-prod 2>/dev/null || true
+	@echo ""
+	@echo "=== ARGOCD APPS ==="
+	@kubectl get apps -n argocd -o wide 2>/dev/null || echo "ArgoCD not running."
+
 build-local:
 	docker build -t localhost/api:local ./apps/api
 	docker build -t localhost/dashboard:local ./apps/dashboard
 	docker build -t localhost/etl-processor:local ./apps/etl-processor
 
-# Load local docker/podman images into Kind cluster
 kind-load: build-local
 	kind load docker-image localhost/api:local --name $(KIND_CLUSTER_NAME)
 	kind load docker-image localhost/dashboard:local --name $(KIND_CLUSTER_NAME)
 	kind load docker-image localhost/etl-processor:local --name $(KIND_CLUSTER_NAME)
 
-# Clean local docker images
 clean-images:
 	docker rmi localhost/api:local localhost/dashboard:local localhost/etl-processor:local || true
 
 # ==============================================================================
-# TRACK 3: LOCAL GITOPS SIMULATION (ArgoCD & Cloudflare Tunnel)
-# [RETIRED] — Manifests live in build/local/argocd-apps*.yaml
+# [5] AZURE AKS TERRAFORM (CI/CD)
 # ==============================================================================
 
-# Bootstrap local GitOps setup (ArgoCD, Namespaces, Secrets replication, App-of-Apps)
-gitops-bootstrap:
-	bash infrastructure/scripts/local-gitops-bootstrap.sh
-
-# Open access port to ArgoCD web interface
-gitops-ui:
-	@echo "ArgoCD UI starting... open https://localhost:8443 in your browser."
-	kubectl port-forward -n argocd svc/argocd-server 8443:443
-
-# Run the Cloudflare Tunnel connection
-# Starts a background port-forward (localhost:8080 → ingress-nginx) so cloudflared
-# has a live backend to proxy to, then launches the tunnel. Cleans up on exit.
-gitops-tunnel:
-	@echo "Port-forwarding Nginx Ingress to localhost:8080..."
-	kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80 &
-	$(eval PF_PID := $$!)
-	@echo "Waiting for port-forward to be ready..."
-	@sleep 2
-	@echo "Starting Cloudflare Tunnel connection..."
-	cloudflared tunnel run local-k8s || true
-	@echo "Cleaning up port-forward (PID: $(PF_PID))..."
-	@kill $(PF_PID) 2>/dev/null || true
-
-
-# Push the local Cloudflare Tunnel credentials into AKS as a Kubernetes Secret.
-# This is a ONE-TIME setup step before deploying the cloudflared pods via ArgoCD.
-# The credentials file is NEVER committed to Git — only lives in ~/.cloudflared/
-aks-dev-cloudflared-secret:
-	@echo "🔐 Pushing Cloudflare Tunnel credentials to AKS (fire-monitoring-dev)..."
-	kubectl create namespace fire-monitoring-dev --dry-run=client -o yaml | kubectl apply -f -
-	kubectl create secret generic cloudflare-tunnel-credentials \
-		--from-file=credentials.json=$(HOME)/.cloudflared/8a14c96d-85ef-4623-bad8-c95b57aefe14.json \
-		--namespace=fire-monitoring-dev \
-		--dry-run=client -o yaml | kubectl apply -f -
-	@echo "✅ Secret applied to fire-monitoring-dev."
-
-# Pause development environment (turns off auto-sync and scales down pods to 0)
-gitops-pause-dev:
-	@echo "Pausing dev namespace..."
-	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
-	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-dev
-
-# Resume development environment (restores auto-sync and scales up pods)
-gitops-resume-dev:
-	@echo "Resuming dev namespace..."
-	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
-
-# Pause production environment (turns off auto-sync and scales down pods to 0)
-gitops-pause-prod:
-	@echo "Pausing prod namespace..."
-	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
-	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-prod
-
-# Resume production environment (restores auto-sync and scales up pods)
-gitops-resume-prod:
-	@echo "Resuming prod namespace..."
-	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
-
-# Transition to Dev/Staging environment exclusively (teardown local sandbox, pause prod namespace, resume dev)
-gitops-dev-only: dev-down k8s-down gitops-pause-prod gitops-resume-dev
-	@echo "Dev/Staging environment active. Local Kind, Compose, and Prod are turned off."
-
-# ==============================================================================
-# TRACK 4: AZURE AKS TERRAFORM OPERATIONS
-# ==============================================================================
-AKS_TF_BASE = infrastructure/terraform/environments
-
-# --- AKS DEV ---
 aks-dev-bootstrap:
 	cd $(AKS_TF_BASE)/aks-dev/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply
 
@@ -224,7 +264,6 @@ aks-dev-destroy:
 		echo "Destruction cancelled."; \
 	fi
 
-# --- AKS PROD ---
 aks-prod-bootstrap:
 	cd $(AKS_TF_BASE)/aks-prod/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply
 
@@ -257,3 +296,22 @@ aks-prod-destroy:
 	else \
 		echo "Destruction cancelled."; \
 	fi
+
+# ==============================================================================
+# [6] UTILITIES
+# ==============================================================================
+
+ci-validate:
+	@echo "🔍 Validating Kubernetes Kustomize overlays..."
+	kubectl kustomize infrastructure/k8s/overlays/dev > /dev/null
+	kubectl kustomize infrastructure/k8s/overlays/prod > /dev/null
+	kubectl kustomize infrastructure/k8s/overlays/local > /dev/null
+	@echo "✅ All Kubernetes Kustomize manifests are valid!"
+
+clean:
+	@echo "🧹 Cleaning background processes & logs..."
+	-@pkill -f "kubectl port-forward" 2>/dev/null || true
+	@rm -f /tmp/pf.log
+	@echo "🧹 Cleaning dangling containers & images..."
+	-@make clean-images 2>/dev/null || true
+	@echo "✅ Cleanup complete!"

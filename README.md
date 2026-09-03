@@ -1,9 +1,18 @@
-# IoT-Based Fire Monitoring & Cloud-Native Analytics Platform
+<div align="center">
 
-[![Status](https://img.shields.io/badge/Status-🚀%20Active%20Engineering%20Laboratory-brightgreen.svg)](#)
-[![Infrastructure](https://img.shields.io/badge/IaC-Terraform%20%7C%20DigitalOcean-blue.svg)](#)
-[![Orchestration](https://img.shields.io/badge/Orchestration-Kubernetes%20(DOKS)%20%7C%20ArgoCD-red.svg)](#)
-[![Security](https://img.shields.io/badge/Security-Zero%20Trust%20%7C%20NetworkPolicies-orange.svg)](#)
+# 🔥 IoT-Based Fire Monitoring & Cloud-Native Analytics Platform
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat&logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![ArgoCD](https://img.shields.io/badge/ArgoCD-EF7B4D?style=flat&logo=argo&logoColor=white)](https://argoproj.github.io/cd/)
+[![DigitalOcean](https://img.shields.io/badge/DigitalOcean-0080FF?style=flat&logo=digitalocean&logoColor=white)](https://www.digitalocean.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat&logo=grafana&logoColor=white)](https://grafana.com/)
+
+*An active engineering laboratory for Cloud-Native Infrastructure, GitOps, and Zero-Trust Security.*
+
+</div>
 
 Welcome to the **IoT-Based Fire Monitoring & Cloud-Native Analytics Platform**! This repository serves as a high-fidelity platform for exploring **Cloud-Native Infrastructure**, **GitOps**, and **Zero-Trust Security**. 
 

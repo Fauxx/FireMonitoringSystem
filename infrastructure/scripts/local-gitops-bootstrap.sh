@@ -51,9 +51,9 @@ else
   echo "  ⚠️  fire-monitoring-secrets not found in fire-monitoring-local. Run 'make local-up' first."
 fi
 
-echo "🔐 Step 5: GitHub App — Generating Installation Access Token..."
-INSTALL_TOKEN=$(python3 - <<PYEOF
-import time, json, base64, urllib.request, urllib.error
+echo "🚀 Step 5: Applying Root ArgoCD App-of-Apps..."
+kubectl apply -f build/local/argocd-apps.yaml
+kubectl apply -f build/local/argocd-apps-dev.yaml
 
 with open("${GITHUB_APP_PEM}", "rb") as f:
     pem = f.read()

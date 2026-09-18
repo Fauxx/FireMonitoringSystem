@@ -1,0 +1,3 @@
+project_id    = "firemonitoring-dev"
+region        = "asia-east1"
+dns_zone_name = "dev.fires.systems"

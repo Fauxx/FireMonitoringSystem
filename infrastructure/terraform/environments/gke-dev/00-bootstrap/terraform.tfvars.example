@@ -1,0 +1,8 @@
+gcp_project_id = "firemonitoring-dev"
+region         = "asia-east1"
+github_token   = "ghp_..."
+github_app_id  = "..."
+github_app_installation_id = "..."
+github_app_private_key = "-----BEGIN RSA PRIVATE KEY-----\n..."
+cloudflare_tunnel_credentials_json = "{}"
+gitops_repo_url = "https://github.com/Fauxx/FireMonitoringSystem"

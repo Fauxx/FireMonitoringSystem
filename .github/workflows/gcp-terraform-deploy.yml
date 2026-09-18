@@ -1,0 +1,68 @@
+name: "GCP Terraform Deploy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [gke-dev]
+        required: true
+      layer:
+        description: "Terraform layer to execute"
+        type: choice
+        options: ["00-bootstrap", "01-infra", "02-platform", "03-argocd", "all"]
+        required: true
+      execution_mode:
+        description: "Plan only or apply"
+        type: choice
+        options: [plan-only, apply]
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    name: "00-bootstrap"
+    if: inputs.layer == '00-bootstrap' || inputs.layer == 'all'
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment:    ${{ inputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/00-bootstrap
+      execution_mode: ${{ inputs.execution_mode }}
+    secrets: inherit
+
+  infra:
+    name: "01-infra"
+    needs: bootstrap
+    if: always() && (inputs.layer == '01-infra' || inputs.layer == 'all')
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment:    ${{ inputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/01-infra
+      execution_mode: ${{ inputs.execution_mode }}
+    secrets: inherit
+
+  platform:
+    name: "02-platform"
+    needs: infra
+    if: always() && (inputs.layer == '02-platform' || inputs.layer == 'all')
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment:    ${{ inputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/02-platform
+      execution_mode: ${{ inputs.execution_mode }}
+    secrets: inherit
+
+  argocd:
+    name: "03-argocd"
+    needs: platform
+    if: always() && (inputs.layer == '03-argocd' || inputs.layer == 'all')
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment:    ${{ inputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/03-argocd
+      execution_mode: ${{ inputs.execution_mode }}
+    secrets: inherit

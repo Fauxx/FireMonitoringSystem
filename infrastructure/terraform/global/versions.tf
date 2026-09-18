@@ -2,15 +2,13 @@ terraform {
   required_version = ">= 1.11.0"
 
   required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 6.0"
     }
-    # Microsoft Graph API — manages Entra ID App Registrations,
-    # Service Principals, and Federated Identity Credentials (OIDC trust).
-    azuread = {
-      source  = "hashicorp/azuread"
-      version = "~> 3.0"
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 6.0"
     }
     github = {
       source  = "integrations/github"

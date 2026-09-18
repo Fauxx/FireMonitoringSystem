@@ -3,7 +3,7 @@ name: "Terraform PR Plan Review"
 on:
   pull_request:
     paths:
-      - 'infrastructure/terraform/environments/aks-dev/**'
+      - 'infrastructure/terraform/environments/gke-dev/**'
       - '.github/workflows/terraform-pr-plan.yml'
 
 permissions:
@@ -16,9 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────────────────────
-  # Step 1: Detect which terraform layers have changes
-  # ─────────────────────────────────────────────────────────────
   detect_layers:
     name: "Detect Changed TF Layers"
     runs-on: ubuntu-latest
@@ -33,24 +30,24 @@ jobs:
         with:
           filters: |
             infra:
-              - 'infrastructure/terraform/environments/aks-dev/01-infra/**'
+              - 'infrastructure/terraform/environments/gke-dev/01-infra/**'
             platform:
-              - 'infrastructure/terraform/environments/aks-dev/02-platform/**'
+              - 'infrastructure/terraform/environments/gke-dev/02-platform/**'
             argocd:
-              - 'infrastructure/terraform/environments/aks-dev/03-argocd/**'
+              - 'infrastructure/terraform/environments/gke-dev/03-argocd/**'
 
       - name: Build Changed Layer Matrix
         id: set_layers
         run: |
           LAYERS='[]'
           if [ "${{ steps.filter.outputs.infra }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/aks-dev/01-infra"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/gke-dev/01-infra"}]')
           fi
           if [ "${{ steps.filter.outputs.platform }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/aks-dev/02-platform"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/gke-dev/02-platform"}]')
           fi
           if [ "${{ steps.filter.outputs.argocd }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/aks-dev/03-argocd"}]')
+            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/gke-dev/03-argocd"}]')
           fi
           if [ "$LAYERS" = "[]" ] || [ -z "$LAYERS" ]; then
             echo "any_changed=false" >> $GITHUB_OUTPUT
@@ -60,28 +57,19 @@ jobs:
             echo "layers=$LAYERS"     >> $GITHUB_OUTPUT
           fi
 
-  # ─────────────────────────────────────────────────────────────
-  # Step 2: Run plans ONLY for detected layers
-  # ─────────────────────────────────────────────────────────────
   plan:
-    name: "TF Plan: aks-dev/${{ matrix.layer }}"
+    name: "TF Plan: gke-dev/${{ matrix.layer }}"
     needs: detect_layers
     if: needs.detect_layers.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
-    environment: aks-dev
+    environment: gke-dev
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.detect_layers.outputs.layers) }}
 
     env:
-      ARM_USE_OIDC:        "true"
-      ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_VAR_azure_tenant_id:       ${{ vars.AZURE_TENANT_ID }}
-      TF_VAR_azure_client_id:       ${{ vars.AZURE_CLIENT_ID }}
+      TF_VAR_gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
       TF_VAR_github_owner:          ${{ github.repository_owner }}
       TF_VAR_github_repository:     ${{ github.event.repository.name }}
       TF_VAR_github_app_id:               ${{ secrets.APP_ID }}
@@ -96,12 +84,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to Azure via OIDC
-        uses: azure/login@v2
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
         with:
-          client-id:       ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -132,7 +119,7 @@ jobs:
         with:
           header: tf-plan-${{ matrix.layer }}
           message: |
-            ## 🏗️ Terraform Plan — `aks-dev/${{ matrix.layer }}`
+            ## 🏗️ Terraform Plan — `gke-dev/${{ matrix.layer }}`
 
             | Step | Status |
             |------|--------|

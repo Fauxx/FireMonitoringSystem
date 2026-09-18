@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'infrastructure/terraform/environments/gke-dev/**'
+      - 'infrastructure/terraform/environments/gke-prod/**'
       - '.github/workflows/terraform-pr-plan.yml'
 
 permissions:
@@ -29,26 +30,30 @@ jobs:
         id: filter
         with:
           filters: |
-            infra:
+            dev_infra:
               - 'infrastructure/terraform/environments/gke-dev/01-infra/**'
-            platform:
+            dev_platform:
               - 'infrastructure/terraform/environments/gke-dev/02-platform/**'
-            argocd:
+            dev_argocd:
               - 'infrastructure/terraform/environments/gke-dev/03-argocd/**'
+            prod_infra:
+              - 'infrastructure/terraform/environments/gke-prod/01-infra/**'
+            prod_platform:
+              - 'infrastructure/terraform/environments/gke-prod/02-platform/**'
+            prod_argocd:
+              - 'infrastructure/terraform/environments/gke-prod/03-argocd/**'
 
       - name: Build Changed Layer Matrix
         id: set_layers
         run: |
           LAYERS='[]'
-          if [ "${{ steps.filter.outputs.infra }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"01-infra","path":"infrastructure/terraform/environments/gke-dev/01-infra"}]')
-          fi
-          if [ "${{ steps.filter.outputs.platform }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"02-platform","path":"infrastructure/terraform/environments/gke-dev/02-platform"}]')
-          fi
-          if [ "${{ steps.filter.outputs.argocd }}" = "true" ]; then
-            LAYERS=$(echo "$LAYERS" | jq -c '. + [{"layer":"03-argocd","path":"infrastructure/terraform/environments/gke-dev/03-argocd"}]')
-          fi
+          if [ "${{ steps.filter.outputs.dev_infra }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-dev","layer":"01-infra","path":"infrastructure/terraform/environments/gke-dev/01-infra"}]'); fi
+          if [ "${{ steps.filter.outputs.dev_platform }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-dev","layer":"02-platform","path":"infrastructure/terraform/environments/gke-dev/02-platform"}]'); fi
+          if [ "${{ steps.filter.outputs.dev_argocd }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-dev","layer":"03-argocd","path":"infrastructure/terraform/environments/gke-dev/03-argocd"}]'); fi
+          if [ "${{ steps.filter.outputs.prod_infra }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-prod","layer":"01-infra","path":"infrastructure/terraform/environments/gke-prod/01-infra"}]'); fi
+          if [ "${{ steps.filter.outputs.prod_platform }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-prod","layer":"02-platform","path":"infrastructure/terraform/environments/gke-prod/02-platform"}]'); fi
+          if [ "${{ steps.filter.outputs.prod_argocd }}" = "true" ]; then LAYERS=$(echo "$LAYERS" | jq -c '. + [{"env":"gke-prod","layer":"03-argocd","path":"infrastructure/terraform/environments/gke-prod/03-argocd"}]'); fi
+          
           if [ "$LAYERS" = "[]" ] || [ -z "$LAYERS" ]; then
             echo "any_changed=false" >> $GITHUB_OUTPUT
             echo "layers=[]"         >> $GITHUB_OUTPUT
@@ -58,11 +63,11 @@ jobs:
           fi
 
   plan:
-    name: "TF Plan: gke-dev/${{ matrix.layer }}"
+    name: "TF Plan: ${{ matrix.env }}/${{ matrix.layer }}"
     needs: detect_layers
     if: needs.detect_layers.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
-    environment: gke-dev
+    environment: ${{ matrix.env }}
     strategy:
       fail-fast: false
       matrix:
@@ -117,9 +122,9 @@ jobs:
       - name: Post Sticky Plan Comment
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          header: tf-plan-${{ matrix.layer }}
+          header: tf-plan-${{ matrix.env }}-${{ matrix.layer }}
           message: |
-            ## 🏗️ Terraform Plan — `gke-dev/${{ matrix.layer }}`
+            ## 🏗️ Terraform Plan — `${{ matrix.env }}/${{ matrix.layer }}`
 
             | Step | Status |
             |------|--------|

@@ -6,7 +6,7 @@ on:
       environment:
         description: "Target environment"
         type: choice
-        options: [gke-dev]
+        options: [gke-dev, gke-prod]
         required: true
       layer:
         description: "Terraform layer to execute"

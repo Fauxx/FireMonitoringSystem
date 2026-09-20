@@ -14,8 +14,24 @@ spec:
       labels:
         app: flyway
     spec:
+      serviceAccountName: flyway-sa
       restartPolicy: OnFailure
       containers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-proxy/v2.8.2:latest
+          args:
+            - "--auto-iam-authn"
+            - "--quitquitquit"
+            - "firemonitoring-dev:asia-east1:firemonitoring-dev-db"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
         - name: flyway
           image: db-migrations
           envFrom:
@@ -25,10 +41,8 @@ spec:
                 name: fire-monitoring-secrets
           env:
             - name: FLYWAY_URL
-              value: "jdbc:postgresql://db:5432/$(POSTGRES_DB)"
+              value: "jdbc:postgresql://127.0.0.1:5432/firemonitoring_dev"
             - name: FLYWAY_USER
-              value: "$(POSTGRES_USER)"
-            - name: FLYWAY_PASSWORD
-              value: "$(POSTGRES_PASSWORD)"
+              value: "sa-api-database-client@firemonitoring-dev.iam"
           args: ["-connectRetries=60", "migrate"]
 

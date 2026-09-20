@@ -18,9 +18,24 @@ spec:
       labels:
         app: api
     spec:
+      serviceAccountName: api-sa
       imagePullSecrets:
         - name: ghcr-credentials
       containers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-proxy/v2.8.2:latest
+          args:
+            - "--auto-iam-authn"
+            - "firemonitoring-dev:asia-east1:firemonitoring-dev-db"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
         - name: api
           image: api
           ports:

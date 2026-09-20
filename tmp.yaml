@@ -43,6 +43,13 @@ patches:
 - path: ingress-patch.yaml
 - target:
     kind: StatefulSet
+    name: db
+  patch: |-
+    - op: add
+      path: /spec/volumeClaimTemplates/0/spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: StatefulSet
     name: influx
   patch: |-
     - op: add

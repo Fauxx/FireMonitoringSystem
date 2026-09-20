@@ -91,3 +91,54 @@ module "cluster" {
 }
 
 
+
+# ── API Database Client Service Account
+resource "google_service_account" "db_client" {
+  project      = var.project_id
+  account_id   = "sa-api-database-client"
+  display_name = "Database Client for API Pods (Dev)"
+}
+
+# ── Cloud SQL Database
+module "database" {
+  source = "../../../modules/gcp/cloudsql"
+
+  project_id                = var.project_id
+  region                    = var.region
+  instance_name             = "firemonitoring-dev-db"
+  tier                      = "db-f1-micro"
+  
+  # Only creating the dev database since this is the dev environment!
+  database_names            = ["firemonitoring_dev"]
+  
+  gke_service_account_email = google_service_account.db_client.email
+}
+
+# ── Allow GKE Pods to impersonate the DB Client
+resource "google_service_account_iam_binding" "db_client_workload_identity" {
+  service_account_id = google_service_account.db_client.name
+  role               = "roles/iam.workloadIdentityUser"
+  
+  # Allowing both the API pod and the Flyway job to use this identity!
+  members = [
+    "serviceAccount:${var.project_id}.svc.id.goog[fire-monitoring-dev/api-sa]",
+    "serviceAccount:${var.project_id}.svc.id.goog[fire-monitoring-dev/flyway-sa]"
+  ]
+}
+
+# ── Cloud Router & NAT (Allows private GKE nodes to pull public Docker images)
+resource "google_compute_router" "router" {
+  project = var.project_id
+  name    = "router-firemonitoring-dev"
+  region  = var.region
+  network = google_compute_network.main.id
+}
+
+resource "google_compute_router_nat" "nat" {
+  project                            = var.project_id
+  name                               = "nat-firemonitoring-dev"
+  router                             = google_compute_router.router.name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+}

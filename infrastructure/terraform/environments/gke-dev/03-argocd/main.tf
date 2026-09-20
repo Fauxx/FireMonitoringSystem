@@ -51,6 +51,29 @@ resource "kubernetes_secret_v1" "cloudflare_tunnel_credentials" {
   }
 }
 
+
+provider "helm" {
+  kubernetes {
+    host                   = "https://${data.terraform_remote_state.infra.outputs.cluster_endpoint}"
+    cluster_ca_certificate = base64decode(data.terraform_remote_state.infra.outputs.cluster_ca_cert)
+    token                  = data.google_client_config.default.access_token
+  }
+}
+
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  version          = "7.7.7"
+  namespace        = kubernetes_namespace_v1.argocd.metadata[0].name
+  create_namespace = false
+
+  set {
+    name  = "server.extraArgs[0]"
+    value = "--insecure"
+  }
+}
+
 resource "kubernetes_manifest" "argocd_apps" {
   manifest = {
     apiVersion = "argoproj.io/v1alpha1"

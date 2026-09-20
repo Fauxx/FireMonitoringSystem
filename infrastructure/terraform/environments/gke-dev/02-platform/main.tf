@@ -40,25 +40,3 @@ resource "helm_release" "cert_manager" {
   }
 }
 
-resource "helm_release" "external_secrets" {
-  name             = "external-secrets"
-  repository       = "https://charts.external-secrets.io"
-  chart            = "external-secrets"
-  version          = "0.10.0"
-  namespace        = "external-secrets"
-  create_namespace = true
-}
-
-resource "kubernetes_manifest" "cluster_secret_store" {
-  depends_on = [helm_release.external_secrets]
-  manifest = {
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ClusterSecretStore"
-    metadata   = { name = "gcp-secret-manager" }
-    spec = {
-      provider = {
-        gcpsm = { projectID = data.terraform_remote_state.infra.outputs.project_id }
-      }
-    }
-  }
-}

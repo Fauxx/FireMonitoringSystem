@@ -28,7 +28,7 @@ images:
   newTag: d7b59df
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-  newTag: d7b59df
+  newTag: "3830e96"
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
   newTag: d7b59df
@@ -41,31 +41,31 @@ labels:
 
 patches:
 - path: ingress-patch.yaml
-- target:
-    kind: StatefulSet
-    name: influx
-  patch: |-
+- patch: |-
     - op: add
       path: /spec/volumeClaimTemplates/0/spec/storageClassName
       value: standard-rwo
-- target:
+  target:
+    kind: StatefulSet
+    name: influx
+- patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo
+  target:
     kind: PersistentVolumeClaim
     name: grafana-data
-  patch: |-
+- patch: |-
     - op: add
       path: /spec/storageClassName
       value: standard-rwo
-- target:
+  target:
     kind: PersistentVolumeClaim
     name: prometheus-data
-  patch: |-
+- patch: |-
     - op: add
       path: /spec/storageClassName
       value: standard-rwo
-- target:
+  target:
     kind: PersistentVolumeClaim
     name: loki-data
-  patch: |-
-    - op: add
-      path: /spec/storageClassName
-      value: standard-rwo

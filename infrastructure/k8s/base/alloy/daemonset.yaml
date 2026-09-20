@@ -19,7 +19,7 @@ spec:
           args: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
           resources:
             requests:
-              cpu: 50m
+              cpu: 10m
               memory: 128Mi
             limits:
               cpu: 200m

@@ -1,7 +1,7 @@
 resource "google_container_cluster" "main" {
   provider = google
   name     = var.cluster_name
-  location = var.region
+  location = var.zone
   project  = var.project_id
 
   remove_default_node_pool = true
@@ -57,7 +57,7 @@ resource "google_container_cluster" "main" {
 resource "google_container_node_pool" "main" {
   name     = "agentpool"
   cluster  = google_container_cluster.main.id
-  location = var.region
+  location = var.zone
   project  = var.project_id
 
   autoscaling {

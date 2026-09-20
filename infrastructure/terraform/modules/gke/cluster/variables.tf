@@ -26,3 +26,4 @@ variable "kubernetes_version" {
   type    = string
   default = "latest"
 }
+variable "zone" { type = string }

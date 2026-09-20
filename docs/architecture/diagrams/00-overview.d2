@@ -1,0 +1,81 @@
+direction: right
+
+Internet: Internet {
+  shape: cloud
+}
+
+GitHub: GitHub (GitOps Source) {
+  icon: github
+}
+
+GCP: Google Cloud Platform {
+  icon: gcp
+  
+  Terraform: Terraform State (GCS) {
+    icon: terraform
+  }
+  
+  Cloudflare: Cloudflare Edge {
+    shape: step
+  }
+  
+  GKE: Google Kubernetes Engine {
+    icon: kubernetes
+    
+    Ingress: Nginx Ingress
+    cloudflared: Cloudflared Tunnel
+    
+    ArgoCD: ArgoCD {
+      icon: argocd
+    }
+    
+    App: Application Layer {
+      API: Node.js API
+      Dashboard: Web Dashboard (Nginx)
+      ETL: Python ETL
+    }
+    
+    Data: Data Layer {
+      MQTT: Mosquitto Broker
+      PostgreSQL: PostgreSQL
+      InfluxDB: InfluxDB
+    }
+    
+    Observability: Observability Stack {
+      Prometheus: Prometheus
+      Grafana: Grafana
+      Loki: Loki
+      Alloy: Grafana Alloy
+    }
+  }
+}
+
+Internet -> GCP.Cloudflare: HTTPS
+GCP.Cloudflare -> GCP.GKE.cloudflared: Secure Tunnel
+GCP.GKE.cloudflared -> GCP.GKE.Ingress: Proxy
+
+GCP.GKE.Ingress -> GCP.GKE.App.Dashboard: /
+GCP.GKE.Ingress -> GCP.GKE.App.API: /api
+GCP.GKE.Ingress -> GCP.GKE.Data.MQTT: /mqtt (WebSocket)
+GCP.GKE.Ingress -> GCP.GKE.Observability.Grafana: ops.*/grafana
+
+GCP.GKE.App.Dashboard -> GCP.GKE.App.API: REST (auth proxy)
+GCP.GKE.App.API -> GCP.GKE.Data.PostgreSQL: Queries / Sessions
+GCP.GKE.App.API -> GCP.GKE.Data.InfluxDB: Read Telemetry
+
+Internet -> GCP.GKE.Data.MQTT: IoT Sensor Publish
+GCP.GKE.Data.MQTT -> GCP.GKE.Data.InfluxDB: Telegraf Bridge
+GCP.GKE.Data.MQTT -> GCP.GKE.App.ETL: Subscribe
+GCP.GKE.App.ETL -> GCP.GKE.Data.PostgreSQL: Upsert Alerts
+GCP.GKE.App.ETL -> GCP.GKE.Data.InfluxDB: Poll History
+
+GCP.GKE.Observability.Alloy -> GCP.GKE.Observability.Loki: Ship Logs
+GCP.GKE.Observability.Prometheus -> GCP.GKE.App.API: Scrape Metrics
+GCP.GKE.Observability.Prometheus -> GCP.GKE.Data.PostgreSQL: Scrape Exporter
+GCP.GKE.Observability.Grafana -> GCP.GKE.Observability.Prometheus: Query
+GCP.GKE.Observability.Grafana -> GCP.GKE.Observability.Loki: Query
+
+GitHub -> GCP.GKE.ArgoCD: GitOps Pull
+GCP.GKE.ArgoCD -> GCP.GKE: Reconcile State
+GitHub -> GCP.Terraform: CI/CD Apply (Actions)
+GCP.Terraform -> GCP.GKE: Manage Infrastructure

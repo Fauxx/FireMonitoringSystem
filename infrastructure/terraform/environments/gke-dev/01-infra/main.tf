@@ -77,6 +77,7 @@ module "cluster" {
   source              = "../../../modules/gke/cluster"
   project_id          = var.project_id
   region              = var.region
+  zone                = "${var.region}-a"
   cluster_name        = local.cluster_name
   network_id          = google_compute_network.main.id
   subnet_id           = google_compute_subnetwork.gke.id

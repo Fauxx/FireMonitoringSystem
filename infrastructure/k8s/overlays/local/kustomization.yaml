@@ -5,7 +5,6 @@ namespace: fire-monitoring-local
 
 configMapGenerator:
 - name: fire-monitoring-config
-  behavior: replace
   envs:
     - local-public.env
 

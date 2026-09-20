@@ -4,8 +4,7 @@ kind: Kustomization
 namespace: fire-monitoring-prod
 
 configMapGenerator:
-- behavior: replace
-  envs:
+- envs:
   - prod-public.env
   name: fire-monitoring-config
 
@@ -39,13 +38,6 @@ commonLabels:
   environment: prod
 
 patches:
-- target:
-    kind: StatefulSet
-    name: db
-  patch: |-
-    - op: add
-      path: /spec/volumeClaimTemplates/0/spec/storageClassName
-      value: standard-rwo
 - target:
     kind: StatefulSet
     name: influx

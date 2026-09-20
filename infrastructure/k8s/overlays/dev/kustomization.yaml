@@ -4,10 +4,9 @@ kind: Kustomization
 namespace: fire-monitoring-dev
 
 configMapGenerator:
-- behavior: replace
+- name: fire-monitoring-config
   envs:
   - dev-public.env
-  name: fire-monitoring-config
 
 resources:
 - ../../base

@@ -9,6 +9,12 @@ variable "additional_set_values" {
     name  = string
     value = string
   }))
-  description = "Additional Helm set values"
+  description = "Additional Helm set values to pass to the chart"
   default     = []
+}
+
+variable "enable_gcp_backend_config" {
+  type        = bool
+  description = "Set true to add GCP-compatible LoadBalancer annotations"
+  default     = false
 }

@@ -1,0 +1,78 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fire-monitoring-dev
+
+configMapGenerator:
+- behavior: replace
+  envs:
+  - dev-public.env
+  name: fire-monitoring-config
+
+resources:
+- ../../base
+- collaboration-rbac.yaml
+
+replicas:
+- count: 1
+  name: prometheus
+- count: 1
+  name: loki
+
+images:
+- name: api
+  newName: ghcr.io/fauxx/firemonitoringsystem/api
+  newTag: d7b59df
+- name: dashboard
+  newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
+  newTag: d7b59df
+- name: db-migrations
+  newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
+  newTag: d7b59df
+- name: etl-processor
+  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
+  newTag: d7b59df
+
+labels:
+- includeSelectors: true
+  pairs:
+    deployment-type: development
+    environment: dev
+
+patches:
+- path: ingress-patch.yaml
+- target:
+    kind: StatefulSet
+    name: db
+  patch: |-
+    - op: add
+      path: /spec/volumeClaimTemplates/0/spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: StatefulSet
+    name: influx
+  patch: |-
+    - op: add
+      path: /spec/volumeClaimTemplates/0/spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: grafana-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: prometheus-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: loki-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo

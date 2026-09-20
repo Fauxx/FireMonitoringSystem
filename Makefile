@@ -232,74 +232,49 @@ clean-images:
 	docker rmi localhost/api:local localhost/dashboard:local localhost/etl-processor:local || true
 
 # ==============================================================================
-# [5] AZURE AKS TERRAFORM (CI/CD)
+# [5] GCP GKE TERRAFORM (CI/CD)
 # ==============================================================================
 
-aks-dev-bootstrap:
-	cd $(AKS_TF_BASE)/aks-dev/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply
+GKE_ENV  := gke-dev
+GKE_BASE := infrastructure/terraform/environments/$(GKE_ENV)
 
-aks-dev-infra:
-	cd $(AKS_TF_BASE)/aks-dev/01-infra && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-bootstrap-plan:
+	@cd $(GKE_BASE)/00-bootstrap && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
 
-aks-dev-platform:
-	cd $(AKS_TF_BASE)/aks-dev/02-platform && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-bootstrap-apply:
+	@cd $(GKE_BASE)/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
 
-aks-dev-argocd:
-	cd $(AKS_TF_BASE)/aks-dev/03-argocd && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-infra-plan:
+	@cd $(GKE_BASE)/01-infra && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
 
-aks-dev-plan-all:
-	@echo "=== Plan: aks-dev/00-bootstrap ==="
-	cd $(AKS_TF_BASE)/aks-dev/00-bootstrap && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-dev/01-infra ==="
-	cd $(AKS_TF_BASE)/aks-dev/01-infra && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-dev/02-platform ==="
-	cd $(AKS_TF_BASE)/aks-dev/02-platform && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-dev/03-argocd ==="
-	cd $(AKS_TF_BASE)/aks-dev/03-argocd && terraform init -backend-config=backend.conf && terraform plan
+gke-dev-infra-apply:
+	@cd $(GKE_BASE)/01-infra && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
 
-aks-dev-destroy:
-	@read -p "Destroy aks-dev? Type YES to confirm: " confirm && \
-	if [ "$$confirm" = "YES" ]; then \
-		cd $(AKS_TF_BASE)/aks-dev/03-argocd && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-dev/02-platform && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-dev/01-infra && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-dev/00-bootstrap && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-	else \
-		echo "Destruction cancelled."; \
-	fi
+gke-dev-platform-plan:
+	@cd $(GKE_BASE)/02-platform && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
 
-aks-prod-bootstrap:
-	cd $(AKS_TF_BASE)/aks-prod/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-platform-apply:
+	@cd $(GKE_BASE)/02-platform && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
 
-aks-prod-infra:
-	cd $(AKS_TF_BASE)/aks-prod/01-infra && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-argocd-plan:
+	@cd $(GKE_BASE)/03-argocd && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
 
-aks-prod-platform:
-	cd $(AKS_TF_BASE)/aks-prod/02-platform && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-argocd-apply:
+	@cd $(GKE_BASE)/03-argocd && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
 
-aks-prod-argocd:
-	cd $(AKS_TF_BASE)/aks-prod/03-argocd && terraform init -backend-config=backend.conf && terraform apply
+gke-dev-all-apply: gke-dev-bootstrap-apply gke-dev-infra-apply gke-dev-platform-apply gke-dev-argocd-apply
 
-aks-prod-plan-all:
-	@echo "=== Plan: aks-prod/00-bootstrap ==="
-	cd $(AKS_TF_BASE)/aks-prod/00-bootstrap && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-prod/01-infra ==="
-	cd $(AKS_TF_BASE)/aks-prod/01-infra && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-prod/02-platform ==="
-	cd $(AKS_TF_BASE)/aks-prod/02-platform && terraform init -backend-config=backend.conf && terraform plan
-	@echo "=== Plan: aks-prod/03-argocd ==="
-	cd $(AKS_TF_BASE)/aks-prod/03-argocd && terraform init -backend-config=backend.conf && terraform plan
+gke-dev-get-creds:
+	gcloud container clusters get-credentials gke-firemonitoring-dev-01 \
+	  --region $$(cd $(GKE_BASE)/01-infra && terraform output -raw region) \
+	  --project $$(cd $(GKE_BASE)/01-infra && terraform output -raw project_id)
 
-aks-prod-destroy:
-	@read -p "⚠️  PRODUCTION: Destroy aks-prod? Type YES to confirm: " confirm && \
-	if [ "$$confirm" = "YES" ]; then \
-		cd $(AKS_TF_BASE)/aks-prod/03-argocd && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-prod/02-platform && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-prod/01-infra && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-		cd $(AKS_TF_BASE)/aks-prod/00-bootstrap && terraform init -backend-config=backend.conf && terraform destroy -auto-approve; \
-	else \
-		echo "Destruction cancelled."; \
-	fi
+gke-dev-destroy-argocd:
+	@cd $(GKE_BASE)/03-argocd && terraform destroy -var-file=terraform.tfvars
+gke-dev-destroy-platform:
+	@cd $(GKE_BASE)/02-platform && terraform destroy -var-file=terraform.tfvars
+gke-dev-destroy-infra:
+	@cd $(GKE_BASE)/01-infra && terraform destroy -var-file=terraform.tfvars
 
 # ==============================================================================
 # [6] UTILITIES
@@ -319,3 +294,44 @@ clean:
 	@echo "🧹 Cleaning dangling containers & images..."
 	-@make clean-images 2>/dev/null || true
 	@echo "✅ Cleanup complete!"
+
+GKE_PROD_ENV  := gke-prod
+GKE_PROD_BASE := infrastructure/terraform/environments/$(GKE_PROD_ENV)
+
+gke-prod-bootstrap-plan:
+	@cd $(GKE_PROD_BASE)/00-bootstrap && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
+
+gke-prod-bootstrap-apply:
+	@cd $(GKE_PROD_BASE)/00-bootstrap && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
+
+gke-prod-infra-plan:
+	@cd $(GKE_PROD_BASE)/01-infra && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
+
+gke-prod-infra-apply:
+	@cd $(GKE_PROD_BASE)/01-infra && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
+
+gke-prod-platform-plan:
+	@cd $(GKE_PROD_BASE)/02-platform && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
+
+gke-prod-platform-apply:
+	@cd $(GKE_PROD_BASE)/02-platform && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
+
+gke-prod-argocd-plan:
+	@cd $(GKE_PROD_BASE)/03-argocd && terraform init -backend-config=backend.conf && terraform plan -var-file=terraform.tfvars
+
+gke-prod-argocd-apply:
+	@cd $(GKE_PROD_BASE)/03-argocd && terraform init -backend-config=backend.conf && terraform apply -var-file=terraform.tfvars
+
+gke-prod-all-apply: gke-prod-bootstrap-apply gke-prod-infra-apply gke-prod-platform-apply gke-prod-argocd-apply
+
+gke-prod-get-creds:
+	gcloud container clusters get-credentials gke-firemonitoring-prod-01 \
+	  --region $$(cd $(GKE_PROD_BASE)/01-infra && terraform output -raw region) \
+	  --project $$(cd $(GKE_PROD_BASE)/01-infra && terraform output -raw project_id)
+
+gke-prod-destroy-argocd:
+	@cd $(GKE_PROD_BASE)/03-argocd && terraform destroy -var-file=terraform.tfvars
+gke-prod-destroy-platform:
+	@cd $(GKE_PROD_BASE)/02-platform && terraform destroy -var-file=terraform.tfvars
+gke-prod-destroy-infra:
+	@cd $(GKE_PROD_BASE)/01-infra && terraform destroy -var-file=terraform.tfvars

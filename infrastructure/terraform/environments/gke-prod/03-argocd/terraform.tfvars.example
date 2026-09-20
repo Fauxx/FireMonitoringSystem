@@ -1,0 +1,5 @@
+gitops_repo_url = "https://github.com/Fauxx/FireMonitoringSystem"
+github_app_id = "..."
+github_app_installation_id = "..."
+github_app_private_key = "-----BEGIN RSA PRIVATE KEY-----\n..."
+cloudflare_tunnel_credentials_json = "{}"

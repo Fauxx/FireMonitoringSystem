@@ -37,3 +37,40 @@ images:
 commonLabels:
   deployment-type: production
   environment: prod
+
+patches:
+- target:
+    kind: StatefulSet
+    name: db
+  patch: |-
+    - op: add
+      path: /spec/volumeClaimTemplates/0/spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: StatefulSet
+    name: influx
+  patch: |-
+    - op: add
+      path: /spec/volumeClaimTemplates/0/spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: grafana-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: prometheus-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo
+- target:
+    kind: PersistentVolumeClaim
+    name: loki-data
+  patch: |-
+    - op: add
+      path: /spec/storageClassName
+      value: standard-rwo

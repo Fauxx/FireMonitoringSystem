@@ -4,9 +4,9 @@ kind: Kustomization
 namespace: fire-monitoring-dev
 
 configMapGenerator:
-- name: fire-monitoring-config
-  envs:
+- envs:
   - dev-public.env
+  name: fire-monitoring-config
 
 resources:
 - ../../base
@@ -21,16 +21,16 @@ replicas:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: "3830e96"
+  newTag: 7560eeb
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: "3830e96"
+  newTag: 7560eeb
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-  newTag: "3830e96"
+  newTag: 7560eeb
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: "3830e96"
+  newTag: 7560eeb
 
 labels:
 - includeSelectors: true

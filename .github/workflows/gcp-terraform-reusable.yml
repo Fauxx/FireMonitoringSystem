@@ -58,7 +58,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          name: tfplan-${{ inputs.environment }}-${{ hashFiles(format('{0}/*.tf', inputs.layer_dir)) }}
           path: ${{ inputs.layer_dir }}/tfplan.binary
 
   terraform_apply:
@@ -90,7 +90,7 @@ jobs:
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          name: tfplan-${{ inputs.environment }}-${{ hashFiles(format('{0}/*.tf', inputs.layer_dir)) }}
           path: ${{ inputs.layer_dir }}
 
       - name: Terraform Init

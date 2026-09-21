@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}
-      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/00-bootstrap
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/01-infra
       execution_mode: ${{ inputs.execution_mode }}
     secrets: inherit
 

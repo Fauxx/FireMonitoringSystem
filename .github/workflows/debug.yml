@@ -2,6 +2,10 @@ name: "Debug CI"
 on:
   push:
     branches: [ debug-ci ]
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
 jobs:
   test:
     uses: ./.github/workflows/gcp-terraform-reusable.yml
@@ -9,8 +13,3 @@ jobs:
       environment: gke-dev
       layer_dir: infrastructure/terraform/environments/gke-dev/01-infra
       execution_mode: plan-only
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-      CLOUDFLARE_TUNNEL_CREDENTIALS_JSON: ${{ secrets.CLOUDFLARE_TUNNEL_CREDENTIALS_JSON }}

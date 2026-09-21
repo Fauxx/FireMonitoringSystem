@@ -1,99 +1,23 @@
 name: "GCP Terraform (Reusable)"
-
 on:
   workflow_call:
     inputs:
+      environment:    { required: true, type: string }
       layer_dir:      { required: true, type: string }
       execution_mode: { required: true, type: string }
+    secrets:
+      APP_ID: { required: false }
+      APP_INSTALLATION_ID: { required: false }
+      APP_PRIVATE_KEY: { required: false }
+      CLOUDFLARE_TUNNEL_CREDENTIALS_JSON: { required: false }
 
 jobs:
   terraform_plan:
-    name: "Plan — ${{ inputs.layer_dir }}"
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
       pull-requests: write
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ vars.GCP_SERVICE_ACCOUNT }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.11.0"
-          terraform_wrapper: true
-
-      - name: Terraform Init
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform init -backend-config=backend.conf
-
-      - name: Terraform Format Check
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Validate
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform validate -no-color
-
-      - name: Terraform Plan
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform plan -no-color -input=false -out=tfplan.binary
-        env:
-          TF_VAR_gcp_project_id:    ${{ vars.GCP_PROJECT_ID }}
-          TF_VAR_github_app_id:     ${{ secrets.APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
-          TF_VAR_github_app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          TF_VAR_cloudflare_tunnel_credentials_json: ${{ secrets.CLOUDFLARE_TUNNEL_CREDENTIALS_JSON }}
-          TF_VAR_gitops_repo_url:   ${{ vars.GITOPS_REPO_URL }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ inputs.environment }}-${{ hashFiles(format('{0}/tfplan.binary', inputs.layer_dir)) }}
-          path: ${{ inputs.layer_dir }}/tfplan.binary
-
-  terraform_apply:
-    name: "Apply — ${{ inputs.layer_dir }}"
-    needs: terraform_plan
-    if: inputs.execution_mode == 'apply'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account:            ${{ vars.GCP_SERVICE_ACCOUNT }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.11.0"
-          terraform_wrapper: true
-
-      - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ inputs.environment }}-${{ hashFiles(format('{0}/tfplan.binary', inputs.layer_dir)) }}
-          path: ${{ inputs.layer_dir }}
-
-      - name: Terraform Init
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform init -backend-config=backend.conf
-
-      - name: Terraform Apply
-        working-directory: ${{ inputs.layer_dir }}
-        run: terraform apply -no-color -input=false tfplan.binary
+      - run: echo "Plan for ${{ inputs.layer_dir }} in ${{ inputs.environment }}"

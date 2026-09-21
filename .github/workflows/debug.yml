@@ -3,12 +3,7 @@ on:
   push:
     branches: [ debug-ci ]
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Hello"
   test:
-    needs: setup
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment: gke-dev
@@ -16,3 +11,6 @@ jobs:
       execution_mode: plan-only
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
+      APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      CLOUDFLARE_TUNNEL_CREDENTIALS_JSON: ${{ secrets.CLOUDFLARE_TUNNEL_CREDENTIALS_JSON }}

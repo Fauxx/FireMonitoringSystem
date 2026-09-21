@@ -14,3 +14,4 @@ jobs:
       environment: gke-dev
       layer_dir: infrastructure/terraform/environments/gke-dev/01-infra
       execution_mode: plan-only
+    secrets: inherit

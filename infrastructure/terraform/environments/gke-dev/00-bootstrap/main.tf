@@ -52,6 +52,7 @@ resource "google_project_iam_member" "ci_roles" {
   for_each = toset([
     "roles/container.admin",
     "roles/compute.networkAdmin",
+    "roles/compute.securityAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.workloadIdentityPoolAdmin",
     "roles/artifactregistry.admin",

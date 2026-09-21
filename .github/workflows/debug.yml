@@ -1,6 +1,7 @@
 name: "Debug CI"
 on:
-  workflow_dispatch:
+  push:
+    branches: [ debug-ci ]
 jobs:
   test:
     uses: ./.github/workflows/gcp-terraform-reusable.yml

@@ -21,12 +21,6 @@ permissions:
 jobs:
   # A lightweight native job that anchors the workflow graph.
   # This prevents GitHub from hitting startup_failure when all jobs are uses:.
-  setup:
-    name: "Setup"
-    runs-on: ubuntu-latest
-    outputs:
-      environment:    ${{ inputs.environment }}
-      execution_mode: ${{ inputs.execution_mode }}
     steps:
       - name: Echo parameters
         run: |
@@ -35,7 +29,6 @@ jobs:
 
   infra:
     name: "01-infra"
-    needs: setup
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}

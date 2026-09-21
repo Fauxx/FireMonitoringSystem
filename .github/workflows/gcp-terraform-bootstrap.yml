@@ -24,16 +24,9 @@ permissions:
   id-token: write
 
 jobs:
-  setup:
-    name: "Setup"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Echo parameters
-        run: echo "Environment: ${{ inputs.environment }}"
 
   bootstrap:
     name: "00-bootstrap"
-    needs: setup
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}

@@ -1,0 +1,11 @@
+name: "Debug CI"
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment: gke-dev
+      layer_dir: infrastructure/terraform/environments/gke-dev/01-infra
+      execution_mode: plan-only
+    secrets: inherit

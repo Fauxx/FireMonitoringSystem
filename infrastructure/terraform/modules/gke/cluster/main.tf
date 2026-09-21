@@ -1,4 +1,5 @@
 resource "google_container_cluster" "main" {
+  deletion_protection = false
   provider = google
   name     = var.cluster_name
   location = var.zone

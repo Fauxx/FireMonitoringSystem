@@ -1,7 +1,7 @@
 locals {
   project_id   = var.gcp_project_id
   sa_name      = "sa-github-actions-dev"
-  wif_pool_id  = "github-actions"
+  wif_pool_id  = "github-actions-v2"
   wif_provider = "github-oidc"
   gh_org       = "Fauxx"
   gh_repo      = "FireMonitoringSystem"

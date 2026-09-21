@@ -8,11 +8,6 @@ on:
         type: choice
         options: [gke-dev, gke-prod]
         required: true
-      layer:
-        description: "Terraform layer to execute"
-        type: choice
-        options: ["00-bootstrap", "01-infra", "02-platform", "03-argocd", "all"]
-        required: true
       execution_mode:
         description: "Plan only or apply"
         type: choice
@@ -26,7 +21,6 @@ permissions:
 jobs:
   bootstrap:
     name: "00-bootstrap"
-    if: inputs.layer == '00-bootstrap' || inputs.layer == 'all'
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}
@@ -37,7 +31,6 @@ jobs:
   infra:
     name: "01-infra"
     needs: bootstrap
-    if: always() && (inputs.layer == '01-infra' || inputs.layer == 'all')
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}
@@ -48,7 +41,6 @@ jobs:
   platform:
     name: "02-platform"
     needs: infra
-    if: always() && (inputs.layer == '02-platform' || inputs.layer == 'all')
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}
@@ -59,7 +51,6 @@ jobs:
   argocd:
     name: "03-argocd"
     needs: platform
-    if: always() && (inputs.layer == '03-argocd' || inputs.layer == 'all')
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}

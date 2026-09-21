@@ -3,12 +3,15 @@ name: "GCP Terraform (Reusable)"
 on:
   workflow_call:
     inputs:
+      environment:    { required: true, type: string }
       layer_dir:      { required: true, type: string }
       execution_mode: { required: true, type: string }
 
 jobs:
   terraform_plan:
+    name: "Plan — ${{ inputs.layer_dir }}"
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
@@ -59,9 +62,11 @@ jobs:
           path: ${{ inputs.layer_dir }}/tfplan.binary
 
   terraform_apply:
+    name: "Apply — ${{ inputs.layer_dir }}"
     needs: terraform_plan
     if: inputs.execution_mode == 'apply'
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write

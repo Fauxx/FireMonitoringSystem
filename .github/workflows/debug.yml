@@ -3,7 +3,14 @@ on:
   push:
     branches: [ debug-ci ]
 jobs:
-  test:
+  setup:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Hello World"
+      - run: echo "Hello"
+  test:
+    needs: setup
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment: gke-dev
+      layer_dir: infrastructure/terraform/environments/gke-dev/01-infra
+      execution_mode: plan-only

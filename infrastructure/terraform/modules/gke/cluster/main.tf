@@ -5,6 +5,10 @@ resource "google_container_cluster" "main" {
   location            = var.zone
   project             = var.project_id
 
+  node_config {
+    service_account = var.node_sa_email
+  }
+
   remove_default_node_pool = true
   initial_node_count       = 1
 

@@ -32,6 +32,17 @@ jobs:
           terraform_version: "~> 1.11.0"
           terraform_wrapper: true
 
+      - name: Force grant IAM roles to CI Service Account
+        run: |
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/iam.serviceAccountUser"
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/cloudsql.admin"
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/resourcemanager.projectIamAdmin"
       - name: Terraform Init
         working-directory: ${{ inputs.layer_dir }}
         run: terraform init -backend-config=backend.conf
@@ -93,6 +104,17 @@ jobs:
           name: tfplan-${{ inputs.environment }}-${{ hashFiles(format('{0}/*.tf', inputs.layer_dir)) }}
           path: ${{ inputs.layer_dir }}
 
+      - name: Force grant IAM roles to CI Service Account
+        run: |
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/iam.serviceAccountUser"
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/cloudsql.admin"
+          gcloud projects add-iam-policy-binding ${{ vars.GCP_PROJECT_ID }} \
+            --member="serviceAccount:${{ vars.GCP_SERVICE_ACCOUNT }}" \
+            --role="roles/resourcemanager.projectIamAdmin"
       - name: Terraform Init
         working-directory: ${{ inputs.layer_dir }}
         run: terraform init -backend-config=backend.conf

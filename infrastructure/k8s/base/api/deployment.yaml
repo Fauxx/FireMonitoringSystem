@@ -26,7 +26,13 @@ spec:
           image: gcr.io/cloud-sql-proxy/v2.8.2:latest
           args:
             - "--auto-iam-authn"
-            - "firemonitoring-dev:asia-east1:firemonitoring-dev-db"
+            - "$(CLOUD_SQL_CONNECTION_NAME)"
+          env:
+            - name: CLOUD_SQL_CONNECTION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fire-monitoring-config
+                  key: CLOUD_SQL_CONNECTION_NAME
           securityContext:
             runAsNonRoot: true
           resources:
@@ -74,5 +80,3 @@ spec:
       volumes:
         - name: tmp-volume
           emptyDir: {}
-
-

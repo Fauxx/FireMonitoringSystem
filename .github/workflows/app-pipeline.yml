@@ -8,7 +8,7 @@ on:
       - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
   push:
-    branches: [ main, dev-zet ]
+    branches: [ main ]
     paths:
       - 'apps/**'
       - 'infrastructure/k8s/base/sql/**'

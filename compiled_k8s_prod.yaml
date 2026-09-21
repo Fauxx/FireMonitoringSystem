@@ -1,0 +1,4027 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: teammate-admin
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: teammate-viewer
+  namespace: fire-monitoring-prod
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: teammate-admin-binding
+  namespace: fire-monitoring-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: ServiceAccount
+  name: teammate-admin
+  namespace: fire-monitoring-prod
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: teammate-viewer-binding
+  namespace: fire-monitoring-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: ServiceAccount
+  name: teammate-viewer
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  config.alloy: |+
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    local.file_match "pod_logs" {
+      path_targets = [{"__address__" = "localhost", "__path__" = "/var/log/pods/**/*.log"}]
+    }
+
+    discovery.relabel "pods" {
+      targets = local.file_match.pod_logs.targets
+
+      rule {
+        source_labels = ["__path__"]
+        regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+        action        = "replace"
+        target_label  = "namespace"
+        replacement   = "$1"
+      }
+
+      rule {
+        source_labels = ["__path__"]
+        regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+        action        = "replace"
+        target_label  = "pod"
+        replacement   = "$2"
+      }
+
+      rule {
+        source_labels = ["__path__"]
+        regex         = "/var/log/pods/([^/]+)_([^/]+)_([^/]+)/([^/]+)/.*\\.log"
+        action        = "replace"
+        target_label  = "container"
+        replacement   = "$4"
+      }
+
+      rule {
+        target_label = "job"
+        replacement  = "fire-monitoring"
+      }
+    }
+
+    loki.source.file "pod_logs" {
+      targets    = discovery.relabel.pods.output
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+      }
+    }
+
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: alloy-config-92997f5tfc
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  config.yml: |
+    tunnel: 8a14c96d-85ef-4623-bad8-c95b57aefe14
+    credentials-file: /etc/cloudflared/credentials/credentials.json
+    no-autoupdate: true
+    metrics: 0.0.0.0:2000
+
+    ingress:
+      - hostname: fires.systems
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+      - hostname: www.fires.systems
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+      - hostname: ops.fires.systems
+        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+      - service: http_status:404
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: cloudflared-config
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  default.conf: "map $http_x_forwarded_proto $pass_x_forwarded_proto {\n    default
+    \         $http_x_forwarded_proto;\n    ''               $scheme;\n}\n\n# Map
+    backend user roles to Grafana organization roles\nmap $user_role $grafana_role
+    {\n    default          Viewer;\n    \"admin\"          Admin;\n}\n\nserver {\n
+    \   listen 80;\n    server_name _;\n    \n    root /usr/share/nginx/html;\n    index
+    login.html index.html;\n    \n    # Logging\n    access_log /var/log/nginx/dashboard-access.log;\n
+    \   error_log /var/log/nginx/dashboard-error.log;\n    \n    # Security headers\n
+    \   add_header X-Frame-Options \"SAMEORIGIN\" always;\n    add_header X-Content-Type-Options
+    \"nosniff\" always;\n    add_header X-XSS-Protection \"1; mode=block\" always;\n
+    \   add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;\n    add_header
+    Permissions-Policy \"geolocation=(), microphone=(), camera=()\" always;\n    \n
+    \   # Performance: Client timeouts\n    client_body_timeout 30s;\n    client_header_timeout
+    30s;\n    keepalive_timeout 65s;\n    \n    # Max upload size\n    client_max_body_size
+    50M;\n    \n    # Gzip compression\n    gzip on;\n    gzip_vary on;\n    gzip_types
+    text/plain text/css application/json application/javascript text/xml application/xml
+    application/xml+rss text/javascript application/x-font-ttf application/x-font-opentype
+    application/vnd.ms-fontobject image/svg+xml;\n    gzip_min_length 1024;\n    gzip_disable
+    \"msie6\";\n    \n    # Primary routing\n    location / {\n        try_files $uri
+    $uri/ /login.html;\n    }\n\n    # Global redirect for unauthorized requests (auth_request
+    401)\n    error_page 401 = @error401;\n    location @error401 {\n        return
+    302 /login.html?message=unauthorized;\n    }\n\n    # Protected pages - Protect
+    using auth_request pointing to internal verify location\n    location /protected/
+    {\n        auth_request /internal-auth-verify;\n        try_files $uri $uri/ =404;\n
+    \   }\n    \n    # Internal location for auth verification (prevents body-related
+    timeouts)\n    location = /internal-auth-verify {\n        internal;\n        proxy_pass
+    http://api:8000/auth/verify;\n        proxy_pass_request_body off;\n        proxy_set_header
+    Content-Length \"\";\n        proxy_set_header X-Original-URI $request_uri;\n
+    \       \n        # Propagate headers from original request if needed\n        proxy_set_header
+    Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header
+    X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto
+    $pass_x_forwarded_proto;\n    }\n    \n    # Safety net for Grafana's relative
+    path failures\n    location /public/build {\n        return 301 /grafana$request_uri;\n
+    \   }\n    \n    # API proxy (routes /api requests to backend API service)\n    location
+    ^~ /api {\n        proxy_pass http://api:8000;\n        proxy_http_version 1.1;\n
+    \       proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection
+    'upgrade';\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP
+    $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n
+    \       proxy_set_header X-Forwarded-Proto $pass_x_forwarded_proto;\n        proxy_cache_bypass
+    $http_upgrade;\n        proxy_read_timeout 60s;\n        proxy_connect_timeout
+    60s;\n    }\n\n    # Auth proxy (for login/signup)\n    location ^~ /auth {\n
+    \       proxy_pass http://api:8000;\n        proxy_http_version 1.1;\n        proxy_set_header
+    Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header
+    X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto
+    $pass_x_forwarded_proto;\n    }\n\n    # Messages proxy\n    location ^~ /messages
+    {\n        proxy_pass http://api:8000;\n        proxy_http_version 1.1;\n        proxy_set_header
+    Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header
+    X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto
+    $pass_x_forwarded_proto;\n    }\n    \n    # Grafana proxy (proxies directly to
+    Grafana with Nginx auth_request)\n    location ^~ /grafana {\n        auth_request
+    /internal-auth-verify;\n        \n        # Extract X-WEBAUTH-USER and User-Role
+    from the auth_request subrequest response\n        auth_request_set $webauth_user
+    $upstream_http_x_webauth_user;\n        auth_request_set $user_role $upstream_http_x_user_role;\n
+    \       \n        proxy_pass http://grafana:3000;\n        \n        proxy_set_header
+    Host $http_host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header
+    X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto
+    $pass_x_forwarded_proto;\n        \n        # Inject the authenticated username
+    into the proxy request to Grafana\n        proxy_set_header X-WEBAUTH-USER $webauth_user;\n
+    \       \n        # Inject the user's mapped role into the proxy request to enforce
+    Viewer/Admin permissions\n        proxy_set_header X-WEBAUTH-ROLE $grafana_role;\n
+    \       \n        # Crucial for iFrames and websockets to load assets smoothly\n
+    \       proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n
+    \       proxy_set_header Connection \"upgrade\";\n\n        # Override security
+    headers for Grafana to allow iframe embedding\n        add_header X-Frame-Options
+    \"SAMEORIGIN\" always;\n        add_header X-Content-Type-Options \"nosniff\"
+    always;\n        add_header X-XSS-Protection \"1; mode=block\" always;\n        add_header
+    Referrer-Policy \"strict-origin-when-cross-origin\" always;\n        add_header
+    Permissions-Policy \"geolocation=(), microphone=(), camera=()\" always;\n    }\n\n
+    \   # Static assets - cache them\n    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+    {\n        expires 30d;\n        add_header Cache-Control \"public, immutable\";\n
+    \       access_log off;\n    }\n    \n    # Health check endpoint\n    location
+    /health {\n        return 200 \"OK\\n\";\n        add_header Content-Type text/plain;\n
+    \       access_log off;\n    }\n    \n    # Deny access to sensitive files\n    location
+    ~ /\\. {\n        deny all;\n        access_log off;\n        log_not_found off;\n
+    \   }\n    \n    location ~ ~$ {\n        deny all;\n        access_log off;\n
+    \       log_not_found off;\n    }\n}\n"
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: dashboard-nginx-config-66762kgc5t
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  COOKIE_SAMESITE: lax
+  COOKIE_SECURE: "true"
+  DOCKER_INFLUXDB_INIT_BUCKET: sensor-data
+  DOCKER_INFLUXDB_INIT_MODE: setup
+  DOCKER_INFLUXDB_INIT_ORG: fire-monitoring
+  DOCKER_INFLUXDB_INIT_USERNAME: admin
+  GRAFANA_ROOT_URL: https://fires.systems/grafana/
+  INFLUX_MEASUREMENT: node_telemetry
+  INFLUXDB_BUCKET: sensor-data
+  INFLUXDB_ORG: fire-monitoring
+  INFLUXDB_URL: http://influx:8086
+  PGSSLMODE: disable
+  POSTGRES_DB: fire_monitoring
+  POSTGRES_USER: postgres
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: fire-monitoring-config-t47k86dbck
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  api-performance.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": 8,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_count[1m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput (RPS)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 95
+                  },
+                  {
+                    "color": "green",
+                    "value": 99
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_count{status_code=~\"2..\"}[1m])) / sum(rate(http_request_duration_seconds_count[1m])) * 100",
+              "refId": "A"
+            }
+          ],
+          "title": "HTTP Success Rate",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.01
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "editorMode": "code",
+              "expr": "(sum(rate(http_request_duration_seconds_count{status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(http_request_duration_seconds_count[1m])) * 100",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Error Rate (5xx)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+              "refId": "A"
+            }
+          ],
+          "title": "p95 Latency",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 12,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 11,
+            "w": 12,
+            "x": 0,
+            "y": 4
+          },
+          "id": 5,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_count[5m]))",
+              "legendFormat": "Total Requests",
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput (RPS) Trend",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 11,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95 Latency",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99 Latency",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_request_duration_seconds_count[5m]))",
+              "legendFormat": "Average Latency",
+              "refId": "C"
+            }
+          ],
+          "title": "Latency Trends",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 15
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_count[5m])) by (status_code)",
+              "legendFormat": "HTTP {{status_code}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput by Status Code",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 15
+          },
+          "id": 8,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(http_request_duration_seconds_count[5m])) by (route)",
+              "legendFormat": "{{route}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput by Route Path",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": [
+        "application"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "API Performance",
+      "uid": "api-performance",
+      "version": 12,
+      "weekStart": ""
+    }
+  loki-error-logs.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": 9,
+      "links": [],
+      "liveNow": true,
+      "panels": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki-fire"
+              },
+              "editorMode": "code",
+              "expr": "sum by(container) (count_over_time({namespace=\"fire-monitoring-dev\", container=~\"api|dashboard|etl-processor\"} |= \"error\" [5m])) or vector(0)",
+              "hide": false,
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Error Log Rate over Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki-fire"
+          },
+          "gridPos": {
+            "h": 22,
+            "w": 24,
+            "x": 0,
+            "y": 12
+          },
+          "id": 2,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "loki-fire"
+              },
+              "editorMode": "code",
+              "expr": "{namespace=\"fire-monitoring-dev\", container=~\"api|dashboard|etl-processor\"}",
+              "hide": false,
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Live Application Logs",
+          "type": "logs"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": [
+        "application",
+        "logs"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Loki Error Logs",
+      "uid": "loki-error-logs",
+      "version": 16,
+      "weekStart": ""
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-dashboards-application-kfg49bf986
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  mqtt-broker.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": 11,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(broker_clients_connected)",
+              "refId": "A"
+            }
+          ],
+          "title": "Active Clients",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "disableTextWrap": false,
+              "editorMode": "builder",
+              "expr": "sum(broker_subscriptions_count{job=\"mqtt-exporter\"})",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Total Subscriptions",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_messages_received[1m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Messages Inbound (Rate)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_messages_sent[1m]))",
+              "refId": "A"
+            }
+          ],
+          "title": "Messages Outbound (Rate)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 12,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 4
+          },
+          "id": 5,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(broker_clients_connected)",
+              "legendFormat": "Active Clients",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(broker_clients_total)",
+              "legendFormat": "Total Registered",
+              "refId": "B"
+            }
+          ],
+          "title": "Client Connection Trends",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 12,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_messages_received[5m]))",
+              "legendFormat": "Received (Inbound)",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_messages_sent[5m]))",
+              "legendFormat": "Sent (Outbound)",
+              "refId": "B"
+            }
+          ],
+          "title": "Message Publish & Delivery Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 12
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_bytes_received[5m]))",
+              "legendFormat": "Bytes Inbound",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "expr": "sum(rate(broker_bytes_sent[5m]))",
+              "legendFormat": "Bytes Outbound",
+              "refId": "B"
+            }
+          ],
+          "title": "Broker Traffic (Network Bandwidth)",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": [
+        "mqtt",
+        "data-layer"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "MQTT Broker",
+      "uid": "mqtt-broker",
+      "version": 10,
+      "weekStart": ""
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-dashboards-datalayer-bf52t4g62b
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  cluster-health.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": 6,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 75
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "editorMode": "code",
+              "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "title": "CPU Usage (Node)",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "editorMode": "code",
+              "expr": "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Memory Usage (Node)",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "red",
+                    "value": 90
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 0
+          },
+          "id": 3,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "10.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "editorMode": "code",
+              "expr": "(node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_free_bytes{mountpoint=\"/\"}) / node_filesystem_size_bytes{mountpoint=\"/\"} * 100",
+              "legendFormat": "{{instance}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Disk Usage (Root)",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 17,
+            "w": 12,
+            "x": 0,
+            "y": 8
+          },
+          "id": 4,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum by(container_label_io_kubernetes_container_name) (rate(container_cpu_usage_seconds_total{container_label_io_kubernetes_pod_namespace=\"fire-monitoring-dev\", container_label_io_kubernetes_container_name!=\"\"}[5m])) * 100",
+              "fullMetaSearch": false,
+              "hide": false,
+              "includeNullMetadata": true,
+              "instant": false,
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Container CPU Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus-fire"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 17,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          },
+          "id": 5,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus-fire"
+              },
+              "editorMode": "code",
+              "expr": "sum by(container_label_io_kubernetes_container_name) (container_memory_working_set_bytes{container_label_io_kubernetes_pod_namespace=\"fire-monitoring-dev\", container_label_io_kubernetes_container_name!=\"\"})",
+              "legendFormat": "{{container}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Container Memory Usage",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "",
+      "schemaVersion": 39,
+      "tags": [
+        "infrastructure"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Cluster Health",
+      "uid": "cluster-health",
+      "version": 11,
+      "weekStart": ""
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-dashboards-infrastructure-ftd462mm4h
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  fire-main.json: "{\n  \"annotations\": {\n    \"list\": [\n      {\n        \"builtIn\":
+    1,\n        \"datasource\": {\n          \"type\": \"grafana\",\n          \"uid\":
+    \"-- Grafana --\"\n        },\n        \"enable\": true,\n        \"hide\": true,\n
+    \       \"name\": \"Annotations & Alerts\",\n        \"type\": \"dashboard\"\n
+    \     }\n    ]\n  },\n  \"editable\": true,\n  \"fiscalYearStartMonth\": 0,\n
+    \ \"graphTooltip\": 0,\n  \"id\": 4,\n  \"links\": [],\n  \"liveNow\": false,\n
+    \ \"panels\": [\n    {\n      \"collapsed\": false,\n      \"gridPos\": {\n        \"h\":
+    1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      },\n      \"id\":
+    10,\n      \"title\": \"\U0001F525 Fire Monitoring Application Analytics\",\n
+    \     \"type\": \"row\"\n    },\n    {\n      \"datasource\": {\n        \"type\":
+    \"influxdb\",\n        \"uid\": \"influxdb-fire\"\n      },\n      \"fieldConfig\":
+    {\n        \"defaults\": {\n          \"custom\": {\n            \"hideFrom\":
+    {\n              \"legend\": false,\n              \"tooltip\": false,\n              \"viz\":
+    false\n            }\n          },\n          \"mappings\": [],\n          \"thresholds\":
+    {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n
+    \               \"color\": \"green\",\n                \"value\": null\n              },\n
+    \             {\n                \"color\": \"orange\",\n                \"value\":
+    1\n              },\n              {\n                \"color\": \"red\",\n                \"value\":
+    2\n              }\n            ]\n          }\n        },\n        \"overrides\":
+    []\n      },\n      \"gridPos\": {\n        \"h\": 12,\n        \"w\": 16,\n        \"x\":
+    0,\n        \"y\": 1\n      },\n      \"id\": 11,\n      \"options\": {\n        \"basemap\":
+    {\n          \"config\": {},\n          \"name\": \"OpenStreetMap\",\n          \"type\":
+    \"default\"\n        },\n        \"controls\": {\n          \"mouseWheelZoom\":
+    true,\n          \"showAttribution\": true,\n          \"showDebug\": false,\n
+    \         \"showMeasure\": false,\n          \"showScale\": false,\n          \"showZoom\":
+    true\n        },\n        \"layers\": [\n          {\n            \"config\":
+    {\n              \"showLegend\": true,\n              \"style\": {\n                \"color\":
+    {\n                  \"field\": \"status\",\n                  \"fixed\": \"dark-green\"\n
+    \               },\n                \"opacity\": 0.4,\n                \"rotation\":
+    {\n                  \"fixed\": 0,\n                  \"max\": 360,\n                  \"min\":
+    -360,\n                  \"mode\": \"mod\"\n                },\n                \"size\":
+    {\n                  \"fixed\": 5,\n                  \"max\": 15,\n                  \"min\":
+    2\n                },\n                \"symbol\": {\n                  \"fixed\":
+    \"img/icons/marker/circle.svg\",\n                  \"mode\": \"fixed\"\n                },\n
+    \               \"symbolAlign\": {\n                  \"horizontal\": \"center\",\n
+    \                 \"vertical\": \"center\"\n                },\n                \"textConfig\":
+    {\n                  \"fontSize\": 12,\n                  \"offsetX\": 0,\n                  \"offsetY\":
+    0,\n                  \"textAlign\": \"center\",\n                  \"textBaseline\":
+    \"middle\"\n                }\n              }\n            },\n            \"filterData\":
+    {\n              \"id\": \"byRefId\",\n              \"options\": \"A\"\n            },\n
+    \           \"location\": {\n              \"latitude\": \"lat\",\n              \"longitude\":
+    \"lon\",\n              \"mode\": \"coords\"\n            },\n            \"name\":
+    \"Active Sensors\",\n            \"type\": \"markers\"\n          }\n        ],\n
+    \       \"tooltip\": {\n          \"mode\": \"details\"\n        },\n        \"view\":
+    {\n          \"allLayers\": true,\n          \"id\": \"fit\",\n          \"lat\":
+    14.59953,\n          \"lon\": 121.035279,\n          \"zoom\": 18\n        }\n
+    \     },\n      \"pluginVersion\": \"10.4.0\",\n      \"targets\": [\n        {\n
+    \         \"datasource\": {\n            \"type\": \"influxdb\",\n            \"uid\":
+    \"influxdb-fire\"\n          },\n          \"query\": \"import \\\"experimental\\\"\\n\\nfrom(bucket:
+    \\\"sensor-data\\\")\\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\\n
+    \ |> filter(fn: (r) => r[\\\"_measurement\\\"] == \\\"node_telemetry\\\")\\n  |>
+    filter(fn: (r) => r[\\\"_field\\\"] == \\\"lat\\\" or r[\\\"_field\\\"] == \\\"lon\\\"
+    or r[\\\"_field\\\"] == \\\"status\\\" or r[\\\"_field\\\"] == \\\"flame\\\")\\n
+    \ |> last()\\n  |> pivot(rowKey: [\\\"h_id\\\"], columnKey: [\\\"_field\\\"],
+    valueColumn: \\\"_value\\\")\\n  // Safe mapping configuration to handle missing
+    fields cleanly\\n  |> map(fn: (r) => {\\n      keys = experimental.objectKeys(o:
+    r)\\n      hasFlame = contains(value: \\\"flame\\\", set: keys)\\n      hasStatus
+    = contains(value: \\\"status\\\", set: keys)\\n      hasLat = contains(value:
+    \\\"lat\\\", set: keys)\\n      hasLon = contains(value: \\\"lon\\\", set: keys)\\n
+    \     hasTime = contains(value: \\\"_time\\\", set: keys)\\n      \\n      return
+    {\\n          id: r.h_id,\\n          reading: if hasFlame then r[\\\"flame\\\"]
+    else 0.0,\\n          status: if hasStatus then r[\\\"status\\\"] else 0,\\n          time:
+    if hasTime then r[\\\"_time\\\"] else time(v: \\\"2026-06-17T00:00:00Z\\\"),\\n
+    \         lat: if hasLat then r[\\\"lat\\\"] else 0.0,\\n          lon: if hasLon
+    then r[\\\"lon\\\"] else 0.0\\n      }\\n  })\\n  |> keep(columns: [\\\"id\\\",
+    \\\"reading\\\", \\\"status\\\", \\\"time\\\", \\\"lat\\\", \\\"lon\\\"])\",\n
+    \         \"refId\": \"A\"\n        }\n      ],\n      \"type\": \"geomap\"\n
+    \   },\n    {\n      \"datasource\": {\n        \"type\": \"influxdb\",\n        \"uid\":
+    \"influxdb-fire\"\n      },\n      \"fieldConfig\": {\n        \"defaults\": {\n
+    \         \"color\": {\n            \"fixedColor\": \"green\",\n            \"mode\":
+    \"fixed\"\n          },\n          \"mappings\": [],\n          \"thresholds\":
+    {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              {\n
+    \               \"color\": \"green\",\n                \"value\": null\n              },\n
+    \             {\n                \"color\": \"red\",\n                \"value\":
+    80\n              }\n            ]\n          }\n        },\n        \"overrides\":
+    [\n          {\n            \"matcher\": {\n              \"id\": \"byFrameRefID\",\n
+    \             \"options\": \"A\"\n            },\n            \"properties\":
+    [\n              {\n                \"id\": \"displayName\",\n                \"value\":
+    \"Total Fleet\"\n              },\n              {\n                \"id\": \"color\",\n
+    \               \"value\": {\n                  \"fixedColor\": \"dark-grey\",\n
+    \                 \"mode\": \"fixed\"\n                }\n              }\n            ]\n
+    \         },\n          {\n            \"matcher\": {\n              \"id\": \"byFrameRefID\",\n
+    \             \"options\": \"B\"\n            },\n            \"properties\":
+    [\n              {\n                \"id\": \"displayName\",\n                \"value\":
+    \"Normal Status\"\n              },\n              {\n                \"id\":
+    \"color\",\n                \"value\": {\n                  \"fixedColor\": \"green\",\n
+    \                 \"mode\": \"fixed\"\n                }\n              }\n            ]\n
+    \         },\n          {\n            \"matcher\": {\n              \"id\": \"byFrameRefID\",\n
+    \             \"options\": \"C\"\n            },\n            \"properties\":
+    [\n              {\n                \"id\": \"displayName\",\n                \"value\":
+    \"Warning Status\"\n              },\n              {\n                \"id\":
+    \"color\",\n                \"value\": {\n                  \"fixedColor\": \"orange\",\n
+    \                 \"mode\": \"fixed\"\n                }\n              }\n            ]\n
+    \         },\n          {\n            \"matcher\": {\n              \"id\": \"byFrameRefID\",\n
+    \             \"options\": \"D\"\n            },\n            \"properties\":
+    [\n              {\n                \"id\": \"displayName\",\n                \"value\":
+    \"Critical Status\"\n              },\n              {\n                \"id\":
+    \"color\",\n                \"value\": {\n                  \"fixedColor\": \"red\",\n
+    \                 \"mode\": \"fixed\"\n                }\n              }\n            ]\n
+    \         }\n        ]\n      },\n      \"gridPos\": {\n        \"h\": 12,\n        \"w\":
+    8,\n        \"x\": 16,\n        \"y\": 1\n      },\n      \"id\": 12,\n      \"options\":
+    {\n        \"colorMode\": \"background\",\n        \"graphMode\": \"none\",\n
+    \       \"justifyMode\": \"auto\",\n        \"orientation\": \"vertical\",\n        \"reduceOptions\":
+    {\n          \"calcs\": [\n            \"lastNotNull\"\n          ],\n          \"fields\":
+    \"\",\n          \"values\": false\n        },\n        \"showPercentChange\":
+    false,\n        \"textMode\": \"value_and_name\",\n        \"wideLayout\": true\n
+    \     },\n      \"pluginVersion\": \"10.4.0\",\n      \"targets\": [\n        {\n
+    \         \"datasource\": {\n            \"type\": \"influxdb\",\n            \"uid\":
+    \"influxdb-fire\"\n          },\n          \"query\": \"from(bucket: \\\"sensor-data\\\")\\n
+    \ |> range(start: -5m)\\n  |> filter(fn: (r) => r[\\\"_measurement\\\"] == \\\"node_telemetry\\\")\\n
+    \ |> filter(fn: (r) => r[\\\"_field\\\"] == \\\"status\\\")\\n  |> group(columns:
+    [\\\"h_id\\\"])\\n  |> last()\\n  |> group()\\n  |> count()\",\n          \"refId\":
+    \"A\"\n        },\n        {\n          \"datasource\": {\n            \"type\":
+    \"influxdb\",\n            \"uid\": \"influxdb-fire\"\n          },\n          \"query\":
+    \"from(bucket: \\\"sensor-data\\\")\\n  |> range(start: -5m)\\n  |> filter(fn:
+    (r) => r[\\\"_measurement\\\"] == \\\"node_telemetry\\\")\\n  |> filter(fn: (r)
+    => r[\\\"_field\\\"] == \\\"status\\\")\\n  |> filter(fn: (r) => r._value == 0)\\n
+    \ |> group(columns: [\\\"h_id\\\"])\\n  |> last()\\n  |> group()\\n  |> count()\",\n
+    \         \"refId\": \"B\"\n        },\n        {\n          \"datasource\": {\n
+    \           \"type\": \"influxdb\",\n            \"uid\": \"influxdb-fire\"\n
+    \         },\n          \"query\": \"from(bucket: \\\"sensor-data\\\")\\n  |>
+    range(start: -5m)\\n  |> filter(fn: (r) => r[\\\"_measurement\\\"] == \\\"node_telemetry\\\")\\n
+    \ |> filter(fn: (r) => r[\\\"_field\\\"] == \\\"status\\\")\\n  |> filter(fn:
+    (r) => r._value == 1)\\n  |> group(columns: [\\\"h_id\\\"])\\n  |> last()\\n  |>
+    group()\\n  |> count()\",\n          \"refId\": \"C\"\n        },\n        {\n
+    \         \"datasource\": {\n            \"type\": \"influxdb\",\n            \"uid\":
+    \"influxdb-fire\"\n          },\n          \"query\": \"from(bucket: \\\"sensor-data\\\")\\n
+    \ |> range(start: -5m)\\n  |> filter(fn: (r) => r[\\\"_measurement\\\"] == \\\"node_telemetry\\\")\\n
+    \ |> filter(fn: (r) => r[\\\"_field\\\"] == \\\"status\\\")\\n  |> filter(fn:
+    (r) => r._value == 2)\\n  |> group(columns: [\\\"h_id\\\"])\\n  |> last()\\n  |>
+    group()\\n  |> count()\",\n          \"refId\": \"D\"\n        }\n      ],\n      \"type\":
+    \"stat\"\n    },\n    {\n      \"datasource\": {\n        \"type\": \"influxdb\",\n
+    \       \"uid\": \"influxdb-fire\"\n      },\n      \"fieldConfig\": {\n        \"defaults\":
+    {\n          \"color\": {\n            \"mode\": \"thresholds\"\n          },\n
+    \         \"custom\": {\n            \"align\": \"auto\",\n            \"cellOptions\":
+    {\n              \"type\": \"auto\"\n            },\n            \"inspect\":
+    false\n          },\n          \"mappings\": [\n            {\n              \"options\":
+    {\n                \"0\": {\n                  \"color\": \"green\",\n                  \"text\":
+    \"Normal\"\n                },\n                \"1\": {\n                  \"color\":
+    \"orange\",\n                  \"text\": \"Warning\"\n                },\n                \"2\":
+    {\n                  \"color\": \"red\",\n                  \"text\": \"Critical\"\n
+    \               }\n              },\n              \"type\": \"value\"\n            }\n
+    \         ],\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n
+    \           \"steps\": [\n              {\n                \"color\": \"green\",\n
+    \               \"value\": null\n              },\n              {\n                \"color\":
+    \"orange\",\n                \"value\": 1\n              },\n              {\n
+    \               \"color\": \"red\",\n                \"value\": 2\n              }\n
+    \           ]\n          }\n        },\n        \"overrides\": []\n      },\n
+    \     \"gridPos\": {\n        \"h\": 16,\n        \"w\": 24,\n        \"x\": 0,\n
+    \       \"y\": 13\n      },\n      \"id\": 13,\n      \"options\": {\n        \"cellHeight\":
+    \"sm\",\n        \"footer\": {\n          \"countRows\": false,\n          \"fields\":
+    \"\",\n          \"reducer\": [\n            \"sum\"\n          ],\n          \"show\":
+    false\n        },\n        \"showHeader\": true\n      },\n      \"pluginVersion\":
+    \"10.4.0\",\n      \"targets\": [\n        {\n          \"datasource\": {\n            \"type\":
+    \"influxdb\",\n            \"uid\": \"influxdb-fire\"\n          },\n          \"query\":
+    \"import \\\"experimental\\\"\\n\\nfrom(bucket: \\\"sensor-data\\\")\\n  |> range(start:
+    v.timeRangeStart, stop: v.timeRangeStop)\\n  |> filter(fn: (r) => r[\\\"_measurement\\\"]
+    == \\\"node_telemetry\\\")\\n  |> filter(fn: (r) => r[\\\"_field\\\"] == \\\"status\\\"
+    or r[\\\"_field\\\"] == \\\"flame\\\")\\n  |> last()\\n  |> pivot(rowKey: [\\\"h_id\\\"],
+    columnKey: [\\\"_field\\\"], valueColumn: \\\"_value\\\")\\n  // Safe mapping
+    configuration to structure your exact metrics rows\\n  |> map(fn: (r) => {\\n
+    \     keys = experimental.objectKeys(o: r)\\n      hasFlame = contains(value:
+    \\\"flame\\\", set: keys)\\n      hasStatus = contains(value: \\\"status\\\",
+    set: keys)\\n      \\n      return {\\n          id: r.h_id,\\n          reading:
+    if hasFlame then r[\\\"flame\\\"] else 0.0,\\n          status: if hasStatus then
+    r[\\\"status\\\"] else 0\\n      }\\n  })\\n  |> keep(columns: [\\\"id\\\", \\\"reading\\\",
+    \\\"status\\\"])\",\n          \"refId\": \"A\"\n        }\n      ],\n      \"title\":
+    \"Active Device List Overview\",\n      \"type\": \"table\"\n    }\n  ],\n  \"refresh\":
+    \"30s\",\n  \"schemaVersion\": 39,\n  \"tags\": [\n    \"fire-monitoring\"\n  ],\n
+    \ \"templating\": {\n    \"list\": []\n  },\n  \"time\": {\n    \"from\": \"now-6h\",\n
+    \   \"to\": \"now\"\n  },\n  \"timepicker\": {\n    \"refresh_intervals\": [\n
+    \     \"5s\",\n      \"10s\",\n      \"30s\",\n      \"1m\",\n      \"5m\",\n
+    \     \"15m\",\n      \"30m\",\n      \"1h\",\n      \"2h\",\n      \"1d\"\n    ]\n
+    \ },\n  \"timezone\": \"\",\n  \"title\": \"Fire Monitoring Overview\",\n  \"uid\":
+    \"fire-main\",\n  \"version\": 13,\n  \"weekStart\": \"\"\n}\n"
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-dashboards-telemetry-2t4b47bd6k
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  dashboards.yaml: |-
+    apiVersion: 1
+
+    providers:
+      - name: "telemetry"
+        orgId: 1
+        folder: "Telemetry"
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        updateIntervalSeconds: 10
+        options:
+          path: /etc/grafana/dashboards/telemetry
+      - name: "infrastructure"
+        orgId: 1
+        folder: "Infrastructure"
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        updateIntervalSeconds: 10
+        options:
+          path: /etc/grafana/dashboards/infrastructure
+      - name: "application"
+        orgId: 1
+        folder: "Application"
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        updateIntervalSeconds: 10
+        options:
+          path: /etc/grafana/dashboards/application
+      - name: "data-layer"
+        orgId: 1
+        folder: "Data Layer"
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        updateIntervalSeconds: 10
+        options:
+          path: /etc/grafana/dashboards/data-layer
+  influxdb.yaml: |-
+    apiVersion: 1
+
+    datasources:
+      - name: Fire Monitoring InfluxDB
+        type: influxdb
+        uid: influxdb-fire
+        access: proxy
+        url: http://influx:8086
+        isDefault: true
+        editable: false
+        jsonData:
+          version: Flux
+          organization: ${INFLUXDB_ORG}
+          defaultBucket: ${INFLUXDB_BUCKET}
+          tlsSkipVerify: false
+        secureJsonData:
+          token: ${INFLUXDB_TOKEN}
+  loki.yaml: |+
+    apiVersion: 1
+
+    datasources:
+      - name: Fire Monitoring Loki
+        type: loki
+        uid: loki-fire
+        access: proxy
+        url: http://loki:3100
+        isDefault: false
+        editable: false
+        jsonData:
+          maxLines: 1000
+
+  prometheus.yaml: |+
+    apiVersion: 1
+
+    datasources:
+      - name: Fire Monitoring Prometheus
+        type: prometheus
+        uid: prometheus-fire
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: false
+        editable: false
+
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-provisioning-bmtfkh5kf9
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  local-config.yaml: |+
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v12
+          index:
+            prefix: index_
+            period: 24h
+
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /loki/index
+        cache_location: /loki/index_cache
+        cache_ttl: 24h
+      filesystem:
+        directory: /loki/chunks
+
+    compactor:
+      working_directory: /loki/compactor
+      compaction_interval: 10m
+      retention_enabled: true
+      delete_request_store: filesystem
+
+    limits_config:
+      retention_period: 168h
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: loki-config-hhg6t4b4d7
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  mosquitto.conf: |-
+    # Persistence saves data to the volume in your tree
+    persistence true
+    persistence_location /mosquitto/data/
+
+    # Logging helps you debug if the ESP32 fails to connect
+    log_dest file /mosquitto/log/mosquitto.log
+
+    # Standard MQTT Port
+    listener 1883
+    allow_anonymous true  # Change to false later for security
+
+    # --- NEW: WebSockets Configuration (External Ingress Traffic) ---
+    listener 9001
+    protocol websockets
+    allow_anonymous true
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: mqtt-config-c422fcfkft
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  prometheus.yml: |+
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["prometheus:9090"]
+
+      - job_name: node-exporter
+        static_configs:
+          - targets: ["node-exporter:9100"]
+
+      - job_name: cadvisor
+        static_configs:
+          - targets: ["cadvisor:8080"]
+
+      - job_name: loki
+        static_configs:
+          - targets: ["loki:3100"]
+
+      - job_name: influxdb
+        static_configs:
+          - targets: ["influx:8086"]
+
+
+      - job_name: api
+        static_configs:
+          - targets: ["api:8000"]
+
+      - job_name: postgres-exporter
+        static_configs:
+          - targets: ["postgres-exporter:9187"]
+
+      - job_name: mqtt-exporter
+        static_configs:
+          - targets: ["mqtt-exporter:9234"]
+
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: prometheus-config-9bg4d6d2b6
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+data:
+  telegraf.conf: "[agent]\n  interval = \"10s\"\n  round_interval = true\n  metric_batch_size
+    = 1000\n  metric_buffer_limit = 10000\n  collection_jitter = \"0s\"\n  flush_interval
+    = \"10s\"\n  flush_jitter = \"0s\"\n  precision = \"\"\n  debug = true   \n  quiet
+    = false\n  logfile = \"\"\n  hostname = \"\"\n  omit_hostname = false\n\n[[inputs.mqtt_consumer]]\n
+    \ # Changed from mqtt-broker to mqtt to match your docker-compose service name\n
+    \ servers = [\"tcp://mqtt:1883\"] \n  topics = [\"fire/sensors/#\"] \n  data_format
+    = \"json_v2\"\n  name_override = \"node_telemetry\"\n\n  [[inputs.mqtt_consumer.json_v2]]\n
+    \   [[inputs.mqtt_consumer.json_v2.object]]\n      path = \"@this\"\n      tags
+    = [\"h_id\"]\n      [inputs.mqtt_consumer.json_v2.object.fields]\n        \"lat\"
+    = \"float\"\n        \"lon\" = \"float\"\n        \"status\" = \"int\"\n\n[[outputs.influxdb_v2]]\n
+    \ # Changed from influxdb to influx to match your docker-compose service name\n
+    \ urls = [\"http://influx:8086\"] \n  token = \"${INFLUXDB_TOKEN}\" \n  organization
+    = \"fire-monitoring\" \n  bucket = \"sensor-data\""
+kind: ConfigMap
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: telegraf-config-d99g8848th
+  namespace: fire-monitoring-prod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: api
+    deployment-type: production
+    environment: prod
+  name: api
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  selector:
+    app: api
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: argocd-server
+  namespace: fire-monitoring-prod
+spec:
+  externalName: argocd-server.argocd.svc.cluster.local
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    deployment-type: production
+    environment: prod
+  type: ExternalName
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: cadvisor
+  namespace: fire-monitoring-prod
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: cadvisor
+    deployment-type: production
+    environment: prod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: dashboard
+    deployment-type: production
+    environment: prod
+  name: dashboard
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  selector:
+    app: dashboard
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+    deployment-type: production
+    environment: prod
+  name: grafana
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+  selector:
+    app: grafana
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: influx
+    deployment-type: production
+    environment: prod
+  name: influx
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 8086
+    targetPort: 8086
+  selector:
+    app: influx
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: loki
+    deployment-type: production
+    environment: prod
+  name: loki
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 3100
+    targetPort: 3100
+  selector:
+    app: loki
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mqtt
+    deployment-type: production
+    environment: prod
+  name: mqtt
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: mqtt
+    port: 1883
+    targetPort: 1883
+  - name: websockets
+    port: 9001
+    targetPort: 9001
+  selector:
+    app: mqtt
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mqtt-exporter
+    deployment-type: production
+    environment: prod
+  name: mqtt-exporter
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: metrics
+    port: 9234
+    targetPort: 9234
+  selector:
+    app: mqtt-exporter
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    deployment-type: production
+    environment: prod
+  name: node-exporter
+  namespace: fire-monitoring-prod
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+  selector:
+    app: node-exporter
+    deployment-type: production
+    environment: prod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: prometheus
+    deployment-type: production
+    environment: prod
+  name: prometheus
+  namespace: fire-monitoring-prod
+spec:
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+  selector:
+    app: prometheus
+    deployment-type: production
+    environment: prod
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: grafana
+    deployment-type: production
+    environment: prod
+  name: grafana-data
+  namespace: fire-monitoring-prod
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-rwo
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: loki
+    deployment-type: production
+    environment: prod
+  name: loki-data
+  namespace: fire-monitoring-prod
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-rwo
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: prometheus
+    deployment-type: production
+    environment: prod
+  name: prometheus-data
+  namespace: fire-monitoring-prod
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard-rwo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app: api
+    deployment-type: production
+    environment: prod
+  name: api
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: api
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - --auto-iam-authn
+        - firemonitoring-dev:asia-east1:firemonitoring-dev-db
+        image: gcr.io/cloud-sql-proxy/v2.8.2:latest
+        name: cloud-sql-proxy
+        resources:
+          limits:
+            cpu: 10m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          runAsNonRoot: true
+      - envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: ghcr.io/fauxx/firemonitoringsystem/api:48bccba
+        livenessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          tcpSocket:
+            port: 8000
+        name: api
+        ports:
+        - containerPort: 8000
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          tcpSocket:
+            port: 8000
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsGroup: 101
+          runAsNonRoot: true
+          runAsUser: 100
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-volume
+      imagePullSecrets:
+      - name: ghcr-credentials
+      serviceAccountName: api-sa
+      volumes:
+      - emptyDir: {}
+        name: tmp-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cloudflared
+    deployment-type: production
+    environment: prod
+  name: cloudflared
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - tunnel
+        - --no-autoupdate
+        - --config
+        - /etc/cloudflared/config/config.yml
+        - run
+        env:
+        - name: TUNNEL_ORIGIN_CERT
+          value: /etc/cloudflared/credentials/credentials.json
+        image: cloudflare/cloudflared:2024.11.0
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /ready
+            port: 2000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        name: cloudflared
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /etc/cloudflared/config
+          name: config
+          readOnly: true
+        - mountPath: /etc/cloudflared/credentials
+          name: credentials
+          readOnly: true
+      restartPolicy: Always
+      volumes:
+      - configMap:
+          name: cloudflared-config
+        name: config
+      - name: credentials
+        secret:
+          secretName: cloudflare-tunnel-credentials
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app: dashboard
+    deployment-type: production
+    environment: prod
+  name: dashboard
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: dashboard
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - image: ghcr.io/fauxx/firemonitoringsystem/dashboard:48bccba
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        name: dashboard
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /var/cache/nginx
+          name: cache-volume
+        - mountPath: /var/run
+          name: run-volume
+        - mountPath: /var/log/nginx
+          name: log-volume
+        - mountPath: /tmp
+          name: tmp-volume
+        - mountPath: /etc/nginx/conf.d/default.conf
+          name: nginx-config-volume
+          subPath: default.conf
+      imagePullSecrets:
+      - name: ghcr-credentials
+      volumes:
+      - emptyDir: {}
+        name: cache-volume
+      - emptyDir: {}
+        name: run-volume
+      - emptyDir: {}
+        name: log-volume
+      - emptyDir: {}
+        name: tmp-volume
+      - configMap:
+          name: dashboard-nginx-config-66762kgc5t
+        name: nginx-config-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app: etl-processor
+    deployment-type: production
+    environment: prod
+  name: etl-processor
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etl-processor
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: etl-processor
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: ghcr.io/fauxx/firemonitoringsystem/etl-processor:48bccba
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - python3 -m src.main
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        name: etl-processor
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-volume
+        - mountPath: /app/logs
+          name: log-volume
+      imagePullSecrets:
+      - name: ghcr-credentials
+      volumes:
+      - emptyDir: {}
+        name: tmp-volume
+      - emptyDir: {}
+        name: log-volume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+    deployment-type: production
+    environment: prod
+  name: grafana
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: grafana
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - env:
+        - name: GF_SERVER_ROOT_URL
+          valueFrom:
+            configMapKeyRef:
+              key: GRAFANA_ROOT_URL
+              name: fire-monitoring-config-t47k86dbck
+        - name: GF_SERVER_SERVE_FROM_SUB_PATH
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: Viewer
+        - name: GF_SECURITY_ALLOW_EMBEDDING
+          value: "true"
+        - name: GF_AUTH_PROXY_ENABLED
+          value: "true"
+        - name: GF_AUTH_PROXY_HEADER_NAME
+          value: X-WEBAUTH-USER
+        - name: GF_AUTH_PROXY_HEADER_PROPERTY
+          value: username
+        - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+          value: "true"
+        - name: GF_AUTH_PROXY_HEADERS
+          value: Role:X-WEBAUTH-ROLE
+        - name: GF_AUTH_PROXY_SYNC_TTL
+          value: "60"
+        - name: GF_AUTH_BASIC_ENABLED
+          value: "true"
+        envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: grafana/grafana:10.4.0
+        name: grafana
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /var/lib/grafana
+          name: grafana-data
+          subPath: grafana-data
+        - mountPath: /etc/grafana/provisioning
+          name: grafana-provisioning
+        - mountPath: /etc/grafana/dashboards/telemetry
+          name: grafana-dashboards-telemetry
+        - mountPath: /etc/grafana/dashboards/infrastructure
+          name: grafana-dashboards-infrastructure
+        - mountPath: /etc/grafana/dashboards/application
+          name: grafana-dashboards-application
+        - mountPath: /etc/grafana/dashboards/data-layer
+          name: grafana-dashboards-datalayer
+      securityContext:
+        fsGroup: 472
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 472
+        runAsUser: 472
+      volumes:
+      - name: grafana-data
+        persistentVolumeClaim:
+          claimName: grafana-data
+      - configMap:
+          items:
+          - key: influxdb.yaml
+            path: datasources/influxdb.yaml
+          - key: loki.yaml
+            path: datasources/loki.yaml
+          - key: prometheus.yaml
+            path: datasources/prometheus.yaml
+          - key: dashboards.yaml
+            path: dashboards/dashboards.yaml
+          name: grafana-provisioning-bmtfkh5kf9
+        name: grafana-provisioning
+      - configMap:
+          name: grafana-dashboards-telemetry-2t4b47bd6k
+        name: grafana-dashboards-telemetry
+      - configMap:
+          name: grafana-dashboards-infrastructure-ftd462mm4h
+        name: grafana-dashboards-infrastructure
+      - configMap:
+          name: grafana-dashboards-application-kfg49bf986
+        name: grafana-dashboards-application
+      - configMap:
+          name: grafana-dashboards-datalayer-bf52t4g62b
+        name: grafana-dashboards-datalayer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: loki
+    deployment-type: production
+    environment: prod
+  name: loki
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: loki
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - -config.file=/etc/loki/local-config.yaml
+        image: grafana/loki:2.9.8
+        name: loki
+        ports:
+        - containerPort: 3100
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/loki/local-config.yaml
+          name: loki-config
+          subPath: local-config.yaml
+        - mountPath: /loki
+          name: loki-data
+          subPath: loki-data
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 10001
+        runAsUser: 10001
+      volumes:
+      - configMap:
+          name: loki-config-hhg6t4b4d7
+        name: loki-config
+      - name: loki-data
+        persistentVolumeClaim:
+          claimName: loki-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mqtt
+    deployment-type: production
+    environment: prod
+  name: mqtt
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: mqtt
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - image: eclipse-mosquitto:2.0
+        livenessProbe:
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          tcpSocket:
+            port: 1883
+        name: mosquitto
+        ports:
+        - containerPort: 1883
+        - containerPort: 9001
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          tcpSocket:
+            port: 1883
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /mosquitto/config/mosquitto.conf
+          name: mqtt-config
+          subPath: mosquitto.conf
+        - mountPath: /mosquitto/data
+          name: mqtt-data
+      volumes:
+      - configMap:
+          name: mqtt-config-c422fcfkft
+        name: mqtt-config
+      - emptyDir: {}
+        name: mqtt-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mqtt-exporter
+    deployment-type: production
+    environment: prod
+  name: mqtt-exporter
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt-exporter
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: mqtt-exporter
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - env:
+        - name: BROKER_ENDPOINT
+          value: tcp://mqtt:1883
+        image: sapcc/mosquitto-exporter:0.6.0
+        name: mqtt-exporter
+        ports:
+        - containerPort: 9234
+          name: metrics
+        resources:
+          limits:
+            cpu: 10m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: prometheus
+    deployment-type: production
+    environment: prod
+  name: prometheus
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+      deployment-type: production
+      environment: prod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        image: prom/prometheus:v2.53.0
+        name: prometheus
+        ports:
+        - containerPort: 9090
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 10m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /etc/prometheus/prometheus.yml
+          name: prometheus-config
+          subPath: prometheus.yml
+        - mountPath: /prometheus
+          name: prometheus-data
+          subPath: prometheus-data
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65534
+        runAsUser: 65534
+      volumes:
+      - configMap:
+          name: prometheus-config-9bg4d6d2b6
+        name: prometheus-config
+      - name: prometheus-data
+        persistentVolumeClaim:
+          claimName: prometheus-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: telegraf
+    deployment-type: production
+    environment: prod
+  name: telegraf
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegraf
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: telegraf
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: telegraf:alpine
+        name: telegraf
+        volumeMounts:
+        - mountPath: /etc/telegraf/telegraf.conf
+          name: telegraf-config
+          subPath: telegraf.conf
+      volumes:
+      - configMap:
+          name: telegraf-config-d99g8848th
+        name: telegraf-config
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: influx
+    deployment-type: production
+    environment: prod
+  name: influx
+  namespace: fire-monitoring-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: influx
+      deployment-type: production
+      environment: prod
+  serviceName: influx
+  template:
+    metadata:
+      labels:
+        app: influx
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: influxdb:2.7-alpine
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8086
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        name: influxdb
+        ports:
+        - containerPort: 8086
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8086
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 10m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /var/lib/influxdb2
+          name: influx-data
+          subPath: influxdb2-data
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        deployment-type: production
+        environment: prod
+      name: influx-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: standard-rwo
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: alloy
+    deployment-type: production
+    environment: prod
+  name: alloy
+  namespace: fire-monitoring-prod
+spec:
+  selector:
+    matchLabels:
+      app: alloy
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: alloy
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - run
+        - /etc/alloy/config.alloy
+        - --storage.path=/var/lib/alloy/data
+        image: grafana/alloy:v1.7.2
+        name: alloy
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 128Mi
+        volumeMounts:
+        - mountPath: /etc/alloy/config.alloy
+          name: alloy-config
+          subPath: config.alloy
+        - mountPath: /var/log/pods
+          name: pod-logs
+          readOnly: true
+      volumes:
+      - configMap:
+          name: alloy-config-92997f5tfc
+        name: alloy-config
+      - hostPath:
+          path: /var/log/pods
+        name: pod-logs
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: cadvisor
+    deployment-type: production
+    environment: prod
+  name: cadvisor
+  namespace: fire-monitoring-prod
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - image: gcr.io/cadvisor/cadvisor:v0.49.1
+        name: cadvisor
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - mountPath: /rootfs
+          name: rootfs
+          readOnly: true
+        - mountPath: /var/run
+          name: varrun
+        - mountPath: /sys
+          name: sys
+          readOnly: true
+        - mountPath: /var/lib/docker
+          name: docker
+          readOnly: true
+      volumes:
+      - hostPath:
+          path: /
+        name: rootfs
+      - hostPath:
+          path: /var/run
+        name: varrun
+      - hostPath:
+          path: /sys
+        name: sys
+      - hostPath:
+          path: /var/lib/docker
+        name: docker
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: node-exporter
+    deployment-type: production
+    environment: prod
+  name: node-exporter
+  namespace: fire-monitoring-prod
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+      deployment-type: production
+      environment: prod
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --path.rootfs=/host/root
+        - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+        image: prom/node-exporter:v1.8.1
+        name: node-exporter
+        ports:
+        - containerPort: 9100
+        volumeMounts:
+        - mountPath: /host/proc
+          name: proc
+          readOnly: true
+        - mountPath: /host/sys
+          name: sys
+          readOnly: true
+        - mountPath: /host/root
+          name: root
+          readOnly: true
+      volumes:
+      - hostPath:
+          path: /proc
+        name: proc
+      - hostPath:
+          path: /sys
+        name: sys
+      - hostPath:
+          path: /
+        name: root
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation, HookSucceeded
+    argocd.argoproj.io/sync-wave: "5"
+  labels:
+    app: flyway
+    deployment-type: production
+    environment: prod
+  name: flyway-migrate
+  namespace: fire-monitoring-prod
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: flyway
+        deployment-type: production
+        environment: prod
+    spec:
+      containers:
+      - args:
+        - --auto-iam-authn
+        - --quitquitquit
+        - firemonitoring-dev:asia-east1:firemonitoring-dev-db
+        image: gcr.io/cloud-sql-proxy/v2.8.2:latest
+        name: cloud-sql-proxy
+        resources:
+          limits:
+            cpu: 10m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          runAsNonRoot: true
+      - args:
+        - -connectRetries=60
+        - migrate
+        env:
+        - name: FLYWAY_URL
+          value: jdbc:postgresql://127.0.0.1:5432/firemonitoring_dev
+        - name: FLYWAY_USER
+          value: sa-api-database-client@firemonitoring-dev.iam
+        envFrom:
+        - configMapRef:
+            name: fire-monitoring-config-t47k86dbck
+        - secretRef:
+            name: fire-monitoring-secrets
+        image: ghcr.io/fauxx/firemonitoringsystem/db-migrations:a4eb2ae
+        name: flyway
+      restartPolicy: OnFailure
+      serviceAccountName: flyway-sa
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  labels:
+    deployment-type: production
+    environment: prod
+  name: fire-monitoring
+  namespace: fire-monitoring-prod
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: fires.systems
+    http:
+      paths:
+      - backend:
+          service:
+            name: dashboard
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /api
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /auth
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /messages
+        pathType: Prefix
+      - backend:
+          service:
+            name: mqtt
+            port:
+              number: 9001
+        path: /mqtt
+        pathType: Prefix
+  - host: www.fires.systems
+    http:
+      paths:
+      - backend:
+          service:
+            name: dashboard
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /api
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /auth
+        pathType: Prefix
+      - backend:
+          service:
+            name: api
+            port:
+              number: 8000
+        path: /messages
+        pathType: Prefix
+      - backend:
+          service:
+            name: mqtt
+            port:
+              number: 9001
+        path: /mqtt
+        pathType: Prefix
+  tls:
+  - hosts:
+    - fires.systems
+    - www.fires.systems
+    secretName: fire-monitoring-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/app-root: /grafana
+  labels:
+    deployment-type: production
+    environment: prod
+  name: grafana-ops
+  namespace: fire-monitoring-prod
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ops.fires.systems
+    http:
+      paths:
+      - backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+        path: /grafana
+        pathType: Prefix
+  tls:
+  - hosts:
+    - ops.fires.systems
+    secretName: grafana-ops-tls

@@ -1,0 +1,34 @@
+name: "GCP Bootstrap (Run Once Per Environment)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# This workflow provisions the one-time IAM bootstrap resources:
+#   - Workload Identity Federation Pool + Provider
+#   - GitHub Actions Service Account + IAM bindings
+#   - GitHub Environment secrets/variables
+#
+# Run this ONLY when setting up a brand new environment for the first time.
+# For day-to-day infrastructure changes, use gcp-terraform-deploy.yml instead.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (run once per env)"
+        type: choice
+        options: [gke-dev, gke-prod]
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    name: "00-bootstrap"
+    uses: ./.github/workflows/gcp-terraform-reusable.yml
+    with:
+      environment:    ${{ inputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/00-bootstrap
+      execution_mode: apply
+    secrets: inherit

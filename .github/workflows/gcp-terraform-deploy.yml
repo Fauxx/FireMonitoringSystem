@@ -19,18 +19,8 @@ permissions:
   id-token: write
 
 jobs:
-  bootstrap:
-    name: "00-bootstrap"
-    uses: ./.github/workflows/gcp-terraform-reusable.yml
-    with:
-      environment:    ${{ inputs.environment }}
-      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/00-bootstrap
-      execution_mode: ${{ inputs.execution_mode }}
-    secrets: inherit
-
   infra:
     name: "01-infra"
-    needs: bootstrap
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
       environment:    ${{ inputs.environment }}

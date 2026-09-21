@@ -59,6 +59,9 @@ resource "google_project_iam_member" "ci_roles" {
     "roles/storage.objectAdmin",
     "roles/dns.admin",
     "roles/iam.serviceAccountTokenCreator",
+    "roles/iam.serviceAccountUser",
+    "roles/cloudsql.admin",
+    "roles/resourcemanager.projectIamAdmin",
   ])
   project = local.project_id
   role    = each.key

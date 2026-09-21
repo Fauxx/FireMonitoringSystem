@@ -1,10 +1,10 @@
-variable "project_id"             { type = string }
-variable "region"                 { type = string }
-variable "cluster_name"           { type = string }
-variable "network_id"             { type = string }
-variable "subnet_id"              { type = string }
-variable "pods_range_name"        { type = string }
-variable "services_range_name"    { type = string }
+variable "project_id" { type = string }
+variable "region" { type = string }
+variable "cluster_name" { type = string }
+variable "network_id" { type = string }
+variable "subnet_id" { type = string }
+variable "pods_range_name" { type = string }
+variable "services_range_name" { type = string }
 variable "min_node_count" {
   type    = number
   default = 1
@@ -21,7 +21,7 @@ variable "disk_size_gb" {
   type    = number
   default = 100
 }
-variable "node_sa_email"          { type = string }
+variable "node_sa_email" { type = string }
 variable "kubernetes_version" {
   type    = string
   default = "latest"

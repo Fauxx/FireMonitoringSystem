@@ -32,10 +32,10 @@ resource "google_compute_subnetwork" "gke" {
 
 # ── Firewall
 resource "google_compute_firewall" "allow_web" {
-  project       = var.project_id
-  name          = "fw-firemonitoring-dev-allow-web"
-  network       = google_compute_network.main.id
-  direction     = "INGRESS"
+  project   = var.project_id
+  name      = "fw-firemonitoring-dev-allow-web"
+  network   = google_compute_network.main.id
+  direction = "INGRESS"
   allow {
     protocol = "tcp"
     ports    = ["80", "443"]
@@ -103,14 +103,14 @@ resource "google_service_account" "db_client" {
 module "database" {
   source = "../../../modules/gcp/cloudsql"
 
-  project_id                = var.project_id
-  region                    = var.region
-  instance_name             = "firemonitoring-dev-db"
-  tier                      = "db-f1-micro"
-  
+  project_id    = var.project_id
+  region        = var.region
+  instance_name = "firemonitoring-dev-db"
+  tier          = "db-f1-micro"
+
   # Only creating the dev database since this is the dev environment!
-  database_names            = ["firemonitoring_dev"]
-  
+  database_names = ["firemonitoring_dev"]
+
   gke_service_account_email = google_service_account.db_client.email
 }
 
@@ -118,7 +118,7 @@ module "database" {
 resource "google_service_account_iam_binding" "db_client_workload_identity" {
   service_account_id = google_service_account.db_client.name
   role               = "roles/iam.workloadIdentityUser"
-  
+
   # Allowing both the API pod and the Flyway job to use this identity!
   members = [
     "serviceAccount:${var.project_id}.svc.id.goog[fire-monitoring-dev/api-sa]",

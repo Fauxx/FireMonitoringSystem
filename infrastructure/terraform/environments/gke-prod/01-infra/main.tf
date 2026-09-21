@@ -32,10 +32,10 @@ resource "google_compute_subnetwork" "gke" {
 
 # ── Firewall
 resource "google_compute_firewall" "allow_web" {
-  project       = var.project_id
-  name          = "fw-firemonitoring-prod-allow-web"
-  network       = google_compute_network.main.id
-  direction     = "INGRESS"
+  project   = var.project_id
+  name      = "fw-firemonitoring-prod-allow-web"
+  network   = google_compute_network.main.id
+  direction = "INGRESS"
   allow {
     protocol = "tcp"
     ports    = ["80", "443"]

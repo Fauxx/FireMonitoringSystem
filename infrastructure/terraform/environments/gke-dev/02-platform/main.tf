@@ -2,7 +2,7 @@ data "google_client_config" "default" {}
 
 data "terraform_remote_state" "infra" {
   backend = "gcs"
-  config  = {
+  config = {
     bucket = "firemonitoring-tfstate"
     prefix = "gke-dev/01-infra"
   }

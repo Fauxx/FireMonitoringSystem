@@ -8,7 +8,6 @@ on:
 
 jobs:
   terraform_plan:
-    name: "Plan — ${{ inputs.layer_dir }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -60,7 +59,6 @@ jobs:
           path: ${{ inputs.layer_dir }}/tfplan.binary
 
   terraform_apply:
-    name: "Apply — ${{ inputs.layer_dir }}"
     needs: terraform_plan
     if: inputs.execution_mode == 'apply'
     runs-on: ubuntu-latest

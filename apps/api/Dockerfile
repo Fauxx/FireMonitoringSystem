@@ -6,6 +6,7 @@ WORKDIR /usr/src/app
 
 # Upgrade Alpine packages to fix vulnerabilities
 RUN apk upgrade --no-cache
+RUN npm install -g npm@latest
 
 # Install dependencies
 COPY package*.json ./

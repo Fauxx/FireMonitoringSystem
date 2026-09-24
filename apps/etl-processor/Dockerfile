@@ -14,9 +14,10 @@ RUN apk update && apk upgrade --no-cache && \
 
 COPY requirements.txt ./
 
-# Upgrade base python tools and install jaraco.context and msgpack to avoid CVEs
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel "jaraco.context>=6.1.0" "msgpack>=1.2.1" && \
-    pip install --no-cache-dir -r requirements.txt
+# Upgrade base python tools and install dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0" "msgpack>=1.2.1" "setuptools>=78.1.1"
 
 COPY . .
 

@@ -10,6 +10,10 @@
 # Stage: Serve static dashboard assets via Nginx
 FROM nginx:alpine
 
+# Patch HIGH vulnerability in libexpat (CVE-2026-93990)
+USER root
+RUN apk upgrade --no-cache
+
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
@@ -32,4 +36,3 @@ EXPOSE 80
 
 # Run nginx in foreground
 CMD ["nginx", "-g", "daemon off;"]
-

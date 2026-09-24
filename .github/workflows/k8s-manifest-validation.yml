@@ -1,5 +1,8 @@
 name: "Kubernetes Manifest Validation"
 
+env:
+  KUBERNETES_VERSION: "1.30.0"
+
 on:
   push:
     branches: [ main, dev-zet ]
@@ -96,7 +99,7 @@ jobs:
           kustomize build infrastructure/k8s/overlays/${{ matrix.overlay }} \
             | kubeconform \
                 -strict \
-                -kubernetes-version 1.30.0 \
+                -kubernetes-version ${{ env.KUBERNETES_VERSION }} \
                 -ignore-missing-schemas \
                 -summary \
                 -output tap

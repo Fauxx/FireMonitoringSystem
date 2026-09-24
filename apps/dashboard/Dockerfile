@@ -19,6 +19,11 @@ COPY public/ /usr/share/nginx/html/
 # Create directory for logs
 RUN mkdir -p /var/log/nginx
 
+# Security: Run Nginx as non-root
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
+USER nginx
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://127.0.0.1/health || exit 1

@@ -23,7 +23,7 @@ spec:
         - name: ghcr-credentials
       containers:
         - name: cloud-sql-proxy
-          image: gcr.io/cloud-sql-proxy/v2.8.2:latest
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3
           args:
             - "--auto-iam-authn"
             - "$(CLOUD_SQL_CONNECTION_NAME)"

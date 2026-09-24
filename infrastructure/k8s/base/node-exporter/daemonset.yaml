@@ -16,6 +16,19 @@ spec:
       containers:
         - name: node-exporter
           image: prom/node-exporter:v1.8.1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9100
+            initialDelaySeconds: 10
+            periodSeconds: 30
           args:
             - --path.procfs=/host/proc
             - --path.sysfs=/host/sys

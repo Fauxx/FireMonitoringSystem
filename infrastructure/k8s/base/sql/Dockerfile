@@ -7,6 +7,9 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 RUN apt-get update -y && apt-get install -y google-cloud-cli
 
+# Drop back to flyway's default non-root user
+USER flyway
+
 # Copy our migration scripts
 COPY ./*.sql /flyway/sql/
 

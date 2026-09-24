@@ -19,6 +19,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0" "msgpack>=1.2.1" "setuptools>=78.1.1"
 
+# Security: Remove pip and setuptools to eliminate their vendored vulnerabilities (like old msgpack)
+# and reduce the container's attack surface in production
+RUN pip uninstall -y pip setuptools wheel
+
 COPY . .
 
 # Security: Run as non-root user

@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # System deps for psycopg2 and basic tooling
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     procps \

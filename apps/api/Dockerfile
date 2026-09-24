@@ -1,8 +1,11 @@
 # Production-ready Dockerfile for Node.js app
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Create app directory
 WORKDIR /usr/src/app
+
+# Upgrade Alpine packages to fix vulnerabilities
+RUN apk upgrade --no-cache
 
 # Install dependencies
 COPY package*.json ./

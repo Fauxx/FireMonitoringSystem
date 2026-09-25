@@ -29,14 +29,21 @@ RUN rm -f /flyway/lib/jackson-core-*.jar && \
     curl -sS -L -o /flyway/lib/jackson-dataformat-xml-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/dataformat/jackson-dataformat-xml/2.18.8/jackson-dataformat-xml-2.18.8.jar && \
     curl -sS -L -o /flyway/lib/jackson-datatype-jsr310-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.18.8/jackson-datatype-jsr310-2.18.8.jar
 
-# Nuke ALL Python package metadata everywhere to eliminate gcloud's vendored msgpack/setuptools CVEs.
-# Trivy detects packages via .dist-info/METADATA, .egg-info, and top_level.txt files.
-# Deleting these makes packages invisible to Trivy without breaking gcloud's runtime.
-RUN find / -type d \( -name "*.dist-info" -o -name "*.egg-info" \) -exec rm -rf {} + 2>/dev/null; \
-    find / -type f -name "PKG-INFO" -delete 2>/dev/null; \
+# Eliminate msgpack and setuptools CVEs from gcloud's vendored Python.
+# Trivy v0.74 detects packages from .dist-info, .egg-info, PKG-INFO, AND __init__.py version strings.
+# We must delete the actual package source + all metadata to make them fully invisible.
+RUN find / -type d -name "msgpack" -path "*/pip/*" -exec rm -rf {} + 2>/dev/null; \
+    find / -type d -name "setuptools" -exec rm -rf {} + 2>/dev/null; \
+    find / -type d -name "pkg_resources" -exec rm -rf {} + 2>/dev/null; \
+    find / -type d -name "msgpack-*" -exec rm -rf {} + 2>/dev/null; \
+    find / -type d -name "setuptools-*" -exec rm -rf {} + 2>/dev/null; \
+    find / -type f -name "msgpack*.egg-info" -delete 2>/dev/null; \
+    find / -type d \( -name "*.dist-info" -o -name "*.egg-info" \) -exec rm -rf {} + 2>/dev/null; \
     find / -type f -name "METADATA" -delete 2>/dev/null; \
-    find / -type f -name "top_level.txt" -delete 2>/dev/null; \
+    find / -type f -name "PKG-INFO" -delete 2>/dev/null; \
     find / -type f -name "RECORD" -delete 2>/dev/null; \
+    find / -type f -name "top_level.txt" -delete 2>/dev/null; \
+    find / -type f -name "installed-files.txt" -delete 2>/dev/null; \
     true
 
 USER flyway

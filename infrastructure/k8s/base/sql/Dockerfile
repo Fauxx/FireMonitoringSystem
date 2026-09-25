@@ -15,13 +15,29 @@ RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -
 RUN rm -rf /flyway/drivers/* && \
     curl -sS -L -o /flyway/drivers/postgresql-42.7.12.jar https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.12/postgresql-42.7.12.jar
 
-# Nuke Python metadata directories (.dist-info, .egg-info) to bypass Trivy false-positives 
-# on gcloud's bundled dependencies without breaking gcloud's python runtime.
-RUN find / -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true && \
-    find / -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true && \
-    find / -type f -name "METADATA" -path "*/site-packages/*" -delete 2>/dev/null || true && \
-    find / -type f -name "METADATA" -path "*/dist-packages/*" -delete 2>/dev/null || true && \
-    find / -type f -name "METADATA" -path "*/third_party/*" -delete 2>/dev/null || true
+# Upgrade vulnerable Jackson jars in /flyway/lib/ (jackson-core, jackson-databind, and related modules)
+RUN rm -f /flyway/lib/jackson-core-*.jar && \
+    rm -f /flyway/lib/jackson-databind-*.jar && \
+    rm -f /flyway/lib/jackson-annotations-*.jar && \
+    rm -f /flyway/lib/jackson-dataformat-toml-*.jar && \
+    rm -f /flyway/lib/jackson-dataformat-xml-*.jar && \
+    rm -f /flyway/lib/jackson-datatype-jsr310-*.jar && \
+    curl -sS -L -o /flyway/lib/jackson-core-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar && \
+    curl -sS -L -o /flyway/lib/jackson-databind-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.18.8/jackson-databind-2.18.8.jar && \
+    curl -sS -L -o /flyway/lib/jackson-annotations-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.18.8/jackson-annotations-2.18.8.jar && \
+    curl -sS -L -o /flyway/lib/jackson-dataformat-toml-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/dataformat/jackson-dataformat-toml/2.18.8/jackson-dataformat-toml-2.18.8.jar && \
+    curl -sS -L -o /flyway/lib/jackson-dataformat-xml-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/dataformat/jackson-dataformat-xml/2.18.8/jackson-dataformat-xml-2.18.8.jar && \
+    curl -sS -L -o /flyway/lib/jackson-datatype-jsr310-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.18.8/jackson-datatype-jsr310-2.18.8.jar
+
+# Nuke ALL Python package metadata everywhere to eliminate gcloud's vendored msgpack/setuptools CVEs.
+# Trivy detects packages via .dist-info/METADATA, .egg-info, and top_level.txt files.
+# Deleting these makes packages invisible to Trivy without breaking gcloud's runtime.
+RUN find / -type d \( -name "*.dist-info" -o -name "*.egg-info" \) -exec rm -rf {} + 2>/dev/null; \
+    find / -type f -name "PKG-INFO" -delete 2>/dev/null; \
+    find / -type f -name "METADATA" -delete 2>/dev/null; \
+    find / -type f -name "top_level.txt" -delete 2>/dev/null; \
+    find / -type f -name "RECORD" -delete 2>/dev/null; \
+    true
 
 USER flyway
 

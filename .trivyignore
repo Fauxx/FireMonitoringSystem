@@ -1,2 +1,10 @@
 # Trivy ignore file
 # List CVE IDs here to ignore specific vulnerabilities if needed.
+
+# google-cloud-cli vendors msgpack 1.1.2 and setuptools 70.3.0 internally.
+# These packages are NOT used by our application code — they are bundled
+# inside gcloud's own Python runtime and cannot be upgraded without
+# rebuilding gcloud itself. They pose no exploitable risk in our context
+# (db-migrations container only runs flyway + gcloud auth print-access-token).
+GHSA-6v7p-g79w-8964
+CVE-2025-47273

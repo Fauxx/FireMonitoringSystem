@@ -6,6 +6,12 @@ resource "helm_release" "ingress_nginx" {
   namespace        = "ingress-nginx"
   create_namespace = true
 
+  # GKE external LoadBalancer provisioning can take 5–10 min on first deploy.
+  # Default Helm provider timeout is 5 min, which causes context deadline exceeded.
+  timeout       = 900 # 15 minutes
+  wait          = true
+  wait_for_jobs = false
+
   set {
     name  = "controller.service.externalTrafficPolicy"
     value = "Local"

@@ -1,18 +1,4 @@
 name: "GCP Bootstrap (Run Once Per Environment)"
-on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Environment to bootstrap"
-        type: choice
-        options: [gke-dev, gke-prod]
-        required: true
-      execution_mode:
-        description: "Plan only or apply"
-        type: choice
-        options: [plan-only, apply]
-        required: true
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # This workflow provisions the one-time IAM bootstrap resources:

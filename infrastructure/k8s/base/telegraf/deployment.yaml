@@ -17,6 +17,18 @@ spec:
       containers:
         - name: telegraf
           image: telegraf:alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "telegraf"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config

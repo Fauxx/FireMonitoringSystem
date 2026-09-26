@@ -20,7 +20,13 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-credentials
+      serviceAccountName: api-sa
       containers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3
+          args:
+            - "--auto-iam-authn"
+            - "firemonitoring-dev:asia-east1:firemonitoring-dev-db"
         - name: etl-processor
           image: etl-processor
           resources:

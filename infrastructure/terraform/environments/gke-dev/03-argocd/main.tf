@@ -74,32 +74,39 @@ resource "helm_release" "argocd" {
   }
 }
 
-resource "kubernetes_manifest" "argocd_apps" {
-  manifest = {
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "fire-monitoring-dev"
-      namespace = kubernetes_namespace_v1.argocd.metadata[0].name
-    }
-    spec = {
-      project = "default"
-      source = {
-        repoURL        = var.gitops_repo_url
-        targetRevision = "HEAD"
-        path           = "infrastructure/k8s/overlays/dev"
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = kubernetes_namespace_v1.fire_monitoring_dev.metadata[0].name
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
+resource "helm_release" "argocd_apps" {
+  name       = "argocd-apps"
+  repository = "https://argoproj.github.io/argo-helm"
+  chart      = "argocd-apps"
+  version    = "2.0.5"
+  namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
+
+  depends_on = [helm_release.argocd]
+
+  values = [
+    yamlencode({
+      applications = {
+        fire-monitoring-dev = {
+          namespace = kubernetes_namespace_v1.argocd.metadata[0].name
+          project   = "default"
+          source = {
+            repoURL        = var.gitops_repo_url
+            targetRevision = "HEAD"
+            path           = "infrastructure/k8s/overlays/dev"
+          }
+          destination = {
+            server    = "https://kubernetes.default.svc"
+            namespace = kubernetes_namespace_v1.fire_monitoring_dev.metadata[0].name
+          }
+          syncPolicy = {
+            automated = {
+              prune    = true
+              selfHeal = true
+            }
+            syncOptions = ["CreateNamespace=true"]
+          }
         }
-        syncOptions = ["CreateNamespace=true"]
       }
-    }
-  }
+    })
+  ]
 }

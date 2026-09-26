@@ -49,3 +49,10 @@ These rules apply specifically to coding tasks within the `FireMonitoringSystem`
 
 *   Always create migrations under [sql/](file:///home/zett/RiderProjects/FireMonitoringSystem/infrastructure/k8s/base/sql/) using the `V<N>__<name>.sql` naming format.
 *   Never run raw SQL queries directly in prod environments without committing a corresponding Flyway migration first.
+
+---
+
+## 💻 5. Terminal & Command History
+
+*   **Zsh History Injection**: The user relies heavily on `Ctrl+R` in Zsh. Whenever you execute a non-trivial or highly useful terminal command (e.g., complex `gcloud`, `kubectl`, `gh`, or `docker` commands) via your `run_command` tool, you **MUST** simultaneously append that exact command to the user's `~/.zsh_history` using the Zsh extended history format:
+    `echo ": $(date +%s):0;your_command_here" >> ~/.zsh_history`

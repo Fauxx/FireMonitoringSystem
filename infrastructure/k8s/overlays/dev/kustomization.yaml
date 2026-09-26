@@ -27,7 +27,7 @@ images:
   newTag: 5dbd26b
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-  newTag: 5dbd26b
+  newTag: 56b7efe
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
   newTag: 5dbd26b

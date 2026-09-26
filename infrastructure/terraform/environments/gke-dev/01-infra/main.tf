@@ -85,7 +85,7 @@ module "cluster" {
   services_range_name = "services"
   min_node_count      = 1
   max_node_count      = 3
-  machine_type        = "e2-medium"
+  machine_type        = "e2-standard-2"
   disk_size_gb        = 50
   node_sa_email       = google_service_account.gke_node.email
 }

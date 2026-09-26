@@ -1,6 +1,11 @@
 name: "GCP Terraform Deploy"
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/terraform/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -8,57 +13,101 @@ on:
         type: choice
         options: [gke-dev, gke-prod]
         required: true
+        default: 'gke-dev'
       execution_mode:
         description: "Plan only or apply"
         type: choice
         options: [plan-only, apply]
         required: true
+        default: 'apply'
+      target_layer:
+        description: "Which layer to deploy?"
+        type: choice
+        options: [all, 01-infra, 02-platform, 03-argocd]
+        required: true
+        default: 'all'
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  # A lightweight native job that anchors the workflow graph.
-  # This prevents GitHub from hitting startup_failure when all jobs are uses:.
   setup:
-    name: "Setup"
+    name: "Setup & Path Filtering"
     runs-on: ubuntu-latest
     outputs:
-      environment:    ${{ inputs.environment }}
-      execution_mode: ${{ inputs.execution_mode }}
+      environment:    ${{ steps.vars.outputs.environment }}
+      execution_mode: ${{ steps.vars.outputs.execution_mode }}
+      run_infra:      ${{ steps.filter.outputs.infra == 'true' || github.event.inputs.target_layer == 'all' || github.event.inputs.target_layer == '01-infra' }}
+      run_platform:   ${{ steps.filter.outputs.platform == 'true' || github.event.inputs.target_layer == 'all' || github.event.inputs.target_layer == '02-platform' }}
+      run_argocd:     ${{ steps.filter.outputs.argocd == 'true' || github.event.inputs.target_layer == 'all' || github.event.inputs.target_layer == '03-argocd' }}
     steps:
-      - name: Echo parameters
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine dynamic variables
+        id: vars
         run: |
-          echo "Environment:    ${{ inputs.environment }}"
-          echo "Execution mode: ${{ inputs.execution_mode }}"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "execution_mode=${{ github.event.inputs.execution_mode }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=gke-dev" >> $GITHUB_OUTPUT
+            echo "execution_mode=apply" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Paths Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            infra:
+              - 'infrastructure/terraform/environments/**/01-infra/**'
+              - 'infrastructure/terraform/modules/**'
+            platform:
+              - 'infrastructure/terraform/environments/**/02-platform/**'
+            argocd:
+              - 'infrastructure/terraform/environments/**/03-argocd/**'
 
   infra:
     name: "01-infra"
     needs: setup
+    if: ${{ needs.setup.outputs.run_infra == 'true' }}
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
-      environment:    ${{ inputs.environment }}
-      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/01-infra
-      execution_mode: ${{ inputs.execution_mode }}
+      environment:    ${{ needs.setup.outputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ needs.setup.outputs.environment }}/01-infra
+      execution_mode: ${{ needs.setup.outputs.execution_mode }}
     secrets: inherit
 
   platform:
     name: "02-platform"
-    needs: infra
+    needs: [setup, infra]
+    if: |
+      always() && 
+      needs.setup.outputs.run_platform == 'true' && 
+      needs.infra.result != 'failure' && 
+      needs.infra.result != 'cancelled'
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
-      environment:    ${{ inputs.environment }}
-      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/02-platform
-      execution_mode: ${{ inputs.execution_mode }}
+      environment:    ${{ needs.setup.outputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ needs.setup.outputs.environment }}/02-platform
+      execution_mode: ${{ needs.setup.outputs.execution_mode }}
     secrets: inherit
 
   argocd:
     name: "03-argocd"
-    needs: platform
+    needs: [setup, platform]
+    if: |
+      always() && 
+      needs.setup.outputs.run_argocd == 'true' && 
+      needs.platform.result != 'failure' && 
+      needs.platform.result != 'cancelled' &&
+      needs.infra.result != 'failure' && 
+      needs.infra.result != 'cancelled'
     uses: ./.github/workflows/gcp-terraform-reusable.yml
     with:
-      environment:    ${{ inputs.environment }}
-      layer_dir:      infrastructure/terraform/environments/${{ inputs.environment }}/03-argocd
-      execution_mode: ${{ inputs.execution_mode }}
+      environment:    ${{ needs.setup.outputs.environment }}
+      layer_dir:      infrastructure/terraform/environments/${{ needs.setup.outputs.environment }}/03-argocd
+      execution_mode: ${{ needs.setup.outputs.execution_mode }}
     secrets: inherit

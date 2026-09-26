@@ -9,7 +9,9 @@ resources:
   - mqtt/exporter.yaml
   - telegraf/deployment.yaml
   - flyway/job.yaml
+  - flyway/serviceaccount.yaml
   - api/deployment.yaml
+  - api/serviceaccount.yaml
   - api/service.yaml
   - etl/deployment.yaml
   - dashboard/deployment.yaml

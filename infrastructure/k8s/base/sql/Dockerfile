@@ -46,6 +46,7 @@ RUN find / -type d -name "msgpack" -path "*/pip/*" -exec rm -rf {} + 2>/dev/null
     find / -type f -name "installed-files.txt" -delete 2>/dev/null; \
     true
 
+RUN useradd -m -u 1000 flyway && chown -R flyway /flyway
 USER flyway
 
 COPY ./*.sql /flyway/sql/

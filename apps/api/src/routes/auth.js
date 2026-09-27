@@ -39,7 +39,10 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const pool = req.pool;
 
+  const isJsonRequest = req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1);
+
   if (!email || !password) {
+    if (isJsonRequest) return res.status(400).json({ error: 'Invalid credentials' });
     return res.redirect('/login.html?message=invalid');
   }
 
@@ -59,6 +62,7 @@ router.post('/login', async (req, res) => {
       result.rows.length === 0 ||
       !(await bcrypt.compare(password, result.rows[0].password))
     ) {
+      if (isJsonRequest) return res.status(401).json({ error: 'Invalid credentials' });
       return res.redirect('/login.html?message=invalid');
     }
 
@@ -68,11 +72,13 @@ router.post('/login', async (req, res) => {
     // Check user status - only allow approved users to login
     if (!user.status || user.status === 'pending') {
       console.log(`[auth-debug] Login blocked: status is pending`);
+      if (isJsonRequest) return res.status(403).json({ error: 'Account pending approval' });
       return res.redirect('/login.html?message=pending');
     }
 
     if (user.status === 'rejected') {
       console.log(`[auth-debug] Login blocked: status is rejected`);
+      if (isJsonRequest) return res.status(403).json({ error: 'Account rejected' });
       return res.redirect('/login.html?message=rejected');
     }
 
@@ -85,9 +91,15 @@ router.post('/login', async (req, res) => {
     
     console.log(`[auth-debug] Session established for ${user.username}. Session ID: ${req.sessionID}`);
 
+    if (req.xhr || req.headers.accept.indexOf('json') > -1) {
+      return res.json({ success: true, user: req.session.user });
+    }
     return res.redirect('/protected/dashboard.html');
   } catch (err) {
     console.error('Login error:', err);
+    if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {
+      return res.status(500).json({ error: 'Server error' });
+    }
     return res.redirect('/login.html?message=server');
   }
 });

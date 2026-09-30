@@ -48,7 +48,3 @@ configMapGenerator:
   - name: alloy-config
     files:
       - config.alloy=alloy/config.alloy
-
-  - name: dashboard-nginx-config
-    files:
-      - default.conf=dashboard/nginx.conf

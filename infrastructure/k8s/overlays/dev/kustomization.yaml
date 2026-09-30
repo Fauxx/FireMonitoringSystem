@@ -24,7 +24,7 @@ images:
   newTag: 5dbd26b
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: 5dbd26b
+  newTag: 82a5a23
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
   newTag: 56b7efe

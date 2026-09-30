@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Flame, Thermometer, Wind, AlertTriangle, Cpu } from 'lucide-react';
+import { X, Flame, Thermometer, Wind, Cpu } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import type { SensorState } from '../types';
 import { getStatusConfig } from '../utils/statusColors';
@@ -147,7 +147,7 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 flex items-baseline gap-1">
-                  {sensor.temp.toFixed(1)} <span className="text-xs text-surface-muted font-semibold">°C</span>
+                  {(sensor.temp || 0).toFixed(1)} <span className="text-xs text-surface-muted font-semibold">°C</span>
                 </div>
               </div>
             </div>
@@ -159,7 +159,7 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 flex items-baseline gap-1">
-                  {sensor.smoke.toFixed(1)} <span className="text-xs text-surface-muted font-semibold">PPM</span>
+                  {(sensor.smoke || 0).toFixed(1)} <span className="text-xs text-surface-muted font-semibold">PPM</span>
                 </div>
               </div>
             </div>
@@ -171,22 +171,12 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
               </div>
               <div>
                 <div className="text-2xl font-bold text-slate-900 flex items-baseline gap-1">
-                  {sensor.flame.toFixed(0)} <span className="text-xs text-surface-muted font-semibold">IR</span>
+                  {(sensor.flame || 0).toFixed(0)} <span className="text-xs text-surface-muted font-semibold">IR</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-surface rounded-xl border border-surface-border p-4 flex flex-col gap-2 shadow-sm">
-              <div className="flex items-center justify-between">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-[10px] font-bold text-surface-muted">GAS</span>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-slate-900 flex items-baseline gap-1">
-                  {(sensor.gas || 0).toFixed(0)} <span className="text-xs text-surface-muted font-semibold">AQI</span>
-                </div>
-              </div>
-            </div>
+
 
           </div>
         </div>

@@ -60,8 +60,9 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
           const layers = map.getStyle().layers;
           let labelLayerId;
           for (let i = 0; i < layers.length; i++) {
-            if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
-              labelLayerId = layers[i].id;
+            const layer = layers[i];
+            if (layer.type === 'symbol' && layer.layout && (layer.layout as any)['text-field']) {
+              labelLayerId = layer.id;
               break;
             }
           }

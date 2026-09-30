@@ -95,4 +95,4 @@ infrastructure/terraform/*_override.tf.json
 **/*_override.tf
 **/*_override.tf.json
 .terraform.rc
-terraform.rc
+terraform.rctrivy

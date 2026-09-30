@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ModalOverlay } from './ModalOverlay';
-import { Clock, AlertTriangle } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { getStatusConfig } from '../../utils/statusColors';
 
 interface LogsModalProps {

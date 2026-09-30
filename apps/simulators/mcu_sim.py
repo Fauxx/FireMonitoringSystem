@@ -43,11 +43,27 @@ def generate_payload(args: argparse.Namespace) -> dict:
         # Simulate edge state machine: 85% normal, 12% warning, 3% critical
         status = random.choices([0, 1, 2], weights=[0.85, 0.12, 0.03])[0]
 
+    if status == 0:
+        temp = random.uniform(28.0, 32.0)
+        smoke = random.uniform(10, 50)
+        flame = 0.0
+    elif status == 1:
+        temp = random.uniform(33.0, 40.0)
+        smoke = random.uniform(50, 150)
+        flame = random.uniform(0.1, 0.4)
+    else:
+        temp = random.uniform(45.0, 70.0)
+        smoke = random.uniform(200, 500)
+        flame = random.uniform(0.8, 1.0)
+
     return {
         "h_id": args.h_id,
         "lat": args.lat,
         "lon": args.lon,
-        "status": status
+        "status": status,
+        "temp": round(temp, 2),
+        "smoke": round(smoke, 2),
+        "flame": round(flame, 2)
     }
 
 def publish_loop(args: argparse.Namespace) -> None:

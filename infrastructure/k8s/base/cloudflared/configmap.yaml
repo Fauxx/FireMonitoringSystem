@@ -14,9 +14,7 @@ data:
       - hostname: dev.fires.systems
         service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
 
-      # Dev observability domain → Grafana via Nginx Ingress
-      - hostname: ops.dev.fires.systems
-        service: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80
+
 
       # Catch-all: return 404 for any unmatched hostname
       - service: http_status:404

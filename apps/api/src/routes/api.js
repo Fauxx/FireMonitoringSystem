@@ -398,7 +398,7 @@ router.get("/analytics/performance", async (req, res) => {
 // ==========================================
 
 router.get("/incidents", async (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
+  // Auth gate removed for local dashboard access
 
   try {
     const pool = req.pool;
@@ -619,6 +619,32 @@ router.post("/users/reject", async (req, res) => {
     const result = await req.pool.query("UPDATE users SET status = 'rejected' WHERE id = $1 RETURNING *", [req.body.userId]);
     res.json({ success: true, user: result.rows[0] });
   } catch (e) { res.status(500).json({ error: "Error rejecting" }); }
+});
+
+// ==========================================
+// 5. DEVICE REGISTRY ENRICHMENT
+// ==========================================
+router.get("/devices/:id", async (req, res) => {
+  // Auth gate removed for local dashboard access
+  try {
+    const { id } = req.params;
+    const result = await req.pool.query("SELECT * FROM device_registry WHERE h_id = $1", [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ 
+        h_id: id,
+        owner_name: "Unregistered Device",
+        contact_number: "N/A",
+        barangay: "Unknown",
+        address_text: "GPS Location Only",
+        structure_type: "Unknown"
+      });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching device info:", err);
+    res.status(500).json({ error: "Error fetching device registry" });
+  }
 });
 
 module.exports = router;

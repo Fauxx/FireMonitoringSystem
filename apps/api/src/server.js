@@ -17,6 +17,7 @@ const apiRoutes = require('./routes/api');
 const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
 const finalSensorRoutes = require('./routes/finalSensors');
+const telemetryRoutes = require('./routes/telemetry');
 
 // -------------------------------
 // Initialize Express App
@@ -146,6 +147,7 @@ app.use('/api', apiRoutes);
 app.use('/messages', messageRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/final-sensors', finalSensorRoutes);
+app.use('/api/telemetry', telemetryRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

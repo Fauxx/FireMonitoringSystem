@@ -10,11 +10,14 @@
 #   6. UTILITIES         - make status, clean   Hygiene & validation
 # ==============================================================================
 
+.DEFAULT_GOAL := up
+
 KIND_CLUSTER_NAME   ?= fire-monitoring
 LOCAL_BUILD_DIR     := build/local
 AKS_TF_BASE        := infrastructure/terraform/environments
 
 .PHONY: help \
+        up down logs \
         rapid-up rapid-down rapid-logs \
         local-up local-down local-restart local-logs local-port-forward \
         staging-up staging-down staging-sync staging-watch staging-pause staging-resume \
@@ -34,6 +37,9 @@ help:
 	@echo "==========================================================================="
 	@echo ""
 	@echo "🐳 [1] RAPID DEV (Docker Compose — hot-reload, no K8s)"
+	@echo "  make up                - Start Compose sandbox (alias for rapid-up)"
+	@echo "  make down              - Tear down Compose sandbox (alias for rapid-down)"
+	@echo "  make logs              - Tail application logs (alias for rapid-logs)"
 	@echo "  make rapid-up          - Start Compose sandbox"
 	@echo "  make rapid-down        - Tear down Compose sandbox"
 	@echo "  make rapid-logs        - Tail application logs"
@@ -79,10 +85,14 @@ help:
 # [1] RAPID DEV — Docker Compose
 # ==============================================================================
 
+up: rapid-up
+down: rapid-down
+logs: rapid-logs
+
 rapid-up:
 	@echo "🐳 Starting Docker Compose sandbox..."
 	docker compose --project-directory . --env-file $(LOCAL_BUILD_DIR)/.env -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml up --build -d
-	@echo "✅ Rapid dev ready! API: localhost:8000 | Dashboard: localhost:3000"
+	@echo "✅ Rapid dev ready! API: localhost:8000 | Dashboard: localhost:8080"
 
 rapid-down:
 	docker compose --project-directory . --env-file $(LOCAL_BUILD_DIR)/.env -f $(LOCAL_BUILD_DIR)/docker-compose.local.yml down -v

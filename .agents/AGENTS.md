@@ -56,3 +56,13 @@ These rules apply specifically to coding tasks within the `FireMonitoringSystem`
 
 *   **Zsh History Injection**: The user relies heavily on `Ctrl+R` in Zsh. Whenever you execute a non-trivial or highly useful terminal command (e.g., complex `gcloud`, `kubectl`, `gh`, or `docker` commands) via your `run_command` tool, you **MUST** simultaneously append that exact command to the user's `~/.zsh_history` using the Zsh extended history format:
     `echo ": $(date +%s):0;your_command_here" >> ~/.zsh_history`
+
+---
+
+## 🚀 6. Modern Frontend Workflow (apps/dashboard-v2)
+
+When working within `apps/dashboard-v2/`, the UI stack shifts to an AI-optimized component architecture. **Do not follow the legacy Vanilla JS/CSS rules from Section 1 for this directory.**
+
+*   **Framework**: Use React (Vite) with TypeScript. Avoid DOM manipulation (`document.getElementById`). Use React state (`useState`, `useEffect`).
+*   **Styling**: Use **Tailwind CSS** utility classes exclusively. Never write custom `.css` files. The project's primary color palette (`--primary-red`, etc.) is already mapped to the `primary` and `neutral` configuration in `tailwind.config.js`. Use `bg-primary`, `text-primary-dark`, `bg-neutral-50`, etc.
+*   **Components**: Rely on `shadcn/ui` components (or similar headless Radix UI patterns) to build the interface. If asked to build a complex element like a table, dialog, or dropdown, use standard Tailwind structures that mimic these libraries.

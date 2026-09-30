@@ -16,9 +16,7 @@ resources:
   - etl/deployment.yaml
   - dashboard/deployment.yaml
   - dashboard/service.yaml
-  - grafana/deployment.yaml
-  - grafana/service.yaml
-  - grafana/pvc.yaml
+
   - loki/deployment.yaml
   - loki/service.yaml
   - loki/pvc.yaml
@@ -50,25 +48,7 @@ configMapGenerator:
   - name: alloy-config
     files:
       - config.alloy=alloy/config.alloy
-  - name: grafana-provisioning
-    files:
-      - dashboards.yaml=grafana/provisioning/dashboards/fire-dashboards.yaml
-      - influxdb.yaml=grafana/provisioning/datasources/influxdb.yaml
-      - loki.yaml=grafana/provisioning/datasources/loki.yaml
-      - prometheus.yaml=grafana/provisioning/datasources/prometheus.yaml
-  - name: grafana-dashboards-telemetry
-    files:
-      - fire-main.json=grafana/dashboards/telemetry/fire-main.json
-  - name: grafana-dashboards-infrastructure
-    files:
-      - cluster-health.json=grafana/dashboards/infrastructure/cluster-health.json
-  - name: grafana-dashboards-application
-    files:
-      - api-performance.json=grafana/dashboards/application/api-performance.json
-      - loki-error-logs.json=grafana/dashboards/application/loki-error-logs.json
-  - name: grafana-dashboards-datalayer
-    files:
-      - mqtt-broker.json=grafana/dashboards/data-layer/mqtt-broker.json
+
   - name: dashboard-nginx-config
     files:
       - default.conf=dashboard/nginx.conf

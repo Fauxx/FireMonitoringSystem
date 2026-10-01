@@ -23,10 +23,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 512Mi
+              memory: 256Mi
             limits:
-              cpu: 1000m
-              memory: 1Gi
+              cpu: 200m
+              memory: 512Mi
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config

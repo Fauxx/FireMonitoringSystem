@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import Map, { Marker } from 'react-map-gl/maplibre';
+import Map, { Marker, NavigationControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { SensorState } from '../types';
 import { getStatusConfig } from '../utils/statusColors';
@@ -28,7 +28,7 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
         });
       }
     }
-  }, [selectedSensorId, sensors]);
+  }, [selectedSensorId]); // Only trigger when selected sensor changes
 
   return (
     <div className="absolute inset-0 z-0 bg-base-dark">
@@ -86,6 +86,9 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
           );
         }}
       >
+        {/* Zoom +/- buttons & compass */}
+        <NavigationControl position="top-right" />
+
         {sensors.map((sensor) => {
           const config = getStatusConfig(sensor.status);
           const isCritical = sensor.status === 2;
@@ -120,11 +123,9 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
                 </div>
 
                 {/* Always-on label for critical items, hover label for normal */}
-                {(isCritical || true) && (
-                  <div className="absolute top-6 whitespace-nowrap px-2 py-1 bg-black/80 backdrop-blur-sm rounded text-[10px] text-white font-mono opacity-0 group-hover:opacity-100 transition-opacity border border-surface-border">
-                    {sensor.h_id}
-                  </div>
-                )}
+                <div className={`absolute top-6 whitespace-nowrap px-2 py-1 bg-black/80 backdrop-blur-sm rounded text-[10px] text-white font-mono transition-opacity border border-surface-border ${isCritical ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                  {sensor.h_id}
+                </div>
               </div>
             </Marker>
           );

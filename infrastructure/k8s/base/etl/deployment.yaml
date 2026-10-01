@@ -32,10 +32,10 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 64Mi
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 100m
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -47,7 +47,7 @@ spec:
               command:
                 - pgrep
                 - -f
-                - "python3 -m src.main"
+                - "python -m src.main"
             initialDelaySeconds: 10
             periodSeconds: 10
           envFrom:

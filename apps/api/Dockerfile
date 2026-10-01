@@ -4,8 +4,8 @@ FROM node:22-alpine
 # Create app directory
 WORKDIR /usr/src/app
 
-# Upgrade Alpine packages to fix vulnerabilities
-RUN apk upgrade --no-cache
+# Upgrade Alpine packages to fix vulnerabilities (cache busted 2026-10-02)
+RUN apk update && apk upgrade --no-cache
 RUN npm install -g npm@latest
 
 # Install dependencies

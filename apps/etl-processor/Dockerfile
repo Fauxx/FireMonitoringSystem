@@ -2,7 +2,7 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
-# Upgrade Alpine packages to fix vulnerabilities
+# Upgrade Alpine packages to fix vulnerabilities (cache busted 2026-10-02)
 RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache \
     build-base \

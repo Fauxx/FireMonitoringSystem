@@ -9,9 +9,9 @@ RUN npm run build
 # Serve Stage
 FROM nginx:alpine
 
-# Patch vulnerabilities
+# Patch vulnerabilities (cache busted 2026-10-02)
 USER root
-RUN apk upgrade --no-cache
+RUN apk update && apk upgrade --no-cache
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

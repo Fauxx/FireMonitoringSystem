@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import Map, { Marker, NavigationControl } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { SensorState } from '../types';
@@ -10,6 +10,42 @@ interface MapCanvasProps {
   selectedSensorId: string | null;
   onSensorSelect: (id: string) => void;
 }
+
+
+const MemoizedSensorMarker = memo(({ sensor, onSelect }: { sensor: SensorState, onSelect: (id: string) => void }) => {
+  const config = getStatusConfig(sensor.status);
+  const isCritical = sensor.status === 2;
+  
+  return (
+    <Marker
+      longitude={sensor.lon}
+      latitude={sensor.lat}
+      anchor="center"
+      onClick={e => {
+        e.originalEvent.stopPropagation();
+        onSelect(sensor.h_id);
+      }}
+    >
+      <div className="relative flex items-center justify-center cursor-pointer group">
+        {isCritical && (
+          <div 
+            className="absolute inset-0 rounded-full animate-ping bg-primary opacity-60" 
+            style={{ width: '48px', height: '48px', left: '-14px', top: '-14px', animationDuration: '1.5s' }} 
+          />
+        )}
+        <div 
+          className="relative z-10 w-5 h-5 rounded-full border-2 border-surface shadow-lg flex items-center justify-center transition-transform group-hover:scale-125"
+          style={{ backgroundColor: config.hex }}
+        >
+          {isCritical && <Flame className="w-3 h-3 text-white" strokeWidth={3} />}
+        </div>
+        <div className={`absolute top-6 whitespace-nowrap px-2 py-1 bg-black/80 backdrop-blur-sm rounded text-[10px] text-white font-mono transition-opacity border border-surface-border ${isCritical ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          {sensor.h_id}
+        </div>
+      </div>
+    </Marker>
+  );
+}, (prev, next) => prev.sensor === next.sensor);
 
 export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: MapCanvasProps) {
   const mapRef = useRef<any>(null);
@@ -95,47 +131,7 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
         {/* Zoom +/- buttons & compass */}
         <NavigationControl position="top-right" />
 
-        {sensors.map((sensor) => {
-          const config = getStatusConfig(sensor.status);
-          const isCritical = sensor.status === 2;
-          
-          return (
-            <Marker
-              key={sensor.h_id}
-              longitude={sensor.lon}
-              latitude={sensor.lat}
-              anchor="center"
-              onClick={e => {
-                e.originalEvent.stopPropagation();
-                onSensorSelect(sensor.h_id);
-              }}
-            >
-              <div className="relative flex items-center justify-center cursor-pointer group">
-                
-                {/* Expandable CSS Shockwave for Critical Alerts */}
-                {isCritical && (
-                  <div 
-                    className="absolute inset-0 rounded-full animate-ping bg-primary opacity-60" 
-                    style={{ width: '48px', height: '48px', left: '-14px', top: '-14px', animationDuration: '1.5s' }} 
-                  />
-                )}
-                
-                {/* The actual dot */}
-                <div 
-                  className="relative z-10 w-5 h-5 rounded-full border-2 border-surface shadow-lg flex items-center justify-center transition-transform group-hover:scale-125"
-                  style={{ backgroundColor: config.hex }}
-                >
-                  {isCritical && <Flame className="w-3 h-3 text-white" strokeWidth={3} />}
-                </div>
-
-                {/* Always-on label for critical items, hover label for normal */}
-                <div className={`absolute top-6 whitespace-nowrap px-2 py-1 bg-black/80 backdrop-blur-sm rounded text-[10px] text-white font-mono transition-opacity border border-surface-border ${isCritical ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                  {sensor.h_id}
-                </div>
-              </div>
-            </Marker>
-          );
-        })}
+        {sensors.map(sensor => <MemoizedSensorMarker key={sensor.h_id} sensor={sensor} onSelect={onSensorSelect} />)}
       </Map>
     </div>
   );

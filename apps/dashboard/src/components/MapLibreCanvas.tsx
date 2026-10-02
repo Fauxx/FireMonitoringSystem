@@ -87,6 +87,7 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
           const map = e.target;
           
           // Find the lowest text label layer to insert buildings beneath it
+          if (!map.getStyle()) return;
           const layers = map.getStyle().layers;
           let labelLayerId;
           for (let i = 0; i < layers.length; i++) {

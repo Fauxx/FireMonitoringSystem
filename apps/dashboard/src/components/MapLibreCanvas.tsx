@@ -1,9 +1,17 @@
-import { useEffect, useRef, memo } from 'react';
-import Map, { Marker, NavigationControl } from 'react-map-gl/maplibre';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { useEffect, memo } from 'react';
+import { MapContainer, TileLayer, Marker, useMap, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import type { SensorState } from '../types';
 import { getStatusConfig } from '../utils/statusColors';
-import { Flame } from 'lucide-react';
+
+// Fix for default Leaflet icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
 
 interface MapCanvasProps {
   sensors: SensorState[];
@@ -11,117 +19,85 @@ interface MapCanvasProps {
   onSensorSelect: (id: string) => void;
 }
 
+// Custom DivIcon for our sensors
+const createCustomIcon = (status: number) => {
+  const config = getStatusConfig(status);
+  const isCritical = status === 2;
+  
+  const html = `
+    <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+      ${isCritical ? '<div style="position: absolute; border-radius: 50%; width: 48px; height: 48px; background-color: var(--color-primary); opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>' : ''}
+      <div style="position: relative; z-index: 10; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); background-color: ${config.hex}; display: flex; align-items: center; justify-content: center;">
+        ${isCritical ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>' : ''}
+      </div>
+    </div>
+  `;
+  
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+};
+
+function MapController({ selectedSensorId, sensors }: { selectedSensorId: string | null, sensors: SensorState[] }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (selectedSensorId) {
+      const sensor = sensors.find(s => s.h_id === selectedSensorId);
+      if (sensor) {
+        map.flyTo([sensor.lat, sensor.lon], 16, {
+          duration: 1.5
+        });
+      }
+    }
+  }, [selectedSensorId, sensors, map]);
+
+  return null;
+}
 
 const MemoizedSensorMarker = memo(({ sensor, onSelect }: { sensor: SensorState, onSelect: (id: string) => void }) => {
-  const config = getStatusConfig(sensor.status);
-  const isCritical = sensor.status === 2;
-  
   return (
     <Marker
-      longitude={sensor.lon}
-      latitude={sensor.lat}
-      anchor="center"
-      onClick={e => {
-        e.originalEvent.stopPropagation();
-        onSelect(sensor.h_id);
+      position={[sensor.lat, sensor.lon]}
+      icon={createCustomIcon(sensor.status)}
+      eventHandlers={{
+        click: () => onSelect(sensor.h_id)
       }}
     >
-      <div className="relative flex items-center justify-center cursor-pointer group">
-        {isCritical && (
-          <div 
-            className="absolute inset-0 rounded-full animate-ping bg-primary opacity-60" 
-            style={{ width: '48px', height: '48px', left: '-14px', top: '-14px', animationDuration: '1.5s' }} 
-          />
-        )}
-        <div 
-          className="relative z-10 w-5 h-5 rounded-full border-2 border-surface shadow-lg flex items-center justify-center transition-transform group-hover:scale-125"
-          style={{ backgroundColor: config.hex }}
-        >
-          {isCritical && <Flame className="w-3 h-3 text-white" strokeWidth={3} />}
-        </div>
-        <div className={`absolute top-6 whitespace-nowrap px-2 py-1 bg-black/80 backdrop-blur-sm rounded text-[10px] text-white font-mono transition-opacity border border-surface-border ${isCritical ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-          {sensor.h_id}
-        </div>
-      </div>
+      <Popup>
+        <div className="text-sm font-mono font-bold text-gray-900">{sensor.h_id}</div>
+      </Popup>
     </Marker>
   );
 }, (prev, next) => prev.sensor === next.sensor);
 
 export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: MapCanvasProps) {
-  const mapRef = useRef<any>(null);
-
-  // Handle flying to the selected sensor
-  useEffect(() => {
-    if (selectedSensorId && mapRef.current) {
-      const sensor = sensors.find(s => s.h_id === selectedSensorId);
-      if (sensor) {
-        mapRef.current.flyTo({
-          center: [sensor.lon, sensor.lat],
-          zoom: 17, // Zoom in tight to the street! (Mercator handles this perfectly)
-          pitch: 45, // Tilt the camera for a 3D effect
-          duration: 2000,
-          essential: true
-        });
-      }
-    }
-  }, [selectedSensorId]); // Only trigger when selected sensor changes
-
   return (
     <div className="absolute inset-0 z-0 bg-base-dark">
-      <Map
-        ref={mapRef}
-        style={{ width: '100%', height: '100%' }}
-        initialViewState={{
-          longitude: 120.9842,
-          latitude: 14.5995,
-          zoom: 12.5, // Start at city level
-          pitch: 45, // Start with a 3D tilt
-          
-        }}
-        
-        // Using OpenFreeMap's standard bright (Liberty) style
-        mapStyle="https://tiles.openfreemap.org/styles/liberty"
-        
-
-        onLoad={(e) => {
-          const map = e.target;
-          
-          // Find the lowest text label layer to insert buildings beneath it
-          if (!map.getStyle()) return;
-          const layers = map.getStyle().layers;
-          let labelLayerId;
-          for (let i = 0; i < layers.length; i++) {
-            const layer = layers[i];
-            if (layer.type === 'symbol' && layer.layout && (layer.layout as any)['text-field']) {
-              labelLayerId = layer.id;
-              break;
-            }
-          }
-
-          // Inject the 3D buildings layer using OpenFreeMap's underlying vector data
-          map.addLayer(
-            {
-              id: '3d-buildings',
-              source: 'openmaptiles',
-              'source-layer': 'building',
-              type: 'fill-extrusion',
-              minzoom: 14,
-              paint: {
-                'fill-extrusion-color': '#e2e8f0', // Light slate so they pop against the dark map
-                'fill-extrusion-height': ['get', 'render_height'],
-                'fill-extrusion-base': ['get', 'render_min_height'],
-                'fill-extrusion-opacity': 0.85 // High opacity for clear visibility
-              }
-            },
-            labelLayerId
-          );
-        }}
+      <MapContainer
+        center={[14.5995, 120.9842]}
+        zoom={11}
+        style={{ width: '100%', height: '100%', backgroundColor: '#111827' }}
+        zoomControl={true}
       >
-        {/* Zoom +/- buttons & compass */}
-        <NavigationControl position="top-right" />
-
-        {sensors.map(sensor => <MemoizedSensorMarker key={sensor.h_id} sensor={sensor} onSelect={onSensorSelect} />)}
-      </Map>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        />
+        
+        <MapController selectedSensorId={selectedSensorId} sensors={sensors} />
+        
+        {sensors.map(sensor => (
+          <MemoizedSensorMarker 
+            key={sensor.h_id} 
+            sensor={sensor} 
+            onSelect={onSensorSelect} 
+          />
+        ))}
+      </MapContainer>
     </div>
   );
 }

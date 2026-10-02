@@ -41,20 +41,12 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
           zoom: 4.5, // Start zoomed in enough to clearly focus on the Philippines
           pitch: 0,
         }}
-        // Force globe projection regardless of style
-        projection={{ type: "globe" } as any}
         
         // Using OpenFreeMap's standard bright (Liberty) style
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
         
-        // This is the magic! At low zoom it's a globe, at high zoom it flattens to vector streets.
         onLoad={(e) => {
           const map = e.target;
-          
-          // Enable globe projection natively
-          if (map.setProjection) {
-            map.setProjection({ type: 'globe' });
-          }
           
           // Find the lowest text label layer to insert buildings beneath it
           const layers = map.getStyle().layers;

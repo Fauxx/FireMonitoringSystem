@@ -74,8 +74,8 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
         initialViewState={{
           longitude: 120.9842,
           latitude: 14.5995,
-          zoom: 4.5, // Start zoomed in enough to clearly focus on the Philippines
-          pitch: 0,
+          zoom: 12.5, // Start at city level
+          pitch: 45, // Start with a 3D tilt
           
         }}
         

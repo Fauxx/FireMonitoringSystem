@@ -45,8 +45,22 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
         // Using OpenFreeMap's standard bright (Liberty) style
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
         
+
+        onZoom={(e) => {
+          const map = e.target;
+          if (map.setProjection) {
+            if (map.getZoom() > 6) {
+              map.setProjection({ type: 'mercator' });
+            } else {
+              map.setProjection({ type: 'globe' });
+            }
+          }
+        }}
         onLoad={(e) => {
           const map = e.target;
+          if (map.setProjection) {
+            map.setProjection({ type: 'globe' });
+          }
           
           // Find the lowest text label layer to insert buildings beneath it
           const layers = map.getStyle().layers;

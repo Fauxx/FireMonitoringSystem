@@ -57,7 +57,7 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
       if (sensor) {
         mapRef.current.flyTo({
           center: [sensor.lon, sensor.lat],
-          zoom: 15, // Globe projection clips at very high zoom, keep it at 15
+          zoom: 17, // Zoom in tight to the street! (Mercator handles this perfectly)
           pitch: 45, // Tilt the camera for a 3D effect
           duration: 2000,
           essential: true
@@ -71,8 +71,6 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
       <Map
         ref={mapRef}
         style={{ width: '100%', height: '100%' }}
-        projection={{ type: "globe" } as any}
-        maxZoom={15}
         initialViewState={{
           longitude: 120.9842,
           latitude: 14.5995,
@@ -87,9 +85,6 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
 
         onLoad={(e) => {
           const map = e.target;
-          if (map.setProjection) {
-            map.setProjection({ type: 'globe' });
-          }
           
           // Find the lowest text label layer to insert buildings beneath it
           const layers = map.getStyle().layers;

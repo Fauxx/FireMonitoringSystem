@@ -57,7 +57,7 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
       if (sensor) {
         mapRef.current.flyTo({
           center: [sensor.lon, sensor.lat],
-          zoom: 17, // Zoom in tight to the street!
+          zoom: 15, // Globe projection clips at very high zoom, keep it at 15
           pitch: 45, // Tilt the camera for a 3D effect
           duration: 2000,
           essential: true
@@ -71,27 +71,20 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
       <Map
         ref={mapRef}
         style={{ width: '100%', height: '100%' }}
+        projection={{ type: "globe" } as any}
+        maxZoom={15}
         initialViewState={{
           longitude: 120.9842,
           latitude: 14.5995,
           zoom: 4.5, // Start zoomed in enough to clearly focus on the Philippines
           pitch: 0,
+          
         }}
         
         // Using OpenFreeMap's standard bright (Liberty) style
         mapStyle="https://tiles.openfreemap.org/styles/liberty"
         
 
-        onZoom={(e) => {
-          const map = e.target;
-          if (map.setProjection) {
-            if (map.getZoom() > 6) {
-              map.setProjection({ type: 'mercator' });
-            } else {
-              map.setProjection({ type: 'globe' });
-            }
-          }
-        }}
         onLoad={(e) => {
           const map = e.target;
           if (map.setProjection) {

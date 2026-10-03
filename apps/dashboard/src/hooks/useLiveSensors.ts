@@ -15,8 +15,8 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const isLocal = window.location.hostname !== 'dev.fires.systems';
-    const host = isLocal ? window.location.hostname + ':9001' : 'dev.fires.systems/mqtt';
+    const isLocal = window.location.hostname !== 'dev.fires.systems' && window.location.hostname !== 'fires.systems';
+    const host = isLocal ? window.location.hostname + ':9001' : window.location.hostname + '/mqtt';
     
     const client = mqtt.connect(`${protocol}://${host}`, {
       clientId: `dash-v2-${Math.random().toString(16).slice(2)}`,
@@ -30,15 +30,36 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
 
     client.on('message', (_topic, message) => {
       try {
-        const payload: SensorTelemetry = JSON.parse(message.toString());
-        const h_id = payload.h_id;
+        const raw = JSON.parse(message.toString());
+        // Handle both flattened ETL format (h_id, temp) and raw Simulator format (device_id, readings)
+        const h_id = raw.h_id || raw.device_id;
         
         if (!h_id) return;
+        
+        const payload: SensorTelemetry = {
+            h_id: h_id,
+            lat: raw.lat, // May be missing in live stream, we preserve it below
+            lon: raw.lon,
+            status: raw.status ?? raw.status_code ?? 0,
+            temp: raw.temp ?? raw.readings?.temperature_c,
+            smoke: raw.smoke ?? raw.readings?.smoke_ppm,
+            flame: raw.flame ?? raw.readings?.flame_intensity,
+            _time: raw._time ?? raw.timestamp
+        };
 
         setSensors((prev) => {
+          // Preserve static properties (lat, lon, barangay) from initial DB load if missing in telemetry
+          const existing = prev[h_id] || {};
           const newState = {
             ...prev,
-            [h_id]: { ...prev[h_id], ...payload, lastUpdated: Date.now() }
+            [h_id]: { 
+                ...existing, 
+                ...payload,
+                // Ensure we don't overwrite valid coordinates with undefined
+                lat: payload.lat ?? existing.lat,
+                lon: payload.lon ?? existing.lon,
+                lastUpdated: Date.now() 
+            }
           };
           
           if (payload.status === 2 && prev[h_id]?.status !== 2) {

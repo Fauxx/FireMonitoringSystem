@@ -118,6 +118,7 @@ local-port-forward:
 	@nohup kubectl port-forward -n fire-monitoring-local svc/influx 8086:8086 > /dev/null 2>&1 &
 	@nohup kubectl port-forward -n fire-monitoring-local svc/prometheus 9090:9090 > /dev/null 2>&1 &
 	@nohup kubectl port-forward -n fire-monitoring-local svc/mqtt 1883:1883 > /dev/null 2>&1 &
+	@nohup kubectl port-forward -n fire-monitoring-local svc/mqtt 9001:9001 > /dev/null 2>&1 &
 	@sleep 2
 	@echo "✅ All services mapped to localhost!"
 	@echo "======================================================"

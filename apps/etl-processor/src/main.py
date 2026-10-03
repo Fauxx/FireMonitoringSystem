@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import psycopg2
-from psycopg2.extras import execute_values, Json
+from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 from loguru import logger
 from influxdb_client import InfluxDBClient
@@ -13,129 +13,80 @@ from dotenv import load_dotenv
 # -----------------------------
 load_dotenv()
 
-# Connectivity (defaults line up with docker-compose service names)
 INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://influx:8086")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
 INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "fire-monitoring")
 INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "sensor-data")
-INFLUX_MEASUREMENT = os.getenv("INFLUX_MEASUREMENT", "fire_data")
+INFLUX_MEASUREMENT = os.getenv("INFLUX_MEASUREMENT", "node_telemetry")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fireuser:changeme@db:5432/fire_monitoring")
 
-# Timing & Service Logic
-ETL_SYNC_INTERVAL = int(os.getenv("ETL_SYNC_INTERVAL", 60)) # Seconds between runs
+ETL_SYNC_INTERVAL = int(os.getenv("ETL_SYNC_INTERVAL", 10))
 AGG_WINDOW_MINUTES = int(os.getenv("AGG_WINDOW_MINUTES", 5))
-ANOMALY_WINDOW_MINUTES = int(os.getenv("ANOMALY_WINDOW_MINUTES", 30))
-TIMEZONE = os.getenv("TZ", "Asia/Manila")
-DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-2d")
+DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-24h")
 
-# Thresholds (Configurable via .env)
-ALERT_THRESHOLDS = {
-    "smoke": {
-        "orange": float(os.getenv("THRESHOLD_SMOKE_ORANGE", 92)),
-        "red": float(os.getenv("THRESHOLD_SMOKE_RED", 200))
-    },
-    "temp": {
-        "orange": float(os.getenv("THRESHOLD_TEMP_ORANGE", 35.2)),
-        "red": float(os.getenv("THRESHOLD_TEMP_RED", 40))
-    },
-    "flame": {
-        "orange": float(os.getenv("THRESHOLD_FLAME_ORANGE", 1027)),
-        "red": float(os.getenv("THRESHOLD_FLAME_RED", 1050))
-    }
-}
+# Optimized 3NF Columns (Removed lat, lon, raw_payload)
+ALLOWED_COLS = ["h_id", "received_at", "status", "temp_c", "smoke_ppm", "flame_intensity"]
 
-ALLOWED_COLS = [
-    "time", "m", "host", "alert_level", "event_stage",
-    "fa", "fb", "ga", "gb", "sa", "sb", "ta", "tb",
-    "ks", "ls", "k", "l", "la", "lo", "a", "o",
-    "timestamp_window", "readings_count", "created_at",
-    "active_devices", "alerts_today", "system_uptime", "total_locations", "timestamp",
-    "status_level", "h_id", "status", "lat", "lon", "raw_payload", "received_at", "incident_timestamp"
-]
-
-# -----------------------------
-# 2. Global Database Connection
-# -----------------------------
-# In Production, we keep one connection open to avoid TCP overhead
 _db_conn = None
 
 def get_db_conn():
     global _db_conn
     if _db_conn is None or _db_conn.closed != 0:
-        logger.info("🔌 Establishing new PostgreSQL connection...")
         _db_conn = psycopg2.connect(DATABASE_URL)
     return _db_conn
 
 # -----------------------------
-# 3. Helpers & Logic
+# 2. Data Extraction
 # -----------------------------
-
 def fetch_influx_data(last_ts=None):
-    """Fetch final sensor readings from Influx and pivot to a wide dataframe."""
     try:
-        if not INFLUXDB_TOKEN:
-            logger.warning("INFLUXDB_TOKEN missing; skipping fetch")
-            return pd.DataFrame(columns=ALLOWED_COLS)
-
+        if not INFLUXDB_TOKEN: return pd.DataFrame()
         client = InfluxDBClient(url=INFLUXDB_URL, token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
         query_api = client.query_api()
 
-        # Pull the most recent window; optionally narrow using last_ts
         if last_ts is not None:
-            if hasattr(last_ts, "isoformat"):
-                # Add 1 millisecond offset to prevent inclusive boundary duplication
-                next_start = last_ts + timedelta(milliseconds=1)
-                ts_str = next_start.isoformat()
-                if not ts_str.endswith("Z") and "+" not in ts_str and "-" not in ts_str[10:]:
-                    ts_str += "Z"
-            else:
-                ts_str = str(last_ts)
+            ts_str = (last_ts + timedelta(milliseconds=1)).isoformat()
+            if not ts_str.endswith("Z") and "+" not in ts_str: ts_str += "Z"
             range_clause = f"|> range(start: time(v: \"{ts_str}\"))"
         else:
             range_clause = f"|> range(start: {DEFAULT_RANGE})"
 
-        # Pivot by time and h_id tags
         flux = f"""
-from(bucket: \"{INFLUXDB_BUCKET}\")
+from(bucket: "{INFLUXDB_BUCKET}")
   {range_clause}
-  |> filter(fn: (r) => r._measurement == \"{INFLUX_MEASUREMENT}\")
-  |> pivot(rowKey:[\"_time\", \"h_id\"], columnKey:[\"_field\"], valueColumn:\"_value\")
-  |> keep(columns: [\"_time\", \"h_id\", \"lat\", \"lon\", \"status\"])
+  |> filter(fn: (r) => r._measurement == "{INFLUX_MEASUREMENT}")
+  |> pivot(rowKey:["_time", "device_id"], columnKey:["_field"], valueColumn:"_value")
+  |> keep(columns: ["_time", "device_id", "status_code", "temperature_c", "smoke_ppm", "flame_intensity"])
 """
-
         df = query_api.query_data_frame(org=INFLUXDB_ORG, query=flux)
+        if isinstance(df, list): df = pd.concat(df) if df else pd.DataFrame()
+        if df is None or df.empty: return pd.DataFrame()
 
-        if isinstance(df, list):
-            df = pd.concat(df) if df else pd.DataFrame()
-
-        if df is None or df.empty:
-            return pd.DataFrame(columns=ALLOWED_COLS)
-
-        df = df.loc[:, [c for c in df.columns if not c.startswith("_start") and not c.startswith("_stop") and c not in ["table"]]]
-        df.rename(columns={"_time": "time"}, inplace=True)
-        df["received_at"] = pd.to_datetime(df["time"], errors="coerce")
+        df.rename(columns={
+            "_time": "received_at", 
+            "device_id": "h_id", 
+            "status_code": "status",
+            "temperature_c": "temp_c",
+            "smoke_ppm": "smoke_ppm",
+            "flame_intensity": "flame_intensity"
+        }, inplace=True)
+        
+        df["received_at"] = pd.to_datetime(df["received_at"], errors="coerce")
         return df
     except Exception as e:
         logger.error(f"❌ Influx fetch failed: {e}")
-        return pd.DataFrame(columns=ALLOWED_COLS)
+        return pd.DataFrame()
 
-
+# -----------------------------
+# 3. Processing & Transformation (KPIs)
+# -----------------------------
 def process_telemetry_batch(df_raw):
-    """
-    Implements core ETL logic with Anomaly Debouncing:
-    1. Normal data (status 0) is aggregated into 5m windows.
-    2. Anomalies (status 1/2) are debounced:
-       - Checks the database for an 'active' incident for the h_id.
-       - If active, it updates the 'last_seen_at' and does not create a new record.
-       - If no active incident exists, it creates a new record.
-    """
     if df_raw is None or df_raw.empty:
         return pd.DataFrame(), pd.DataFrame()
 
     df = df_raw.copy()
     df["status"] = pd.to_numeric(df.get("status"), errors="coerce").fillna(0).astype(int)
     
-    normal_rows = []
     events_to_save = []
     incidents_to_create = []
 
@@ -145,14 +96,15 @@ def process_telemetry_batch(df_raw):
         anomalies = group[group["status"].isin([1, 2])]
         normals = group[group["status"] == 0]
 
-        # 1. Process Anomalies with Debouncing
         if not anomalies.empty:
-            # We take the most severe status in this batch for the h_id
-            top_anomaly = anomalies.sort_values("status", ascending=False).iloc[0]
-            status = int(top_anomaly["status"])
-            ts = top_anomaly["received_at"]
+            batch_count = len(anomalies)
+            batch_temp_avg = float(anomalies['temp_c'].mean())
+            batch_smoke_avg = float(anomalies['smoke_ppm'].mean())
+            batch_flame_avg = float(anomalies['flame_intensity'].mean())
+            max_status = int(anomalies['status'].max())
+            last_seen = anomalies['received_at'].max()
+            started_at = anomalies['received_at'].min()
 
-            # Check DB for active session
             try:
                 conn = get_db_conn()
                 with conn.cursor() as cur:
@@ -163,149 +115,84 @@ def process_telemetry_batch(df_raw):
                     active_session = cur.fetchone()
 
                     if active_session:
-                        # Update existing session duration
-                        cur.execute(
-                            "UPDATE historical_fire_incidents SET last_seen_at = %s, status = GREATEST(status, %s) WHERE id = %s",
-                            (ts, status, active_session[0])
-                        )
+                        cur.execute("""
+                            UPDATE historical_fire_incidents 
+                            SET last_seen_at = GREATEST(last_seen_at, %s),
+                                max_alert_level = GREATEST(max_alert_level, %s),
+                                avg_temperature_c = ROUND(((avg_temperature_c * readings_count) + (%s * %s)) / (readings_count + %s), 2),
+                                avg_smoke_ppm = ROUND(((avg_smoke_ppm * readings_count) + (%s * %s)) / (readings_count + %s), 2),
+                                avg_flame_intensity = ROUND(((avg_flame_intensity * readings_count) + (%s * %s)) / (readings_count + %s), 2),
+                                readings_count = readings_count + %s
+                            WHERE id = %s
+                        """, (
+                            last_seen, max_status,
+                            batch_temp_avg, batch_count, batch_count,
+                            batch_smoke_avg, batch_count, batch_count,
+                            batch_flame_avg, batch_count, batch_count,
+                            batch_count, active_session[0]
+                        ))
                         conn.commit()
-                        logger.info(f"⏳ Updated active incident for {h_id} (Session ID: {active_session[0]})")
                     else:
-                        # Create new incident
                         incidents_to_create.append({
                             "h_id": h_id,
-                            "lat": top_anomaly["lat"],
-                            "lon": top_anomaly["lon"],
-                            "status": status,
-                            "incident_timestamp": ts,
-                            "last_seen_at": ts
+                            "started_at": started_at,
+                            "last_seen_at": last_seen,
+                            "max_alert_level": max_status,
+                            "is_active": True,
+                            "avg_temperature_c": round(batch_temp_avg, 2),
+                            "avg_smoke_ppm": round(batch_smoke_avg, 2),
+                            "avg_flame_intensity": round(batch_flame_avg, 2),
+                            "readings_count": batch_count
                         })
-                
-                # We still save the event for the Speed Layer / History
-                events_to_save.append(top_anomaly)
-
+                        
             except Exception as e:
-                logger.error(f"❌ Debouncing check failed for {h_id}: {e}")
+                logger.error(f"❌ Anomaly handling failed for {h_id}: {e}")
 
-        # 2. Process Normals
+            top_anomaly = anomalies.sort_values("status", ascending=False).iloc[0]
+            events_to_save.append(top_anomaly)
+
         if not normals.empty:
-            # anomalies is empty, we only have normals. If there is an active session, close it.
-            if anomalies.empty:
-                try:
-                    conn = get_db_conn()
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT id FROM historical_fire_incidents WHERE h_id = %s AND is_active = TRUE LIMIT 1",
-                            (h_id,)
-                        )
-                        active_session = cur.fetchone()
-                        if active_session:
-                            latest_normal = normals.sort_values("received_at", ascending=False).iloc[0]
-                            normal_ts = latest_normal["received_at"]
+            if not anomalies.empty:
+                latest_anomaly_ts = anomalies["received_at"].max()
+                latest_normal_ts = normals["received_at"].max()
+                if latest_normal_ts > latest_anomaly_ts:
+                    try:
+                        conn = get_db_conn()
+                        with conn.cursor() as cur:
                             cur.execute(
-                                "UPDATE historical_fire_incidents SET is_active = FALSE, last_seen_at = %s WHERE id = %s",
-                                (normal_ts, active_session[0])
+                                "UPDATE historical_fire_incidents SET is_active = FALSE, last_seen_at = %s WHERE h_id = %s AND is_active = TRUE",
+                                (latest_normal_ts, h_id)
                             )
                             conn.commit()
-                            logger.info(f"✅ Closed active incident for {h_id} (Session ID: {active_session[0]}) due to normal status")
-                except Exception as e:
-                    logger.error(f"❌ Deactivation check failed for {h_id}: {e}")
-
+                    except Exception as e:
+                        pass
+            
             for interval, int_group in normals.groupby("interval_time"):
-                if not int_group.empty:
-                    avg_lat = int_group["lat"].mean()
-                    avg_lon = int_group["lon"].mean()
-                    row = {
-                        "received_at": interval,
-                        "h_id": h_id,
-                        "status": 0,
-                        "lat": avg_lat,
-                        "lon": avg_lon
-                    }
-                    normal_rows.append(row)
-                    events_to_save.append(pd.Series(row))
+                row = int_group.iloc[0].copy()
+                row["received_at"] = interval
+                events_to_save.append(row)
 
-    # Build Final DataFrames
     final_events = []
     for r in events_to_save:
-        raw_payload = {
-            "h_id": r["h_id"],
-            "lat": float(r["lat"]) if pd.notnull(r["lat"]) else None,
-            "lon": float(r["lon"]) if pd.notnull(r["lon"]) else None,
-            "status": int(r["status"]),
-            "time": r["received_at"].isoformat() if isinstance(r["received_at"], pd.Timestamp) else str(r["received_at"])
-        }
         final_events.append({
             "h_id": r["h_id"],
             "status": int(r["status"]),
-            "lat": r["lat"],
-            "lon": r["lon"],
-            "raw_payload": Json(raw_payload),
+            "temp_c": float(r["temp_c"]) if pd.notnull(r.get("temp_c")) else None,
+            "smoke_ppm": float(r["smoke_ppm"]) if pd.notnull(r.get("smoke_ppm")) else None,
+            "flame_intensity": float(r["flame_intensity"]) if pd.notnull(r.get("flame_intensity")) else None,
             "received_at": r["received_at"]
         })
 
     return pd.DataFrame(final_events), pd.DataFrame(incidents_to_create)
 
-def build_sensor_aggregates(df, window_minutes=5):
-    """Lightweight aggregation mapping h_id to m to keep analytics active."""
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["m", "timestamp_window", "sa", "ta", "readings_count", "la", "lo", "host", "a", "o"])
-
-    df = df.copy()
-    df["timestamp_window"] = pd.to_datetime(df["received_at"], errors="coerce").dt.floor(f"{window_minutes}min")
-    df["m"] = df.get("h_id")
-    df["la"] = df.get("lat")
-    df["lo"] = df.get("lon")
-
-    grouped = (
-        df.groupby(["m", "timestamp_window"], dropna=False)
-          .agg({
-              "la": "mean",
-              "lo": "mean",
-              "time": "count"
-          })
-          .rename(columns={"time": "readings_count"})
-          .reset_index()
-    )
-
-    grouped["host"] = grouped["m"]
-    grouped["a"] = grouped["m"]
-    grouped["o"] = None
-    grouped["sa"] = None
-    grouped["ta"] = None
-
-    return grouped[["m", "timestamp_window", "sa", "ta", "readings_count", "la", "lo", "host", "a", "o"]]
-
-def build_system_metrics(df):
-    """Produce system metrics heartbeat row."""
-    if df is None or df.empty:
-        return pd.DataFrame(columns=["timestamp", "active_devices", "alerts_today", "system_uptime", "total_locations", "status_level"])
-
-    now = datetime.utcnow()
-    active_devices = df["h_id"].nunique()
-    total_locations = active_devices
-
-    metrics_df = pd.DataFrame([{
-        "timestamp": now,
-        "active_devices": int(active_devices),
-        "alerts_today": int((df["status"] == 2).sum()),
-        "system_uptime": 100.0,
-        "total_locations": int(total_locations),
-        "status_level": 1,
-    }])
-    return metrics_df
-
 def upsert_table(df, table_name, conflict_cols):
     if df is None or df.empty: return
     try:
         conn = get_db_conn()
-        df.columns = [c.lower() for c in df.columns]
-        valid_cols = [col for col in df.columns if col in ALLOWED_COLS]
-        df_filtered = df[valid_cols]
+        df_filtered = df[[col for col in df.columns if col in ALLOWED_COLS or table_name != "final_sensor_events"]]
 
         columns = list(df_filtered.columns)
-        records = df_filtered.to_dict("records")
-        values = [[rec.get(c) for c in columns] for rec in records]
+        values = [[rec.get(c) for c in columns] for rec in df_filtered.to_dict("records")]
 
         if not values: return
 
@@ -324,29 +211,11 @@ def upsert_table(df, table_name, conflict_cols):
         logger.error(f"❌ Failed to write to {table_name}: {e}")
         if _db_conn: _db_conn.rollback()
 
-# [Include your process_incident_logic, aggregate_data, etc.]
-
 # -----------------------------
 # 4. Main Execution
 # -----------------------------
 def run_main(last_ts=None):
     logger.info("🔄 Starting ETL Sync Batch...")
-
-    # Auto-close stale active incidents (where no updates were received within the anomaly window)
-    try:
-        conn = get_db_conn()
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE historical_fire_incidents SET is_active = FALSE "
-                "WHERE is_active = TRUE AND last_seen_at < NOW() - INTERVAL '%s minutes'",
-                (ANOMALY_WINDOW_MINUTES,)
-            )
-            closed_count = cur.rowcount
-            if closed_count > 0:
-                conn.commit()
-                logger.info(f"🧹 Auto-closed {closed_count} stale active fire incident(s).")
-    except Exception as e:
-        logger.error(f"❌ Failed to auto-close stale incidents: {e}")
 
     df_raw = fetch_influx_data(last_ts)
 
@@ -354,28 +223,14 @@ def run_main(last_ts=None):
         logger.info("😴 No new data to process.")
         return last_ts
 
-    # Process batch with deduplication and state mutation
     df_events, df_incidents = process_telemetry_batch(df_raw)
 
-    # 1) Write final_sensor_events
-    if df_events is not None and not df_events.empty:
+    if not df_events.empty:
         upsert_table(df_events, "final_sensor_events", conflict_cols=None)
-
-    # 2) Write historical_fire_incidents registry table
-    if df_incidents is not None and not df_incidents.empty:
+    if not df_incidents.empty:
         upsert_table(df_incidents, "historical_fire_incidents", conflict_cols=None)
 
-    # 3) Write sensor_data_aggregated (simplified)
-    agg_df = build_sensor_aggregates(df_raw, window_minutes=AGG_WINDOW_MINUTES)
-    upsert_table(agg_df, "sensor_data_aggregated", conflict_cols=None)
-
-    # 4) Write system_metrics heartbeat
-    metrics_df = build_system_metrics(df_raw)
-    upsert_table(metrics_df, "system_metrics", conflict_cols=None)
-
-    # Capture new cursor
     new_cursor = df_raw["received_at"].max()
-
     logger.success("✨ Batch synchronization successful.")
     return new_cursor
 
@@ -384,15 +239,12 @@ if __name__ == "__main__":
     logger.add("logs/etl.log", rotation="10 MB", level="INFO")
     logger.info(f"🚀 ETL Service Started. Sync Interval: {ETL_SYNC_INTERVAL}s")
 
-    # THE SERVICE LOOP
     cursor = None
     while True:
         try:
             cursor = run_main(cursor)
         except KeyboardInterrupt:
-            logger.warning("🛑 ETL Service stopping (KeyboardInterrupt)")
             break
         except Exception as e:
             logger.critical(f"💥 Unexpected Service Error: {e}")
-
         time.sleep(ETL_SYNC_INTERVAL)

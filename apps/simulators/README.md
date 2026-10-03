@@ -1,74 +1,111 @@
-# IoT Sensor Telemetry Simulator
+# 🤖 IoT Fleet Simulator (MCU Simulator)
 
-[![Runtime](https://img.shields.io/badge/Runtime-Python%203-blue.svg)](#)
-[![Protocol](https://img.shields.io/badge/Protocol-MQTT-lightgrey.svg)](#)
+[![Runtime](https://img.shields.io/badge/Runtime-Python%203.10+-blue.svg)](#)
+[![Protocol](https://img.shields.io/badge/Protocol-MQTT%20%28paho--mqtt%202.x%29-lightgrey.svg)](#)
 
-A high-fidelity Python simulator designed to emulate ESP32 edge MCU networks for the Fire Monitoring Platform. It generates varied environmental and state telemetry and publishes payloads over MQTT.
+A lightweight Python MQTT publisher that emulates physical ESP32 microcontrollers streaming real-world fire sensor telemetry. Designed as the **data generation engine** of the Fire Monitoring System — fully controllable in real-time from the Dashboard.
 
 ---
 
-## 🛠️ Payload Specification
-The simulator publishes flat JSON payloads structured to match the Telegraf parser setup:
+## 🏗️ Architecture
+
+```
+Dashboard Controller (MQTT publish fire/control/{h_id})
+          │
+          ▼  {"power":"on"} / {"status_code": 2}
+  ┌─────────────────────┐
+  │  mcu_sim.py (Python) │   ◄── subscribed to fire/control/{h_id}
+  │  on_message callback │                and fire/control/all
+  └─────────────────────┘
+          │  publishes every 5s
+          ▼
+  fire/sensors/{device_id}
+  {"h_id":"node-sim-01","status":2,"temp":68.3,"smoke":0.9,...}
+          │
+          ▼
+  ETL Processor → PostgreSQL
+```
+
+---
+
+## 📦 Payload Specification
+
 ```json
 {
-  "h_id": "REYES_P",
-  "lat": 14.5995,
-  "lon": 121.0365,
-  "status": 0
+  "h_id": "node-sim-01",
+  "status": 2,
+  "temp": 68.3,
+  "smoke": 0.91,
+  "flame": 1,
+  "_time": "2026-10-03T08:15:36Z"
 }
 ```
-*   `h_id`: Unique Household/Device identifier.
-*   `lat` / `lon`: Coordinates for geographic mapping.
-*   `status`: Edge state indicator where:
-    *   `0`: Normal
-    *   `1`: Warning
-    *   `2`: Critical
+
+| Field | Description |
+|---|---|
+| `h_id` | Unique device ID — must match a record in `device_registry` |
+| `status` | `0` = Normal, `1` = Warning, `2` = Critical |
+| `temp` | Temperature in °C (ranges by status) |
+| `smoke` | Smoke density 0.0–1.0 |
+| `flame` | Flame detected: `0` or `1` |
+| `_time` | ISO 8601 UTC timestamp |
 
 ---
 
-## 🏃 Local Execution
+## 🎮 Real-time Control via Dashboard
 
-### 1. Requirements
-*   Python 3.10+
-*   MQTT Broker running (e.g. Mosquitto on port 1883 or 18830)
+The simulator subscribes to two MQTT control topics:
 
-### 2. Quickstart Setup
+| Topic | Payload | Effect |
+|---|---|---|
+| `fire/control/{h_id}` | `{"power": "on"}` | Resume publishing |
+| `fire/control/{h_id}` | `{"power": "off"}` | Pause publishing |
+| `fire/control/{h_id}` | `{"status_code": 2}` | Force Critical readings |
+| `fire/control/all` | `{"status_code": 0}` | Reset all simulators to Normal |
+
+---
+
+## 🏃 Kubernetes Fleet Mode
+
+The simulator runs as a Kubernetes `Deployment` with a single pod that spawns 10 independent Python processes — one per registered `node-sim-*` device.
+
+Each process:
+1. Connects to the in-cluster MQTT broker (`mqtt:1883`)
+2. Subscribes to its private control topic
+3. Publishes telemetry every 5 seconds
+
+```yaml
+# infrastructure/k8s/base/simulator/deployment.yaml
+command: ["/bin/bash", "./run_10.sh"]
+```
+
+---
+
+## 🏃 Local Standalone Execution
+
 ```bash
-# Navigate to the simulators directory
 cd apps/simulators
-
-# Create virtual environment
 python -m venv venv
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Start default simulation (stream random telemetry to localhost)
-python mcu_sim.py
+# Single device
+python mcu_sim.py --device-id node-sim-01 --status 0 --host localhost --port 1883
 ```
 
-### 3. Advanced CLI Configuration
-You can pass flags to customize the simulation behaviour:
+### CLI Parameters
+
+| Flag | Default | Description |
+|---|---|---|
+| `--device-id` | required | Device ID (must match `device_registry.h_id`) |
+| `--host` | `localhost` | MQTT broker host |
+| `--port` | `1883` | MQTT broker TCP port |
+| `--status` | `0` | Initial status: `0` Normal, `1` Warning, `2` Critical |
+
+---
+
+## 🐳 Docker Build
+
 ```bash
-python mcu_sim.py \
-  --host localhost \
-  --port 18830 \
-  --topic fire/sensors/REYES_P \
-  --h-id REYES_P \
-  --status 0 \
-  --lat 14.5995 \
-  --lon 121.0365 \
-  --interval 5.0
+docker build -t localhost/mcu-simulator:local .
 ```
-
-#### CLI Parameters:
-*   `--host`: Host address of the MQTT Broker (default: `localhost`).
-*   `--port`: TCP port of the MQTT Broker (default: `18830`).
-*   `--topic`: MQTT topic to publish payloads to (default: `fire/sensors/REYES_P`).
-*   `--interval`: Speed of transmission in seconds (default: `5.0`).
-*   `--h-id`: Identifies the device tag.
-*   `--status`: Force a static alert level (`0` = Normal, `1` = Warning, `2` = Critical). If omitted, the script executes a state engine generating 85% normal, 12% warning, and 3% critical payloads.
-*   `--lat` / `--lon`: Sets custom geographic coordinates.
-*   `--transport`: Protocol type (`tcp` or `websockets`).
-*   `--insecure`: Set to bypass SSL validations when connecting via port `443`.

@@ -136,41 +136,65 @@ flowchart TD
 
 ## 🚦 Local Developer Quickstart
 
-To boot the system locally using Docker (or Podman) Compose for verification:
+The primary local environment runs on **Kind (Kubernetes-in-Docker)** using Podman.
 
-### 1. Environment Configuration
-Copy the configuration variables template:
-```bash
-cp .env.example .env
-```
-Ensure you provide secure passwords for Postgres, InfluxDB tokens, and target host ports.
+### 1. Start the Cluster
 
-### 2. Boot the Development Stack
-Expose database, broker, API, and monitoring ports for debugging:
 ```bash
-docker compose -f docker-compose.yml -f build/compose/docker-compose.dev.yml up -d
+make local-up
 ```
 
-### 3. Stream Telemetry
-Launch the edge device simulator in a virtual environment to stream mock payload events:
+This creates the Kind cluster, builds all Docker images, loads them into Kind, and applies the full Kubernetes overlay.
+
+### 2. Attach Port-Forwards
+
 ```bash
-cd apps/simulators
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python mcu_sim.py --host localhost --port 18830 --h-id REYES_P --interval 5.0
+make local-port-forward
 ```
 
-### 4. Check Health & Analytics
-*   **Web Dashboard:** Accessible at [http://localhost](http://localhost) (Nginx reverse-proxy ingress).
-*   **API Health:** Check [http://localhost:8000/health](http://localhost:8000/health).
-*   **API Custom metrics:** View raw Prometheus endpoints at [http://localhost:8000/metrics](http://localhost:8000/metrics).
-*   **Grafana Analytics:** Accessible at [http://localhost:3000](http://localhost:3000) (auth-gated).
+| Service | URL |
+|---|---|
+| Dashboard | http://localhost:8080 |
+| InfluxDB | http://localhost:8086 |
+| PostgreSQL | localhost:5432 |
+| Prometheus | http://localhost:9090 |
+| MQTT Broker | localhost:1883 |
+
+### 3. Seed Simulator Devices
+
+```bash
+kubectl exec -n fire-monitoring-local db-0 -- psql -U postgres -d fire_monitoring -c "
+INSERT INTO device_registry (h_id, lat, lon, owner_name, barangay, structure_type) VALUES
+  ('node-sim-01', 14.5985, 120.9850, 'Sim Owner 1', 'Intramuros', 'Commercial'),
+  ('node-sim-02', 14.5912, 120.9780, 'Sim Owner 2', 'Ermita', 'Residential'),
+  ('node-sim-03', 14.5823, 120.9834, 'Sim Owner 3', 'Malate', 'Residential'),
+  ('node-sim-04', 14.6045, 120.9950, 'Sim Owner 4', 'Sampaloc', 'Commercial'),
+  ('node-sim-05', 14.6155, 120.9810, 'Sim Owner 5', 'Tondo', 'Industrial'),
+  ('node-sim-06', 14.6102, 121.0020, 'Sim Owner 6', 'Sampaloc', 'Residential'),
+  ('node-sim-07', 14.5765, 120.9912, 'Sim Owner 7', 'Malate', 'Commercial'),
+  ('node-sim-08', 14.5880, 120.9730, 'Sim Owner 8', 'Ermita', 'Residential'),
+  ('node-sim-09', 14.6220, 120.9750, 'Sim Owner 9', 'Tondo', 'Commercial'),
+  ('node-sim-10', 14.5930, 121.0110, 'Sim Owner 10', 'Pandacan', 'Industrial')
+ON CONFLICT (h_id) DO NOTHING;"
+```
+
+### 4. Control Simulations
+
+Login at **http://localhost:8080** then go to **Settings → Simulation Controller** to:
+- Toggle each device ON / OFF
+- Force Normal / Warning / Critical readings in real time
+
+### 5. Parking vs Full Teardown
+
+```bash
+make local-stop   # ⏸️ Pause cluster — all data preserved, resume with make local-up
+make local-down   # 💥 Full destroy — deletes cluster and all data
+```
 
 ---
 
 ## 📖 Related Operational Runbooks
-*   [**End-to-End Deployment & Verification Guide 📖**](./docs/portfolio/DEPLOYMENT_GUIDE.md): Step-by-step pipeline lifecycle from local sandbox (Docker/Kind) to production cloud (DigitalOcean/ArgoCD) with credit-saving strategies.
+*   [**End-to-End Deployment & Verification Guide 📖**](./docs/portfolio/DEPLOYMENT_GUIDE.md): Step-by-step pipeline lifecycle from local sandbox (Kind) to production cloud with credit-saving strategies.
 *   [**GitOps Operations Runbook 📖**](./docs/portfolio/OPERATIONS_GITOPS.md): ArgoCD sync parameters, manual bumps, and deployment pipelines.
 *   [**Emergency Runbook & Diagnostics 📖**](./docs/portfolio/OPERATIONS_RUNBOOK.md): DB restore commands, rollback plans, and sync troubleshooting.
-*   [**DigitalOcean Cloud Setup Guide 📖**](./docs/portfolio/SETUP_GUIDE.md): Infrastructure boot parameters and remote TF backend setup.
+

@@ -45,6 +45,7 @@ export function FloatingTopBar({ onSearch, onOpenModal, stats }: FloatingTopBarP
 
   const navItems = [
     { icon: <Server className="w-4 h-4" />, label: "Devices", action: "devices" },
+    { icon: <Activity className="w-4 h-4" />, label: "Simulation Controller", action: "simulator" },
     { icon: <BarChart2 className="w-4 h-4" />, label: "Sensor Analytics", action: "analytics" },
     { icon: <Activity className="w-4 h-4" />, label: "System Analytics", action: "system" },
     { icon: <FileText className="w-4 h-4" />, label: "Incident Logs", action: "logs" },

@@ -16,6 +16,7 @@ resources:
   - etl/deployment.yaml
   - dashboard/deployment.yaml
   - dashboard/service.yaml
+  - simulator/deployment.yaml
 
   - loki/deployment.yaml
   - loki/service.yaml

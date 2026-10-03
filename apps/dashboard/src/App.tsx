@@ -9,6 +9,7 @@ import { useDashboardData } from './hooks/useDashboardData';
 import { DevicesModal } from './components/modals/DevicesModal';
 import { AnalyticsModal } from './components/modals/AnalyticsModal';
 import { LogsModal } from './components/modals/LogsModal';
+import { SimulatorModal } from "./components/modals/SimulatorModal";
 import { ExportModal } from './components/modals/ExportModal';
 
 function App() {
@@ -50,7 +51,7 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   // If not authenticated, we still call the hooks, but we might want to skip fetching.
   // We updated useDashboardData to handle errors gracefully.
   const { initialSensors } = useDashboardData(isAuthenticated);
-  const { sensors, activeAlert, clearAlert } = useLiveSensors(initialSensors);
+  const { sensors, activeAlert, clearAlert, publishCommand } = useLiveSensors(initialSensors);
   const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
@@ -97,6 +98,7 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
       {activeModal === 'system' && <AnalyticsModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'logs' && <LogsModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'export' && <ExportModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'simulator' && <SimulatorModal sensors={sensors} publishCommand={publishCommand} onClose={() => setActiveModal(null)} />}
     </>
   );
 }

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcu-simulator-fleet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcu-simulator
+  template:
+    metadata:
+      labels:
+        app: mcu-simulator
+    spec:
+      containers:
+      - name: fleet-runner
+        image: mcu-simulator
+        command: ["/bin/bash", "./run_10.sh"]
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"

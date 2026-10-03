@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import mqtt from 'mqtt';
 import type { SensorState, SensorTelemetry } from '../types';
 
 export function useLiveSensors(initialSensors: Record<string, SensorState>) {
   const [sensors, setSensors] = useState<Record<string, SensorState>>({});
   const [activeAlert, setActiveAlert] = useState<SensorState | null>(null);
+  const [mqttClient, setMqttClient] = useState<mqtt.MqttClient | null>(null);
 
-  // Sync initial sensors when Grafana load finishes
   useEffect(() => {
     if (Object.keys(initialSensors).length > 0) {
       setSensors((prev) => ({ ...initialSensors, ...prev }));
@@ -15,7 +15,6 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // Use localhost:9001 if running locally, otherwise use the production hostname
     const isLocal = window.location.hostname !== 'dev.fires.systems';
     const host = isLocal ? window.location.hostname + ':9001' : 'dev.fires.systems/mqtt';
     
@@ -26,6 +25,7 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
     client.on('connect', () => {
       console.log('🔌 Connected to live MQTT stream');
       client.subscribe('fire/sensors/#');
+      setMqttClient(client);
     });
 
     client.on('message', (_topic, message) => {
@@ -57,5 +57,13 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
     };
   }, []);
 
-  return { sensors, activeAlert, clearAlert: () => setActiveAlert(null) };
+  const publishCommand = useCallback((h_id: string, command: any) => {
+    if (mqttClient) {
+      mqttClient.publish(`fire/control/${h_id}`, JSON.stringify(command));
+    } else {
+      console.warn("MQTT client not connected, cannot publish command");
+    }
+  }, [mqttClient]);
+
+  return { sensors, activeAlert, clearAlert: () => setActiveAlert(null), publishCommand };
 }

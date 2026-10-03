@@ -16,13 +16,33 @@ export function useDashboardData(isAuthenticated: boolean) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // We no longer fetch historical REST data on load.
-    // The map will start completely empty and will only populate 
-    // when live MQTT duplex messages arrive in real-time!
-    setInitialSensors({});
-    setStats({ total: 0, normal: 0, warning: 0, critical: 0 });
-    setLoading(false);
+    fetch('/api/final-sensors/latest')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch initial sensors');
+        return res.json();
+      })
+      .then((data) => {
+        const sensorMap: Record<string, SensorState> = {};
+        let normal = 0, warning = 0, critical = 0;
+        
+        data.rows.forEach((row: any) => {
+          sensorMap[row.h_id] = {
+            ...row,
+            lastUpdated: new Date(row.received_at).getTime()
+          };
+          if (row.status === 2) critical++;
+          else if (row.status === 1) warning++;
+          else normal++;
+        });
 
+        setInitialSensors(sensorMap);
+        setStats({ total: data.rows.length, normal, warning, critical });
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
   }, [isAuthenticated]);
 
   return { initialSensors, stats, loading };

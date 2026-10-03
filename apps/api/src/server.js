@@ -14,6 +14,7 @@ dotenv.config();
 // Route imports
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
+const devicesRoutes = require("./routes/devices");
 const messageRoutes = require('./routes/messages');
 const analyticsRoutes = require('./routes/analytics');
 const finalSensorRoutes = require('./routes/finalSensors');
@@ -144,6 +145,7 @@ app.use(express.json());
 // -------------------------------
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
+app.use('/api/devices', devicesRoutes);
 app.use('/messages', messageRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/final-sensors', finalSensorRoutes);

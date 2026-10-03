@@ -1,3 +1,0 @@
-      - name: Set artifact name
-        id: vars
-        run: echo "artifact_name=tfplan-${{ inputs.environment }}-$(basename ${{ inputs.layer_dir }})" >> $GITHUB_OUTPUT

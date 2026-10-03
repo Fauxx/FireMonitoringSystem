@@ -10,6 +10,7 @@ configMapGenerator:
 
 resources:
 - ../../base
+- ../../base/db
 - secrets.yaml
 
 replicas:
@@ -28,6 +29,9 @@ images:
 - name: etl-processor
   newName: localhost/etl-processor
   newTag: local
+- name: mcu-simulator
+  newName: localhost/mcu-simulator
+  newTag: local
 - name: db-migrations
   newName: localhost/db-migrations
   newTag: local
@@ -39,6 +43,7 @@ labels:
     environment: local
 
 patches:
+  - path: remove-sql-proxy.yaml
   - target:
       kind: Deployment
       name: api
@@ -67,14 +72,35 @@ patches:
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
   - target:
+      kind: Deployment
+      name: mcu-simulator-fleet
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  - target:
       kind: Job
       name: flyway-migrate
     patch: |-
       - op: add
+        path: /spec/template/spec/containers/0/command
+        value: ["/bin/bash", "-c", "flyway migrate"]
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "jdbc:postgresql://db:5432/fire_monitoring"
+      - op: remove
+        path: /spec/template/spec/containers/0/env/1/valueFrom
+      - op: add
+        path: /spec/template/spec/containers/0/env/1/value
+        value: "postgres"
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: FLYWAY_PASSWORD
+          value: "localdevpassword"
+      - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
-  # Remove cloudflared — local manifest testing uses port-forward only.
-  # The tunnel is only needed in dev/prod overlays where it runs in-cluster.
   - target:
       kind: Deployment
       name: cloudflared

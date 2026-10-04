@@ -34,7 +34,7 @@ images:
   newTag: 48bccba
 - name: mcu-simulator
   newName: ghcr.io/fauxx/firemonitoringsystem/mcu-simulator
-  newTag: latest
+  newTag: 248de56
 
 commonLabels:
   deployment-type: production

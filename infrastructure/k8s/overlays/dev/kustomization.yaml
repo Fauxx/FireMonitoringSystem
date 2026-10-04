@@ -33,7 +33,7 @@ images:
   newTag: ee3ece5
 - name: mcu-simulator
   newName: ghcr.io/fauxx/firemonitoringsystem/mcu-simulator
-  newTag: latest
+  newTag: 248de56
 
 labels:
 - includeSelectors: true

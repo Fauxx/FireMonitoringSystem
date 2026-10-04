@@ -30,7 +30,7 @@ images:
   newTag: d7b4822
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: d7b4822
+  newTag: ee3ece5
 
 labels:
 - includeSelectors: true

@@ -1,5 +1,4 @@
 FROM flyway/flyway:10
-LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 
 USER root
 
@@ -54,3 +53,4 @@ COPY ./*.sql /flyway/sql/
 
 ENTRYPOINT ["/bin/bash", "-c", "export FLYWAY_PASSWORD=$(gcloud auth print-access-token) && flyway \"$@\" ; EXIT_CODE=$? ; curl -s -X POST http://127.0.0.1:9091/quitquitquit ; exit $EXIT_CODE", "--"]
 CMD ["migrate"]
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

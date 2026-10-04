@@ -1,5 +1,4 @@
 # Build Stage
-LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
@@ -36,3 +35,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

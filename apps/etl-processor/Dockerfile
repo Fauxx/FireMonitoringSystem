@@ -1,5 +1,4 @@
 FROM python:3.12-alpine
-LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 
 WORKDIR /app
 
@@ -35,3 +34,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD pgrep -f "python -m src.main" || exit 1
 
 ENTRYPOINT ["python", "-m", "src.main"]
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

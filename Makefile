@@ -113,6 +113,13 @@ local-logs:
 local-port-forward:
 	@echo "🌐 Starting background port-forwards..."
 	@killall kubectl 2>/dev/null || true
+	@echo "🔍 Checking for port conflicts..."
+	@for port in 8080 5432 8086 9090 1883 9001; do \
+		if ss -tuln | grep -qE ":$$port\b"; then \
+			echo "❌ Error: Port $$port is in use by another project! Please stop it and try again."; \
+			exit 1; \
+		fi \
+	done
 	@nohup kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80 > /dev/null 2>&1 &
 	@nohup kubectl port-forward -n fire-monitoring-local svc/db 5432:5432 > /dev/null 2>&1 &
 	@nohup kubectl port-forward -n fire-monitoring-local svc/influx 8086:8086 > /dev/null 2>&1 &
@@ -174,6 +181,13 @@ dev-logs-sim:
 dev-port-forward:
 	@echo "🌐 Starting background port-forwards for Dev infrastructure..."
 	@pkill -f "[k]ubectl --context dev port-forward" 2>/dev/null || true
+	@echo "🔍 Checking for port conflicts..."
+	@for port in 8081 8080 9090 8086; do \
+		if ss -tuln | grep -qE ":$$port\b"; then \
+			echo "❌ Error: Port $$port is in use by another project! Please stop it and try again."; \
+			exit 1; \
+		fi \
+	done
 	@nohup kubectl --context dev port-forward -n argocd svc/argocd-server 8081:80 > /dev/null 2>&1 &
 	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/dashboard 8080:80 > /dev/null 2>&1 &
 	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/prometheus 9090:9090 > /dev/null 2>&1 &

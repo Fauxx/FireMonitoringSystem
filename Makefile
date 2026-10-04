@@ -82,14 +82,14 @@ local-up:
 	@podman start fire-monitoring-control-plane 2>/dev/null || kind create cluster --name $(KIND_CLUSTER_NAME) --config $(LOCAL_BUILD_DIR)/kind-config.yaml --wait 60s || true
 	@kubectl config use-context kind-$(KIND_CLUSTER_NAME)
 	@echo "🔌 Installing NGINX Ingress Controller..."
-	@kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml --validate=false
+	@kubectl --context kind-$(KIND_CLUSTER_NAME) apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml --validate=false
 	@echo "🩹 Patching ingress-nginx to remove hostPorts (for rootless Podman support)..."
-	@kubectl patch deployment -n ingress-nginx ingress-nginx-controller --type json -p='[{"op": "remove", "path": "/spec/template/spec/containers/0/ports/0/hostPort"}, {"op": "remove", "path": "/spec/template/spec/containers/0/ports/1/hostPort"}]' 2>/dev/null || true
+	@kubectl --context kind-$(KIND_CLUSTER_NAME) patch deployment -n ingress-nginx ingress-nginx-controller --type json -p='[{"op": "remove", "path": "/spec/template/spec/containers/0/ports/0/hostPort"}, {"op": "remove", "path": "/spec/template/spec/containers/0/ports/1/hostPort"}]' 2>/dev/null || true
 	@echo "📦 Building & loading local images into Kind..."
 	@$(MAKE) kind-load
 	@echo "🚀 Applying local overlay..."
-	@kubectl create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl apply -f -
-	@kubectl apply -k infrastructure/k8s/overlays/local
+	@kubectl --context kind-$(KIND_CLUSTER_NAME) create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl --context kind-$(KIND_CLUSTER_NAME) apply -f -
+	@kubectl --context kind-$(KIND_CLUSTER_NAME) apply -k infrastructure/k8s/overlays/local
 	@echo "✅ Local manifest testing ready! Run: make local-port-forward"
 local-stop:
 	@echo "⏸️  Parking local environment (data preserved)..."
@@ -104,12 +104,12 @@ local-down:
 	@echo "✅ Local environment fully destroyed."
 local-restart: build-local kind-load
 	@echo "🔄 Rollout restarting local deployments..."
-	kubectl rollout restart deployment -n fire-monitoring-local api dashboard etl-processor mcu-simulator-fleet || true
-	kubectl delete job flyway-migrate -n fire-monitoring-local --ignore-not-found
-	kubectl apply -k infrastructure/k8s/overlays/local
+	kubectl --context kind-$(KIND_CLUSTER_NAME) rollout restart deployment -n fire-monitoring-local api dashboard etl-processor mcu-simulator-fleet || true
+	kubectl --context kind-$(KIND_CLUSTER_NAME) delete job flyway-migrate -n fire-monitoring-local --ignore-not-found
+	kubectl --context kind-$(KIND_CLUSTER_NAME) apply -k infrastructure/k8s/overlays/local
 	@echo "✅ Local deployments restarted."
 local-logs:
-	kubectl logs -n fire-monitoring-local -f -l deployment-type=local --max-log-requests=50
+	kubectl --context kind-$(KIND_CLUSTER_NAME) logs -n fire-monitoring-local -f -l deployment-type=local --max-log-requests=50
 local-port-forward:
 	@echo "🌐 Starting background port-forwards..."
 	@killall kubectl 2>/dev/null || true
@@ -134,29 +134,29 @@ local-port-forward:
 staging-up:
 	@echo "🚀 Deploying STAGING (dev) environment via ArgoCD..."
 	@echo "   Cloudflared runs in-cluster — dev.fires.systems will go live automatically."
-	kubectl apply -f build/local/argocd-apps-dev.yaml
+	kubectl --context dev apply -f build/local/argocd-apps-dev.yaml
 	@echo "✅ apps-dev applied. ArgoCD will sync automatically."
 	@echo "   Watch progress: make staging-watch"
 staging-down:
 	@echo "🛑 Tearing down STAGING (dev) environment..."
-	kubectl delete -f build/local/argocd-apps-dev.yaml
+	kubectl --context dev delete -f build/local/argocd-apps-dev.yaml
 	@echo "✅ apps-dev deleted. ArgoCD is cleaning up fire-monitoring-dev resources."
 staging-sync:
 	@echo "⚡ Forcing ArgoCD to sync apps-dev immediately..."
-	@kubectl patch app apps-dev -n argocd --type merge \
+	@kubectl --context dev patch app apps-dev -n argocd --type merge \
 	  -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"revision":"HEAD","prune":true}}}' \
 	  2>/dev/null || echo "⚠️  Patch failed — ArgoCD may still be starting. Try: make gitops-ui"
 	@echo "✅ Sync triggered. Watch progress: make staging-watch"
 staging-watch:
 	@echo "👀 Watching pod rollout in fire-monitoring-dev (Ctrl+C to stop)..."
-	kubectl get pods -n fire-monitoring-dev -w
+	kubectl --context dev get pods -n fire-monitoring-dev -w
 staging-pause:
 	@echo "⏸️  Pausing staging (dev) namespace..."
-	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
-	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-dev
+	kubectl --context dev patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl --context dev scale deployment,statefulset --all --replicas=0 -n fire-monitoring-dev
 staging-resume:
 	@echo "▶️  Resuming staging (dev) namespace..."
-	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+	kubectl --context dev patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
 
 # [3.1] STAGING / DEV — Utilities
 dev-logs-api:
@@ -203,19 +203,19 @@ dev-argocd-pass:
 prod-up:
 	@echo "🔒 Deploying PRODUCTION environment via ArgoCD..."
 	@echo "   Cloudflared runs in-cluster — fires.systems will go live automatically."
-	kubectl apply -f build/local/argocd-apps.yaml
+	kubectl --context prod apply -f build/local/argocd-apps.yaml
 	@echo "✅ apps applied. ArgoCD will sync automatically."
 prod-down:
 	@echo "🛑 Tearing down PRODUCTION environment..."
-	kubectl delete -f build/local/argocd-apps.yaml
+	kubectl --context prod delete -f build/local/argocd-apps.yaml
 	@echo "✅ apps deleted. ArgoCD is cleaning up fire-monitoring-prod resources."
 prod-pause:
 	@echo "⏸️  Pausing production namespace..."
-	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
-	kubectl scale deployment,statefulset --all --replicas=0 -n fire-monitoring-prod
+	kubectl --context prod patch app apps -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl --context prod scale deployment,statefulset --all --replicas=0 -n fire-monitoring-prod
 prod-resume:
 	@echo "▶️  Resuming production namespace..."
-	kubectl patch app apps -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+	kubectl --context prod patch app apps -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
 # SHARED — Cluster & GitOps Utilities
 gitops-bootstrap:
 	bash infrastructure/scripts/local-gitops-bootstrap.sh
@@ -228,9 +228,9 @@ status:
 	@echo "=== KUBERNETES NODES ==="
 	@kubectl get nodes 2>/dev/null || echo "Cluster is stopped."
 	@echo "=== LOCAL NAMESPACE ==="
-	@kubectl get pods -n fire-monitoring-local 2>/dev/null || true
+	@kubectl --context kind-$(KIND_CLUSTER_NAME) get pods -n fire-monitoring-local 2>/dev/null || true
 	@echo "=== DEV (STAGING) NAMESPACE ==="
-	@kubectl get pods -n fire-monitoring-dev 2>/dev/null || true
+	@kubectl --context dev get pods -n fire-monitoring-dev 2>/dev/null || true
 	@echo "=== PROD NAMESPACE ==="
 	@kubectl get pods -n fire-monitoring-prod 2>/dev/null || true
 	@echo "=== ARGOCD APPS ==="

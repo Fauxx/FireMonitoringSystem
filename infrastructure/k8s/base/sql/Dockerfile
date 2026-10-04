@@ -1,4 +1,5 @@
 FROM flyway/flyway:10
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 
 USER root
 

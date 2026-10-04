@@ -1,4 +1,5 @@
 # Production-ready Dockerfile for Node.js app
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 FROM node:22-alpine
 
 # Create app directory

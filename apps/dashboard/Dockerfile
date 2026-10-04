@@ -1,4 +1,5 @@
 # Build Stage
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./

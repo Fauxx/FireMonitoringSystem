@@ -5,6 +5,7 @@ metadata:
   labels:
     app: flyway
   annotations:
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation, HookSucceeded
 spec:

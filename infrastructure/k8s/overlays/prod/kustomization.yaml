@@ -22,13 +22,13 @@ patchesStrategicMerge:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: 48bccba
+  newTag: 68a093b
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: 48bccba
+  newTag: f5ec2d0
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-  newTag: a4eb2ae
+  newTag: f5ec2d0
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
   newTag: 48bccba

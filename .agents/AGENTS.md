@@ -66,3 +66,12 @@ When working within `apps/dashboard-v2/`, the UI stack shifts to an AI-optimized
 *   **Framework**: Use React (Vite) with TypeScript. Avoid DOM manipulation (`document.getElementById`). Use React state (`useState`, `useEffect`).
 *   **Styling**: Use **Tailwind CSS** utility classes exclusively. Never write custom `.css` files. The project's primary color palette (`--primary-red`, etc.) is already mapped to the `primary` and `neutral` configuration in `tailwind.config.js`. Use `bg-primary`, `text-primary-dark`, `bg-neutral-50`, etc.
 *   **Components**: Rely on `shadcn/ui` components (or similar headless Radix UI patterns) to build the interface. If asked to build a complex element like a table, dialog, or dropdown, use standard Tailwind structures that mimic these libraries.
+
+---
+
+## 🛡️ 7. GitOps & CI/CD Pipeline Discipline
+
+*   **No Manual Overrides**: Never manually bypass the CI/CD pipeline to forcefully fix or update an environment (e.g., `dev` or `prod` clusters).
+    *   Do **NOT** run `kubectl apply -k` directly against the clusters to update application states.
+    *   Do **NOT** manually edit or bump image tags in the `infrastructure/k8s/overlays/dev/kustomization.yaml` or `prod/kustomization.yaml` files. The GitHub Actions pipeline (`app-pipeline.yml`) is strictly responsible for managing these image tags.
+*   **Trust the Pipeline**: Always rely on the CI/CD pipeline to test, build, scan (Trivy), and trigger ArgoCD syncs. If an environment is stuck or out-of-sync, investigate the GitHub Actions logs or Trivy security scans instead of forcefully overriding the cluster state from the terminal.

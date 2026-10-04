@@ -31,6 +31,9 @@ images:
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
   newTag: ee3ece5
+- name: mcu-simulator
+  newName: ghcr.io/fauxx/firemonitoringsystem/mcu-simulator
+  newTag: latest
 
 labels:
 - includeSelectors: true

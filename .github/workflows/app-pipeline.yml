@@ -50,6 +50,8 @@ jobs:
               - 'apps/etl-processor/**'
             db-migrations:
               - 'infrastructure/k8s/base/sql/**'
+            mcu-simulator:
+              - 'apps/simulators/**'
 
       - name: Determine Services to Build
         id: set_services
@@ -114,9 +116,9 @@ jobs:
           pip install -r requirements.txt
           pytest --tb=short -q
 
-      # ── Static services (dashboard, db-migrations) — no tests yet ──
+      # ── Static services (dashboard, db-migrations, mcu-simulator) — no tests yet ──
       - name: Skip (no tests)
-        if: matrix.service == 'dashboard' || matrix.service == 'db-migrations'
+        if: matrix.service == 'dashboard' || matrix.service == 'db-migrations' || matrix.service == 'mcu-simulator'
         run: echo "No tests defined for ${{ matrix.service }} — skipping."
 
   build_scan_push:
@@ -157,6 +159,8 @@ jobs:
         run: |
           if [ "${{ matrix.service }}" = "db-migrations" ]; then
             echo "path=./infrastructure/k8s/base/sql" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.service }}" = "mcu-simulator" ]; then
+            echo "path=./apps/simulators" >> $GITHUB_OUTPUT
           else
             echo "path=./apps/${{ matrix.service }}"  >> $GITHUB_OUTPUT
           fi

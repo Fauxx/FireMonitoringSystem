@@ -61,7 +61,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
              [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ] || \
              [ -z "$CHANGES" ] || [ "$CHANGES" = "[]" ]; then
-            echo 'services=["api", "dashboard", "etl-processor", "db-migrations"]' >> $GITHUB_OUTPUT
+            echo 'services=["api", "dashboard", "etl-processor", "db-migrations", "mcu-simulator"]' >> $GITHUB_OUTPUT
           else
             echo "services=$CHANGES" >> $GITHUB_OUTPUT
           fi

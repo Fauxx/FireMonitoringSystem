@@ -173,7 +173,7 @@ dev-logs-sim:
 
 dev-port-forward:
 	@echo "🌐 Starting background port-forwards for Dev infrastructure..."
-	@pkill -f "kubectl --context dev port-forward" 2>/dev/null || true
+	@pkill -f "[k]ubectl --context dev port-forward" 2>/dev/null || true
 	@nohup kubectl --context dev port-forward -n argocd svc/argocd-server 8081:80 > /dev/null 2>&1 &
 	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/dashboard 8080:80 > /dev/null 2>&1 &
 	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/prometheus 9090:9090 > /dev/null 2>&1 &
@@ -187,7 +187,12 @@ dev-port-forward:
 	@echo "📊 Dev Prometheus  : http://localhost:9090"
 	@echo "📈 Dev InfluxDB    : http://localhost:8086"
 	@echo "======================================================"
-	@echo "(Run 'pkill -f \"kubectl --context dev port-forward\"' to stop)"
+	@echo "(Run 'make dev-port-forward-stop' to stop)"
+
+dev-port-forward-stop:
+	@echo "🛑 Stopping Dev port-forwards..."
+	@pkill -f "[k]ubectl --context dev port-forward" 2>/dev/null || true
+	@echo "✅ Stopped!"
 
 dev-argocd-pass:
 	@echo "🐙 ArgoCD Admin Password:"

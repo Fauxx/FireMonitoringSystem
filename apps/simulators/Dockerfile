@@ -8,3 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENTRYPOINT ["python3", "mcu_sim.py"]
+LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

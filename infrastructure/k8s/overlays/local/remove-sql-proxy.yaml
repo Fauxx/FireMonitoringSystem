@@ -30,3 +30,14 @@ spec:
       containers:
       - name: cloud-sql-proxy
         $patch: delete
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+spec:
+  template:
+    spec:
+      containers:
+      - name: cloud-sql-proxy
+        $patch: delete

@@ -88,7 +88,11 @@ export function FloatingTopBar({ onSearch, onOpenModal, stats }: FloatingTopBarP
         
         <div className="w-px h-8 bg-surface-border"></div>
         
-        <div className="flex gap-6">
+        <button 
+          onClick={() => onOpenModal('alerts')}
+          className="flex gap-6 hover:bg-base-dark p-2 rounded-md transition-colors cursor-pointer"
+          title="View Active Alerts"
+        >
           <div className="flex flex-col items-center">
             <span className="text-sm font-semibold text-slate-900">{stats.normal}</span>
             <span className="text-[10px] text-green-500 font-medium uppercase tracking-wider mt-1">Normal</span>
@@ -101,7 +105,7 @@ export function FloatingTopBar({ onSearch, onOpenModal, stats }: FloatingTopBarP
             <span className="text-sm font-semibold text-slate-900">{stats.critical}</span>
             <span className="text-[10px] text-primary font-medium uppercase tracking-wider mt-1">Critical</span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Tools */}

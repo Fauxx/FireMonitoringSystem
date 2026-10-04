@@ -40,6 +40,7 @@ labels:
 
 patches:
 - path: ingress-patch.yaml
+- path: mqtt-service-patch.yaml
 - patch: |-
     - op: add
       path: /spec/volumeClaimTemplates/0/spec/storageClassName

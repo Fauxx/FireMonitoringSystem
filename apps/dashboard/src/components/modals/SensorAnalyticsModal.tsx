@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ModalOverlay } from './ModalOverlay';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Maximize2, X } from 'lucide-react';
 
 interface SensorAnalyticsModalProps {
   onClose: () => void;
@@ -24,6 +24,7 @@ export function SensorAnalyticsModal({ onClose }: SensorAnalyticsModalProps) {
 
   const [hourlyData, setHourlyData] = useState<any[]>([]);
   const [heatmapData, setHeatmapData] = useState<any[]>([]);
+  const [expandedChart, setExpandedChart] = useState<'hourly' | 'heatmap' | null>(null);
   const [metrics, setMetrics] = useState<{systemGenerated: {total: number}, verified: {total: number}, verificationRate: number} | null>(null);
 
   const fetchDevices = async () => {
@@ -47,8 +48,30 @@ export function SensorAnalyticsModal({ onClose }: SensorAnalyticsModalProps) {
         fetch(`/api/analytics/incident-metrics?days=30&h_id=${selectedDevice}`)
       ]);
 
-      if (hourlyRes.ok) setHourlyData(await hourlyRes.json());
-      if (heatmapRes.ok) setHeatmapData(await heatmapRes.json());
+      if (hourlyRes.ok) {
+        const hData = await hourlyRes.json();
+        if (hData.rows) {
+          setHourlyData(hData.rows.map((r: any) => ({
+            hour: new Date(r.timestamp_window).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+            avg_temp: r.ta,
+            avg_smoke: r.sa,
+            avg_flame: r.fa
+          })));
+        } else {
+          setHourlyData([]);
+        }
+      }
+      if (heatmapRes.ok) {
+        const hmData = await heatmapRes.json();
+        if (hmData.heatmap) {
+          setHeatmapData(Object.entries(hmData.heatmap).map(([date, val]: [string, any]) => ({
+            date,
+            count: val.count
+          })));
+        } else {
+          setHeatmapData([]);
+        }
+      }
       if (metricsRes.ok) setMetrics(await metricsRes.json());
     } catch (e) {
       console.error(e);
@@ -76,9 +99,10 @@ export function SensorAnalyticsModal({ onClose }: SensorAnalyticsModalProps) {
             className="border border-surface-border rounded p-2 text-sm bg-base-light"
           >
             <option value="">All Devices</option>
-            {devices.map(d => (
-              <option key={d.h_id} value={d.h_id}>{d.h_id}</option>
-            ))}
+            {devices.map(d => {
+              const id = d.h_id || (d as any).m;
+              return <option key={id} value={id}>{id}</option>;
+            })}
           </select>
           <input 
             type="date" 
@@ -107,9 +131,14 @@ export function SensorAnalyticsModal({ onClose }: SensorAnalyticsModalProps) {
         ) : (
           <div className="flex flex-col gap-6">
             {/* Hourly Trend Chart */}
-            <div className="bg-surface p-4 rounded-xl border border-surface-border">
-              <h3 className="text-[10px] font-bold text-surface-muted uppercase tracking-wider mb-4">Hourly Telemetry Trends</h3>
-              <div className="h-[300px]">
+            <div className={expandedChart === 'hourly' ? "fixed inset-0 z-[200] bg-surface p-8 flex flex-col" : "bg-surface p-4 rounded-xl border border-surface-border"}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-surface-muted uppercase tracking-wider">Hourly Telemetry Trends</h3>
+                <button onClick={() => setExpandedChart(expandedChart === 'hourly' ? null : 'hourly')} className="p-1 text-surface-muted hover:text-slate-900 transition-colors">
+                  {expandedChart === 'hourly' ? <X size={20} /> : <Maximize2 size={20} />}
+                </button>
+              </div>
+              <div className={expandedChart === 'hourly' ? "flex-1 min-h-0" : "h-[300px]"}>
                 {hourlyData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={hourlyData}>
@@ -130,9 +159,14 @@ export function SensorAnalyticsModal({ onClose }: SensorAnalyticsModalProps) {
             </div>
 
             {/* Incident Heatmap */}
-            <div className="bg-surface p-4 rounded-xl border border-surface-border">
-              <h3 className="text-[10px] font-bold text-surface-muted uppercase tracking-wider mb-4">Daily Incident Frequency</h3>
-              <div className="h-[250px]">
+            <div className={expandedChart === 'heatmap' ? "fixed inset-0 z-[200] bg-surface p-8 flex flex-col" : "bg-surface p-4 rounded-xl border border-surface-border"}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-surface-muted uppercase tracking-wider">Daily Incident Frequency</h3>
+                <button onClick={() => setExpandedChart(expandedChart === 'heatmap' ? null : 'heatmap')} className="p-1 text-surface-muted hover:text-slate-900 transition-colors">
+                  {expandedChart === 'heatmap' ? <X size={20} /> : <Maximize2 size={20} />}
+                </button>
+              </div>
+              <div className={expandedChart === 'heatmap' ? "flex-1 min-h-0" : "h-[250px]"}>
                 {heatmapData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={heatmapData}>

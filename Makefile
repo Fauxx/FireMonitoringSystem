@@ -89,7 +89,7 @@ local-up:
 	@$(MAKE) kind-load
 	@echo "🚀 Applying local overlay..."
 	@kubectl create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl apply -f -
-	@kubectl apply -k infrastructure/k8s/overlays/local || true
+	@kubectl apply -k infrastructure/k8s/overlays/local
 	@echo "✅ Local manifest testing ready! Run: make local-port-forward"
 local-stop:
 	@echo "⏸️  Parking local environment (data preserved)..."
@@ -104,12 +104,12 @@ local-down:
 	@echo "✅ Local environment fully destroyed."
 local-restart: build-local kind-load
 	@echo "🔄 Rollout restarting local deployments..."
-	kubectl rollout restart deployment -n fire-monitoring-local api dashboard etl-processor || true
+	kubectl rollout restart deployment -n fire-monitoring-local api dashboard etl-processor mcu-simulator-fleet || true
 	kubectl delete job flyway-migrate -n fire-monitoring-local --ignore-not-found
 	kubectl apply -k infrastructure/k8s/overlays/local
 	@echo "✅ Local deployments restarted."
 local-logs:
-	kubectl logs -n fire-monitoring-local -f -l deployment-type=local --max-log-requests=10
+	kubectl logs -n fire-monitoring-local -f -l deployment-type=local --max-log-requests=50
 local-port-forward:
 	@echo "🌐 Starting background port-forwards..."
 	@killall kubectl 2>/dev/null || true

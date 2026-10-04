@@ -150,6 +150,7 @@ app.use('/messages', messageRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/final-sensors', finalSensorRoutes);
 app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/observability', require('./routes/observability'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -12,10 +12,20 @@ spec:
       labels:
         app: mcu-simulator
     spec:
+      initContainers:
+        - name: wait-for-mqtt
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z mqtt 1883; do echo waiting for mqtt; sleep 2; done"]
       containers:
       - name: fleet-runner
         image: mcu-simulator
-        command: ["/bin/bash", "./run_10.sh"]
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            for i in {01..10}; do
+              python mcu_sim.py --device-id "node-sim-$i" --host mqtt --port 1883 &
+            done
+            wait
         env:
         - name: PYTHONUNBUFFERED
           value: "1"

@@ -164,7 +164,7 @@ router.get("/dashboard/stats", async (req, res) => {
       stats.systemUptime = `${parseFloat(m.system_uptime || 100).toFixed(1)}%`;
       stats.totalLocations = parseInt(m.total_locations || 0);
     } else {
-      const fallbackActive = await req.pool.query(`SELECT COUNT(DISTINCT m) as count FROM sensor_data_aggregated WHERE timestamp_window > NOW() - INTERVAL '24 hours'`);
+      const fallbackActive = await req.pool.query(`SELECT COUNT(DISTINCT h_id) as count FROM sensor_data_aggregated WHERE timestamp_window > NOW() - INTERVAL '24 hours'`);
       stats.activeDevices = parseInt(fallbackActive.rows[0]?.count || 0);
     }
     res.json(stats);

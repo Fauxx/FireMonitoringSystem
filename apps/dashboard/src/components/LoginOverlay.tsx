@@ -19,7 +19,10 @@ export function LoginOverlay({ onLoginSuccess }: LoginOverlayProps) {
     try {
       const res = await fetch('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ email: username, password })
       });
 

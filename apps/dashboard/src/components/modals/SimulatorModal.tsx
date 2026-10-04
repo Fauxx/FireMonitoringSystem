@@ -85,6 +85,12 @@ export function SimulatorModal({ onClose, publishCommand, sensors }: SimulatorMo
                       {/* Status Switcher */}
                       <div className="flex items-center bg-surface rounded-md p-1 border border-surface-border">
                         <button 
+                          onClick={() => handleStatus(device.h_id, -1)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-2 ${currentStatus === undefined || currentStatus === -1 ? 'bg-blue-500/20 text-blue-600' : 'text-surface-muted hover:bg-base-dark'}`}
+                        >
+                          <Power className="w-3 h-3" /> Auto
+                        </button>
+                        <button 
                           onClick={() => handleStatus(device.h_id, 0)}
                           className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-2 ${currentStatus === 0 ? 'bg-green-500/20 text-green-600' : 'text-surface-muted hover:bg-base-dark'}`}
                         >

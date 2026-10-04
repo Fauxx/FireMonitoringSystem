@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Flame, Thermometer, Wind, Cpu } from 'lucide-react';
+import { X, Flame, Thermometer, Wind, Cpu, Maximize2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import type { SensorState } from '../types';
 import { getStatusConfig } from '../utils/statusColors';
@@ -13,7 +13,8 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<any>(null);
-  const [activeMetric, setActiveMetric] = useState<'all' | 'temp' | 'smoke' | 'flame'>('all');
+  const [activeMetric, setActiveMetric] = useState<'temp' | 'smoke' | 'flame'>('temp');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!sensor) return;
@@ -96,11 +97,11 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
           <div className="p-4 grid grid-cols-2 gap-4 bg-surface">
             <div>
               <p className="text-[10px] text-surface-muted font-bold uppercase tracking-wider mb-1">Latitude</p>
-              <p className="text-sm font-semibold text-slate-900">{sensor.lat.toFixed(5)}°</p>
+              <p className="text-sm font-semibold text-slate-900">{Number(sensor.lat ?? 0).toFixed(5)}°</p>
             </div>
             <div>
               <p className="text-[10px] text-surface-muted font-bold uppercase tracking-wider mb-1">Longitude</p>
-              <p className="text-sm font-semibold text-slate-900">{sensor.lon.toFixed(5)}°</p>
+              <p className="text-sm font-semibold text-slate-900">{Number(sensor.lon ?? 0).toFixed(5)}°</p>
             </div>
           </div>
         </div>
@@ -181,20 +182,24 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
           </div>
         </div>
 
-        <div className="flex-1 min-h-[260px] flex flex-col">
+        <div className={isFullscreen ? "fixed inset-0 z-[200] bg-surface p-8 flex flex-col shadow-xl" : "flex-1 min-h-[260px] flex flex-col"}>
           <div className="flex items-center justify-between mb-3 px-1">
             <h3 className="text-[10px] font-bold text-surface-muted uppercase tracking-wider">Historical Trend (1h)</h3>
-            {loading && <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>}
+            <div className="flex items-center gap-2">
+              {loading && <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>}
+              <button onClick={() => setIsFullscreen(!isFullscreen)} className="text-surface-muted hover:text-slate-900 transition-colors">
+                {isFullscreen ? <X size={16} /> : <Maximize2 size={16} />}
+              </button>
+            </div>
           </div>
           
           <div className="flex items-center gap-2 mb-3 px-1">
-            <button onClick={() => setActiveMetric('all')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full transition-colors ${activeMetric === 'all' ? 'bg-slate-900 text-white' : 'bg-base-light text-surface-muted hover:bg-surface-border'}`}>All</button>
             <button onClick={() => setActiveMetric('temp')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full transition-colors ${activeMetric === 'temp' ? 'bg-orange-500 text-white' : 'bg-base-light text-surface-muted hover:bg-surface-border'}`}>Temp</button>
             <button onClick={() => setActiveMetric('smoke')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full transition-colors ${activeMetric === 'smoke' ? 'bg-blue-500 text-white' : 'bg-base-light text-surface-muted hover:bg-surface-border'}`}>Smoke</button>
             <button onClick={() => setActiveMetric('flame')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full transition-colors ${activeMetric === 'flame' ? 'bg-primary text-white' : 'bg-base-light text-surface-muted hover:bg-surface-border'}`}>Flame</button>
           </div>
           
-          <div className="flex-1 bg-surface rounded-xl border border-surface-border shadow-sm p-4 pb-2 -ml-2">
+          <div className={`flex-1 bg-surface rounded-xl border border-surface-border shadow-sm p-4 pb-2 ${isFullscreen ? '' : '-ml-2'}`}>
             {history.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={history} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -215,13 +220,13 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
                     contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', fontSize: '12px', fontWeight: 600, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
                     itemStyle={{ fontWeight: 700 }}
                   />
-                  {(activeMetric === 'all' || activeMetric === 'temp') && (
+                  {activeMetric === 'temp' && (
                     <Line type="monotone" dataKey="temp" stroke="#f97316" strokeWidth={2} dot={false} name="Temp (°C)" />
                   )}
-                  {(activeMetric === 'all' || activeMetric === 'smoke') && (
+                  {activeMetric === 'smoke' && (
                     <Line type="monotone" dataKey="smoke" stroke="#3b82f6" strokeWidth={2} dot={false} name="Smoke (PPM)" />
                   )}
-                  {(activeMetric === 'all' || activeMetric === 'flame') && (
+                  {activeMetric === 'flame' && (
                     <Line type="monotone" dataKey="flame" stroke="#ef4444" strokeWidth={2} dot={false} name="Flame (IR)" />
                   )}
                 </LineChart>

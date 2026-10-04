@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { ensureAuthenticated } = require('../middleware/auth');
+
+router.use(ensureAuthenticated);
 
 // GET analytics data
 // /api/analytics?m=081925BR98-1&start=2025-11-01&end=2025-11-20
@@ -60,10 +63,7 @@ router.get('/devices', async (req, res) => {
 
 // GET heatmap data - incident alerts by day
 router.get('/heatmap', async (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.status(401).json({ error: "Authentication required" });
-    }
-    
+
     const pool = req.pool;
     const { days = 365, type = 'system', device, start, end } = req.query;
 
@@ -159,10 +159,7 @@ router.get('/heatmap', async (req, res) => {
 
 // GET incident metrics - system-generated vs verified (with filters)
 router.get('/incident-metrics', async (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.status(401).json({ error: "Authentication required" });
-    }
-    
+
     const pool = req.pool;
     const { days = 30, device, start, end } = req.query;
 
@@ -258,10 +255,7 @@ router.get('/incident-metrics', async (req, res) => {
 
 // GET system performance data
 router.get('/performance', async (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.status(401).json({ error: "Authentication required" });
-    }
-    
+
     const pool = req.pool;
     const { days = 30, start, end } = req.query;
 

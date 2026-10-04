@@ -40,8 +40,8 @@ def generate_payload(args: argparse.Namespace) -> dict:
     if CURRENT_STATUS is not None:
         status_code = CURRENT_STATUS
     else:
-        # Simulate edge state machine: 85% normal, 12% warning, 3% critical
-        status_code = random.choices([0, 1, 2], weights=[0.85, 0.12, 0.03])[0]
+        # Default to stable Normal mode instead of jumping randomly
+        status_code = 0
 
     if status_code == 0:
         temp = random.uniform(28.0, 32.0)
@@ -85,10 +85,14 @@ def on_message(client, userdata, msg):
                 IS_ACTIVE = False
                 print(f"🔴 POWER OFF received on {msg.topic}")
                 
-        # Status overrides (0, 1, 2)
+        # Status overrides (0, 1, 2, or -1 for Auto)
         if "status_code" in payload:
-            CURRENT_STATUS = int(payload["status_code"])
-            print(f"⚠️ STATUS OVERRIDE received on {msg.topic}: Changing status to {CURRENT_STATUS}")
+            if int(payload["status_code"]) == -1:
+                CURRENT_STATUS = None
+                print(f"🔄 STATUS OVERRIDE received on {msg.topic}: Reverting to Auto mode")
+            else:
+                CURRENT_STATUS = int(payload["status_code"])
+                print(f"⚠️ STATUS OVERRIDE received on {msg.topic}: Changing status to {CURRENT_STATUS}")
             
     except Exception as e:
         print(f"Error parsing control message: {e}")

@@ -25,7 +25,7 @@ AGG_WINDOW_MINUTES = int(os.getenv("AGG_WINDOW_MINUTES", 5))
 DEFAULT_RANGE = os.getenv("INFLUX_DEFAULT_RANGE", "-24h")
 
 # Optimized 3NF Columns (Removed lat, lon, raw_payload)
-ALLOWED_COLS = ["h_id", "received_at", "status", "temp_c", "smoke_ppm", "flame_intensity"]
+ALLOWED_COLS = ["h_id", "received_at", "status", "flame_intensity"]
 
 _db_conn = None
 
@@ -118,7 +118,7 @@ def process_telemetry_batch(df_raw):
                         cur.execute("""
                             UPDATE historical_fire_incidents 
                             SET last_seen_at = GREATEST(last_seen_at, %s),
-                                max_alert_level = GREATEST(max_alert_level, %s),
+                                status = GREATEST(status, %s),
                                 avg_temperature_c = ROUND(((avg_temperature_c * readings_count) + (%s * %s)) / (readings_count + %s), 2),
                                 avg_smoke_ppm = ROUND(((avg_smoke_ppm * readings_count) + (%s * %s)) / (readings_count + %s), 2),
                                 avg_flame_intensity = ROUND(((avg_flame_intensity * readings_count) + (%s * %s)) / (readings_count + %s), 2),
@@ -135,9 +135,9 @@ def process_telemetry_batch(df_raw):
                     else:
                         incidents_to_create.append({
                             "h_id": h_id,
-                            "started_at": started_at,
+                            "incident_timestamp": started_at,
                             "last_seen_at": last_seen,
-                            "max_alert_level": max_status,
+                            "status": max_status,
                             "is_active": True,
                             "avg_temperature_c": round(batch_temp_avg, 2),
                             "avg_smoke_ppm": round(batch_smoke_avg, 2),
@@ -177,8 +177,6 @@ def process_telemetry_batch(df_raw):
         final_events.append({
             "h_id": r["h_id"],
             "status": int(r["status"]),
-            "temp_c": float(r["temp_c"]) if pd.notnull(r.get("temp_c")) else None,
-            "smoke_ppm": float(r["smoke_ppm"]) if pd.notnull(r.get("smoke_ppm")) else None,
             "flame_intensity": float(r["flame_intensity"]) if pd.notnull(r.get("flame_intensity")) else None,
             "received_at": r["received_at"]
         })
@@ -226,7 +224,7 @@ def run_main(last_ts=None):
     df_events, df_incidents = process_telemetry_batch(df_raw)
 
     if not df_events.empty:
-        upsert_table(df_events, "final_sensor_events", conflict_cols=None)
+        upsert_table(df_events, "final_sensor_events", conflict_cols=["h_id", "received_at"])
     if not df_incidents.empty:
         upsert_table(df_incidents, "historical_fire_incidents", conflict_cols=None)
 

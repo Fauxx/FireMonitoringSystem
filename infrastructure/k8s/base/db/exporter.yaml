@@ -35,6 +35,26 @@ spec:
             limits:
               cpu: 10m
               memory: 128Mi
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.3
+          args:
+            - "--auto-iam-authn"
+            - "$(CLOUD_SQL_CONNECTION_NAME)"
+          env:
+            - name: CLOUD_SQL_CONNECTION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: fire-monitoring-config
+                  key: CLOUD_SQL_CONNECTION_NAME
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
 ---
 apiVersion: v1
 kind: Service

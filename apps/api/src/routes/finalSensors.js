@@ -16,7 +16,7 @@ router.get("/latest", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, status, lat, lon, raw_payload, received_at
+      SELECT id, h_id, status, lat, lon, received_at
       FROM final_sensor_latest
       WHERE 1=1
     `;
@@ -43,7 +43,7 @@ router.get("/history", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, status, lat, lon, raw_payload, received_at
+      SELECT id, h_id, status, lat, lon, received_at
       FROM final_sensor_events
       WHERE 1=1
     `;

@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { MapLibreCanvas } from './components/MapLibreCanvas';
 import { FloatingTopBar } from './components/FloatingTopBar';
 import { SensorDrawer } from './components/SensorDrawer';
-import { AlertSnackbar } from './components/AlertSnackbar';
+import { AlertsModal } from './components/modals/AlertsModal';
 import { LoginOverlay } from './components/LoginOverlay';
 import { useLiveSensors } from './hooks/useLiveSensors';
 import { useDashboardData } from './hooks/useDashboardData';
 import { DevicesModal } from './components/modals/DevicesModal';
-import { AnalyticsModal } from './components/modals/AnalyticsModal';
+import { SystemAnalyticsModal } from './components/modals/SystemAnalyticsModal';
+import { SensorAnalyticsModal } from './components/modals/SensorAnalyticsModal';
 import { LogsModal } from './components/modals/LogsModal';
 import { SimulatorModal } from "./components/modals/SimulatorModal";
 import { ExportModal } from './components/modals/ExportModal';
@@ -51,8 +52,9 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   // If not authenticated, we still call the hooks, but we might want to skip fetching.
   // We updated useDashboardData to handle errors gracefully.
   const { initialSensors } = useDashboardData(isAuthenticated);
-  const { sensors, activeAlert, clearAlert, publishCommand } = useLiveSensors(initialSensors);
+  const { sensors, publishCommand } = useLiveSensors(initialSensors);
   const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
+  const [flyToTrigger, setFlyToTrigger] = useState<{ id: string; ts: number } | null>(null);
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   const stats = useMemo(() => {
@@ -69,6 +71,7 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   const handleSearch = (id: string) => {
     if (sensors[id]) {
       setSelectedSensorId(id);
+      setFlyToTrigger({ id, ts: Date.now() });
     } else {
       alert(`Sensor ${id} not found.`);
     }
@@ -78,24 +81,27 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
     <>
       <MapLibreCanvas 
         sensors={Object.values(sensors)} 
-        selectedSensorId={selectedSensorId}
         onSensorSelect={setSelectedSensorId}
+        flyToTrigger={flyToTrigger}
       />
       <FloatingTopBar onSearch={handleSearch} onOpenModal={setActiveModal} stats={stats} />
       <SensorDrawer 
         sensor={selectedSensorId ? sensors[selectedSensorId] : null} 
         onClose={() => setSelectedSensorId(null)} 
       />
-      <AlertSnackbar 
-        alert={activeAlert} 
-        onView={(id) => { setSelectedSensorId(id); clearAlert(); }} 
-        onDismiss={clearAlert}
-      />
-      
       {/* Modals */}
+      <AlertsModal 
+        isOpen={activeModal === 'alerts'}
+        onClose={() => setActiveModal(null)}
+        sensors={sensors}
+        onLocate={(id) => {
+          setSelectedSensorId(id);
+          setFlyToTrigger({ id, ts: Date.now() });
+        }}
+      />
       {activeModal === 'devices' && <DevicesModal sensors={Object.values(sensors)} onClose={() => setActiveModal(null)} />}
-      {activeModal === 'analytics' && <AnalyticsModal onClose={() => setActiveModal(null)} />}
-      {activeModal === 'system' && <AnalyticsModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'analytics' && <SensorAnalyticsModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'system' && <SystemAnalyticsModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'logs' && <LogsModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'export' && <ExportModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'simulator' && <SimulatorModal sensors={sensors} publishCommand={publishCommand} onClose={() => setActiveModal(null)} />}

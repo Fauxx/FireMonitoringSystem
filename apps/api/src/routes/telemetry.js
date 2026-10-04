@@ -30,9 +30,9 @@ router.get('/history', async (req, res) => {
             from(bucket: "${bucket}")
             |> range(start: -${parseInt(minutes, 10)}m)
             |> filter(fn: (r) => r["_measurement"] == "node_telemetry" or r["_measurement"] == "fire_data")
-            |> filter(fn: (r) => r["h_id"] == "${h_id}")
-            |> pivot(rowKey: ["_time", "h_id"], columnKey: ["_field"], valueColumn: "_value")
-            |> keep(columns: ["_time", "h_id", "status", "temp", "smoke", "flame"])
+            |> filter(fn: (r) => r["device_id"] == "${h_id}")
+            |> pivot(rowKey: ["_time", "device_id"], columnKey: ["_field"], valueColumn: "_value")
+            |> keep(columns: ["_time", "device_id", "status_code", "temperature_c", "smoke_ppm", "flame_intensity"])
             |> sort(columns: ["_time"])
         `;
 
@@ -42,11 +42,11 @@ router.get('/history', async (req, res) => {
                 const o = tableMeta.toObject(row);
                 rows.push({
                     time: o._time,
-                    h_id: o.h_id,
-                    status: o.status,
-                    temp: o.temp,
-                    smoke: o.smoke,
-                    flame: o.flame
+                    h_id: o.device_id,
+                    status: o.status_code,
+                    temp: o.temperature_c,
+                    smoke: o.smoke_ppm,
+                    flame: o.flame_intensity
                 });
             },
             error: (error) => {

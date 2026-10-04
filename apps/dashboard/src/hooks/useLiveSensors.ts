@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import mqtt from 'mqtt';
 import type { SensorState, SensorTelemetry } from '../types';
 
@@ -9,9 +9,27 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
 
   useEffect(() => {
     if (Object.keys(initialSensors).length > 0) {
-      setSensors((prev) => ({ ...initialSensors, ...prev }));
+      setSensors((prev) => {
+        const merged = { ...prev };
+        for (const [id, sensor] of Object.entries(initialSensors)) {
+          if (!merged[id]) {
+            merged[id] = sensor;
+          } else {
+            // Keep live telemetry but ensure missing static DB fields (lat/lon) are restored
+            merged[id] = {
+              ...merged[id],
+              lat: merged[id].lat ?? (sensor.lat ? Number(sensor.lat) : undefined),
+              lon: merged[id].lon ?? (sensor.lon ? Number(sensor.lon) : undefined),
+            };
+          }
+        }
+        return merged;
+      });
     }
   }, [initialSensors]);
+
+  // Track status outside of state to safely trigger alerts without React concurrency issues
+  const statusRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -31,14 +49,12 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
     client.on('message', (_topic, message) => {
       try {
         const raw = JSON.parse(message.toString());
-        // Handle both flattened ETL format (h_id, temp) and raw Simulator format (device_id, readings)
-        const h_id = raw.h_id || raw.device_id;
-        
+        const h_id: string = raw.h_id || raw.device_id;
         if (!h_id) return;
         
         const payload: SensorTelemetry = {
             h_id: h_id,
-            lat: raw.lat, // May be missing in live stream, we preserve it below
+            lat: raw.lat,
             lon: raw.lon,
             status: raw.status ?? raw.status_code ?? 0,
             temp: raw.temp ?? raw.readings?.temperature_c,
@@ -47,26 +63,35 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
             _time: raw._time ?? raw.timestamp
         };
 
+        // Check for transition to Critical (2) using stable Ref
+        const prevStatus = statusRef.current[h_id] || 0;
+        if (payload.status >= 1 && prevStatus < payload.status) {
+          // It's a new alert (warning or critical) or escalating from warning to critical
+          setTimeout(() => {
+            setActiveAlert({ ...payload, lastUpdated: Date.now() } as SensorState);
+          }, 0);
+        } else if (payload.status === 0 && prevStatus >= 1) {
+          // Auto-dismiss if it returns to normal
+          setTimeout(() => {
+            setActiveAlert(current => current?.h_id === h_id ? null : current);
+          }, 0);
+        }
+        
+        // Update Ref for next time
+        statusRef.current[h_id] = payload.status;
+
         setSensors((prev) => {
-          // Preserve static properties (lat, lon, barangay) from initial DB load if missing in telemetry
-          const existing = prev[h_id] || {};
-          const newState = {
+          const existing = prev[h_id] || {} as SensorState;
+          return {
             ...prev,
             [h_id]: { 
                 ...existing, 
                 ...payload,
-                // Ensure we don't overwrite valid coordinates with undefined
                 lat: payload.lat ?? existing.lat,
                 lon: payload.lon ?? existing.lon,
                 lastUpdated: Date.now() 
             }
           };
-          
-          if (payload.status === 2 && prev[h_id]?.status !== 2) {
-            setActiveAlert(newState[h_id]);
-          }
-          
-          return newState;
         });
       } catch (err) {
         console.error("Failed to parse MQTT message", err);

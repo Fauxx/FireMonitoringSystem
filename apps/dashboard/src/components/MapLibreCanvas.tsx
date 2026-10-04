@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
 
 interface MapCanvasProps {
   sensors: SensorState[];
-  selectedSensorId: string | null;
+  flyToTrigger?: { id: string; ts: number } | null;
   onSensorSelect: (id: string) => void;
 }
 
@@ -41,19 +41,19 @@ const createCustomIcon = (status: number) => {
   });
 };
 
-function MapController({ selectedSensorId, sensors }: { selectedSensorId: string | null, sensors: SensorState[] }) {
+function MapController({ flyToTrigger, sensors }: { flyToTrigger: { id: string; ts: number } | null | undefined, sensors: SensorState[] }) {
   const map = useMap();
   
   useEffect(() => {
-    if (selectedSensorId) {
-      const sensor = sensors.find(s => s.h_id === selectedSensorId);
-      if (sensor) {
+    if (flyToTrigger) {
+      const sensor = sensors.find(s => s.h_id === flyToTrigger.id);
+      if (sensor && sensor.lat != null && sensor.lon != null) {
         map.flyTo([sensor.lat, sensor.lon], 16, {
           duration: 1.5
         });
       }
     }
-  }, [selectedSensorId, sensors, map]);
+  }, [flyToTrigger, map]); // Removed sensors to prevent re-panning on every telemetry tick
 
   return null;
 }
@@ -74,7 +74,7 @@ const MemoizedSensorMarker = memo(({ sensor, onSelect }: { sensor: SensorState, 
   );
 }, (prev, next) => prev.sensor === next.sensor);
 
-export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: MapCanvasProps) {
+export function MapLibreCanvas({ sensors, flyToTrigger, onSensorSelect }: MapCanvasProps) {
   return (
     <div className="absolute inset-0 z-0 bg-base-dark">
       <MapContainer
@@ -88,15 +88,18 @@ export function MapLibreCanvas({ sensors, selectedSensorId, onSensorSelect }: Ma
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <MapController selectedSensorId={selectedSensorId} sensors={sensors} />
+        <MapController flyToTrigger={flyToTrigger} sensors={sensors} />
         
-        {sensors.map(sensor => (
-          <MemoizedSensorMarker 
-            key={sensor.h_id} 
-            sensor={sensor} 
-            onSelect={onSensorSelect} 
-          />
-        ))}
+        {sensors.map(sensor => {
+          if (sensor.lat == null || sensor.lon == null || isNaN(sensor.lat)) return null;
+          return (
+            <MemoizedSensorMarker 
+              key={`${sensor.h_id}-${sensor.status}`} 
+              sensor={sensor} 
+              onSelect={onSensorSelect} 
+            />
+          );
+        })}
       </MapContainer>
     </div>
   );

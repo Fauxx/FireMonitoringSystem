@@ -21,19 +21,19 @@ replicas:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem/api
-  newTag: 68a093b
+  newTag: 884f516
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
-  newTag: f5ec2d0
+  newTag: 884f516
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
-  newTag: f5ec2d0
+  newTag: 884f516
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
-  newTag: ee3ece5
+  newTag: 884f516
 - name: mcu-simulator
   newName: ghcr.io/fauxx/firemonitoringsystem/mcu-simulator
-  newTag: 8c0db33
+  newTag: 884f516
 
 labels:
 - includeSelectors: true

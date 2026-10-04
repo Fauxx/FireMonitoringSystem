@@ -157,6 +157,43 @@ staging-pause:
 staging-resume:
 	@echo "▶️  Resuming staging (dev) namespace..."
 	kubectl patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+
+# [3.1] STAGING / DEV — Utilities
+dev-logs-api:
+	@echo "📜 Tailing API logs in Dev..."
+	kubectl --context dev logs -f -l app=api -n fire-monitoring-dev --all-containers=true --max-log-requests=10
+
+dev-logs-etl:
+	@echo "📜 Tailing ETL Processor logs in Dev..."
+	kubectl --context dev logs -f -l app=etl-processor -n fire-monitoring-dev --all-containers=true --max-log-requests=10
+
+dev-logs-sim:
+	@echo "📜 Tailing MCU Simulator logs in Dev..."
+	kubectl --context dev logs -f -l app=mcu-simulator-fleet -n fire-monitoring-dev --max-log-requests=10
+
+dev-port-forward:
+	@echo "🌐 Starting background port-forwards for Dev infrastructure..."
+	@pkill -f "kubectl --context dev port-forward" 2>/dev/null || true
+	@nohup kubectl --context dev port-forward -n argocd svc/argocd-server 8081:80 > /dev/null 2>&1 &
+	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/dashboard 8080:80 > /dev/null 2>&1 &
+	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/prometheus 9090:9090 > /dev/null 2>&1 &
+	@nohup kubectl --context dev port-forward -n fire-monitoring-dev svc/influx 8086:8086 > /dev/null 2>&1 &
+	@sleep 2
+	@echo "✅ Dev infrastructure mapped to localhost!"
+	@echo "======================================================"
+	@echo "🐙 ArgoCD UI       : https://localhost:8081"
+	@echo "   (Password: run 'make dev-argocd-pass')"
+	@echo "🖥️  Dev Dashboard   : http://localhost:8080"
+	@echo "📊 Dev Prometheus  : http://localhost:9090"
+	@echo "📈 Dev InfluxDB    : http://localhost:8086"
+	@echo "======================================================"
+	@echo "(Run 'pkill -f \"kubectl --context dev port-forward\"' to stop)"
+
+dev-argocd-pass:
+	@echo "🐙 ArgoCD Admin Password:"
+	@kubectl --context dev -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+	@echo ""
+
 # [4] PRODUCTION — ArgoCD GitOps (in-cluster cloudflared → fires.systems)
 prod-up:
 	@echo "🔒 Deploying PRODUCTION environment via ArgoCD..."

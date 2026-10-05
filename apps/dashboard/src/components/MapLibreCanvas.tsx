@@ -22,11 +22,12 @@ interface MapCanvasProps {
 // Custom DivIcon for our sensors
 const createCustomIcon = (status: number) => {
   const config = getStatusConfig(status);
+  const isPulsing = status >= 1;
   const isCritical = status === 2;
   
   const html = `
     <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-      ${isCritical ? '<div style="position: absolute; border-radius: 50%; width: 48px; height: 48px; background-color: var(--color-primary); opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>' : ''}
+      ${isPulsing ? `<div style="position: absolute; border-radius: 50%; width: 48px; height: 48px; background-color: ${config.hex}; opacity: 0.6; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>` : ''}
       <div style="position: relative; z-index: 10; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); background-color: ${config.hex}; display: flex; align-items: center; justify-content: center;">
         ${isCritical ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>' : ''}
       </div>
@@ -79,7 +80,7 @@ export function MapLibreCanvas({ sensors, flyToTrigger, onSensorSelect }: MapCan
     <div className="absolute inset-0 z-0 bg-base-dark">
       <MapContainer
         center={[14.5995, 120.9842]}
-        zoom={11}
+        zoom={13}
         style={{ width: '100%', height: '100%', backgroundColor: '#111827' }}
         zoomControl={true}
       >

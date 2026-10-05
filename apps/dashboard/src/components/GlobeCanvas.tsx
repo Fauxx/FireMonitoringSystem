@@ -27,7 +27,8 @@ export function GlobeCanvas({ sensors, selectedSensorId, onSensorSelect }: Globe
       return {
         lat: s.lat,
         lng: s.lon,
-        size: s.status === 2 ? 0.3 : 0.1, // Make critical sensors larger
+        size: s.status === 2 ? 0.3 : (s.status === 1 ? 0.2 : 0.1), // Larger for critical/warning
+        status: s.status,
         color: config.hex,
         id: s.h_id,
         label: `
@@ -51,7 +52,7 @@ export function GlobeCanvas({ sensors, selectedSensorId, onSensorSelect }: Globe
           }
         } else {
           // Default view: Hover closely over Manila (Philippines)
-          globeRef.current.pointOfView({ lat: 14.5995, lng: 120.9842, altitude: 0.4 }, 2000);
+          globeRef.current.pointOfView({ lat: 14.5995, lng: 120.9842, altitude: 0.15 }, 2000);
         }
       }
     }, 100);
@@ -83,8 +84,8 @@ export function GlobeCanvas({ sensors, selectedSensorId, onSensorSelect }: Globe
         // Handle clicks
         onPointClick={(point: any) => onSensorSelect(point.id)}
         
-        // Optional: rings for critical items
-        ringsData={pointsData.filter(p => p.size > 0.1)}
+        // Rings for critical and warning items
+        ringsData={pointsData.filter(p => p.status >= 1)}
         ringLat="lat"
         ringLng="lng"
         ringColor="color"

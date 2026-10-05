@@ -72,3 +72,21 @@ patches:
   target:
     kind: PersistentVolumeClaim
     name: loki-data
+- patch: |-
+    - op: remove
+      path: /spec/template/spec/imagePullSecrets
+  target:
+    kind: Deployment
+    name: api
+- patch: |-
+    - op: remove
+      path: /spec/template/spec/imagePullSecrets
+  target:
+    kind: Deployment
+    name: dashboard
+- patch: |-
+    - op: remove
+      path: /spec/template/spec/imagePullSecrets
+  target:
+    kind: Deployment
+    name: etl-processor

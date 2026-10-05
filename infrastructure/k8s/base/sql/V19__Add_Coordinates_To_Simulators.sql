@@ -1,0 +1,11 @@
+-- Add NCR coordinates to simulator devices so they appear on the Globe
+UPDATE device_registry SET lat = 14.5995, lon = 120.9842 WHERE h_id = 'node-sim-01';
+UPDATE device_registry SET lat = 14.5800, lon = 121.0500 WHERE h_id = 'node-sim-02';
+UPDATE device_registry SET lat = 14.6200, lon = 121.0100 WHERE h_id = 'node-sim-03';
+UPDATE device_registry SET lat = 14.5500, lon = 121.0200 WHERE h_id = 'node-sim-04';
+UPDATE device_registry SET lat = 14.6500, lon = 121.0500 WHERE h_id = 'node-sim-05';
+UPDATE device_registry SET lat = 14.6000, lon = 121.0800 WHERE h_id = 'node-sim-06';
+UPDATE device_registry SET lat = 14.5300, lon = 120.9900 WHERE h_id = 'node-sim-07';
+UPDATE device_registry SET lat = 14.6300, lon = 120.9800 WHERE h_id = 'node-sim-08';
+UPDATE device_registry SET lat = 14.5600, lon = 121.0300 WHERE h_id = 'node-sim-09';
+UPDATE device_registry SET lat = 14.5900, lon = 121.0600 WHERE h_id = 'node-sim-10';

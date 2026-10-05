@@ -24,7 +24,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/fauxx/firemonitoringsystem
+  IMAGE_PREFIX: ghcr.io/fauxx/firemonitoringsystem-v2
 
 jobs:
   # ─────────────────────────────────────────────────────────────

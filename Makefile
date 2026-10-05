@@ -157,7 +157,7 @@ staging-down:
 	@echo "✅ apps-dev deleted. ArgoCD is cleaning up fire-monitoring-dev resources."
 staging-sync:
 	@echo "⚡ Forcing ArgoCD to sync apps-dev immediately..."
-	@kubectl --context dev patch app apps-dev -n argocd --type merge \
+	@kubectl --context dev patch app fire-monitoring-dev -n argocd --type merge \
 	  -p '{"operation":{"initiatedBy":{"username":"admin"},"sync":{"revision":"HEAD","prune":true}}}' \
 	  2>/dev/null || echo "⚠️  Patch failed — ArgoCD may still be starting. Try: make gitops-ui"
 	@echo "✅ Sync triggered. Watch progress: make staging-watch"
@@ -166,11 +166,11 @@ staging-watch:
 	kubectl --context dev get pods -n fire-monitoring-dev -w
 staging-pause:
 	@echo "⏸️  Pausing staging (dev) namespace..."
-	kubectl --context dev patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl --context dev patch app fire-monitoring-dev -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
 	kubectl --context dev scale deployment,statefulset --all --replicas=0 -n fire-monitoring-dev
 staging-resume:
 	@echo "▶️  Resuming staging (dev) namespace..."
-	kubectl --context dev patch app apps-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+	kubectl --context dev patch app fire-monitoring-dev -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
 
 # [3.1] STAGING / DEV — Utilities
 dev-logs-api:
@@ -232,11 +232,11 @@ prod-down:
 	@echo "✅ apps deleted. ArgoCD is cleaning up fire-monitoring-prod resources."
 prod-pause:
 	@echo "⏸️  Pausing production namespace..."
-	kubectl --context prod patch app apps -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
+	kubectl --context prod patch app fire-monitoring-prod -n argocd -p '{"spec":{"syncPolicy":null}}' --type=merge
 	kubectl --context prod scale deployment,statefulset --all --replicas=0 -n fire-monitoring-prod
 prod-resume:
 	@echo "▶️  Resuming production namespace..."
-	kubectl --context prod patch app apps -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
+	kubectl --context prod patch app fire-monitoring-prod -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
 # SHARED — Cluster & GitOps Utilities
 gitops-bootstrap:
 	bash infrastructure/scripts/local-gitops-bootstrap.sh

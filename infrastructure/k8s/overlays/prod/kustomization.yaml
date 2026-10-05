@@ -21,19 +21,19 @@ patchesStrategicMerge:
 
 images:
 - name: api
-  newName: ghcr.io/fauxx/firemonitoringsystem/api
+  newName: ghcr.io/fauxx/firemonitoringsystem-v2/api
   newTag: 884f516
 - name: dashboard
-  newName: ghcr.io/fauxx/firemonitoringsystem/dashboard
+  newName: ghcr.io/fauxx/firemonitoringsystem-v2/dashboard
   newTag: 884f516
 - name: db-migrations
-  newName: ghcr.io/fauxx/firemonitoringsystem/db-migrations
+  newName: ghcr.io/fauxx/firemonitoringsystem-v2/db-migrations
   newTag: 884f516
 - name: etl-processor
-  newName: ghcr.io/fauxx/firemonitoringsystem/etl-processor
+  newName: ghcr.io/fauxx/firemonitoringsystem-v2/etl-processor
   newTag: 884f516
 - name: mcu-simulator
-  newName: ghcr.io/fauxx/firemonitoringsystem/mcu-simulator
+  newName: ghcr.io/fauxx/firemonitoringsystem-v2/mcu-simulator
   newTag: 884f516
 
 commonLabels:

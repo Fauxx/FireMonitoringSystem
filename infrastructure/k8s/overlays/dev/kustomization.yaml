@@ -24,10 +24,10 @@ images:
   newTag: f258ac1
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem-v2/dashboard
-  newTag: 78c3ac6
+  newTag: b9f3566
 - name: db-migrations
   newName: ghcr.io/fauxx/firemonitoringsystem-v2/db-migrations
-  newTag: d8f4181
+  newTag: b9f3566
 - name: etl-processor
   newName: ghcr.io/fauxx/firemonitoringsystem-v2/etl-processor
   newTag: cead6ea

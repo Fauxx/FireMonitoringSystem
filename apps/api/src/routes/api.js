@@ -14,7 +14,352 @@ router.get("/users", async (req, res) => {
   }
   try {
     const result = await req.pool.query(
-      "SELECT 
+      "SELECT id, username, email, role, created_at, status FROM users ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Error fetching users" });
+  }
+});
+
+// ADD a new user
+router.post("/users", async (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  const { username, email, password, role } = req.body;
+  if (!username || !email || !password || !role) return res.status(400).json({ error: "All fields required" });
+
+  try {
+    const existing = await req.pool.query("SELECT id FROM users WHERE username = $1 OR email = $2", [username, email]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: "User already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await req.pool.query(
+      "INSERT INTO users (username, email, password, role, status, created_at) VALUES ($1, $2, $3, $4, 'approved', NOW()) RETURNING id, username, email, role, created_at",
+      [username, email, hashedPassword, role]
+    );
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("Error adding user:", err);
+    res.status(500).json({ error: "Error adding user" });
+  }
+});
+
+// UPDATE a user
+router.put("/users/:id", async (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
+  const { id } = req.params;
+  const { username, email, password, role } = req.body;
+
+  try {
+    const existing = await req.pool.query("SELECT id FROM users WHERE (username = $1 OR email = $2) AND id != $3", [username, email, id]);
+    if (existing.rows.length > 0) return res.status(400).json({ error: "Username/Email taken" });
+
+    let query, params;
+    if (password && password.trim() !== '') {
+      const hashed = await bcrypt.hash(password, 10);
+      query = "UPDATE users SET username = $1, email = $2, password = $3, role = $4 WHERE id = $5 RETURNING id, username, email, role, created_at";
+      params = [username, email, hashed, role, id];
+    } else {
+      query = "UPDATE users SET username = $1, email = $2, role = $3 WHERE id = $4 RETURNING id, username, email, role, created_at";
+      params = [username, email, role, id];
+    }
+    const result = await req.pool.query(query, params);
+    if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating user:", err);
+    res.status(500).json({ error: "Error updating user" });
+  }
+});
+
+// UPDATE a user's role
+router.put("/users/:id/role", async (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
+  const { id } = req.params;
+  const { role, admin } = req.body;
+  if (!role) return res.status(400).json({ error: "Role is required" });
+
+  try {
+    if (admin) {
+      const adminRes = await req.pool.query("SELECT * FROM users WHERE email = $1 AND role = 'admin'", [admin.email]);
+      const adminUser = adminRes.rows[0];
+      if (!adminUser || !(await bcrypt.compare(admin.password, adminUser.password))) {
+        return res.status(401).json({ error: "Invalid admin credentials" });
+      }
+    } else {
+      return res.status(400).json({ error: "Admin verification required" });
+    }
+
+    const result = await req.pool.query(
+      "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, email, role, created_at",
+      [role, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("Error updating user role:", err);
+    res.status(500).json({ error: "Error updating user role" });
+  }
+});
+
+// DELETE a user
+router.delete("/users/:id", async (req, res) => {
+  if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: "Admin access required" });
+  const { id } = req.params;
+  if (parseInt(id) === req.session.user.id) return res.status(400).json({ error: "Cannot delete self" });
+
+  try {
+    await req.pool.query("DELETE FROM users WHERE id = $1", [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    res.status(500).json({ error: "Error deleting user" });
+  }
+});
+
+// VERIFY ADMIN
+router.post("/verify-admin", async (req, res) => {
+  const { adminEmail, adminPassword } = req.body;
+  try {
+    const result = await req.pool.query("SELECT * FROM users WHERE email = $1 AND role = 'admin'", [adminEmail]);
+    const admin = result.rows[0];
+    if (admin && (await bcrypt.compare(adminPassword, admin.password))) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+// ==========================================
+// 2. DASHBOARD STATISTICS
+// ==========================================
+
+// DASHBOARD NUMBERS
+router.get("/dashboard/stats", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const devicesRes = await req.pool.query(`SELECT COUNT(h_id) as count FROM device_registry`);
+    const activeRes = await req.pool.query(`SELECT COUNT(DISTINCT h_id) as count FROM final_sensor_events WHERE received_at > NOW() - INTERVAL '15 minutes'`);
+    const locsRes = await req.pool.query(`SELECT COUNT(DISTINCT barangay) as count FROM device_registry WHERE barangay IS NOT NULL`);
+    const alertsRes = await req.pool.query(`SELECT COUNT(DISTINCT h_id) as count FROM final_sensor_events WHERE status >= 1 AND received_at > NOW() - INTERVAL '24 hours'`);
+
+    const total = parseInt(devicesRes.rows[0]?.count || 1);
+    const active = parseInt(activeRes.rows[0]?.count || 0);
+    const uptime = total > 0 ? ((active / total) * 100).toFixed(1) : "0.0";
+
+    let stats = { 
+      activeDevices: active, 
+      todayAlerts: parseInt(alertsRes.rows[0]?.count || 0), 
+      systemUptime: `${uptime}%`, 
+      totalLocations: parseInt(locsRes.rows[0]?.count || 0) 
+    };
+    res.json(stats);
+  } catch (err) {
+    console.error("Error stats:", err);
+    res.status(500).json({ error: "Error fetching stats" });
+  }
+});
+
+// DASHBOARD STATUS
+router.get("/dashboard/status", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const incidentRes = await req.pool.query(
+      `SELECT COALESCE(MAX(status), 0) as max_level, COUNT(DISTINCT h_id) FILTER (WHERE status >= 1) as device_count
+       FROM final_sensor_latest WHERE received_at > NOW() - INTERVAL '20 minutes'`
+    );
+    const maxLvl = parseInt(incidentRes.rows[0]?.max_level || 0);
+    const alertDevs = parseInt(incidentRes.rows[0]?.device_count || 0);
+
+    let status = "Operational";
+    if (maxLvl >= 2) status = "Critical";
+    else if (maxLvl >= 1) status = "Warning";
+
+    const activeRes = await req.pool.query(`SELECT COUNT(DISTINCT h_id) as count, MAX(received_at) as last_update FROM final_sensor_events WHERE received_at > NOW() - INTERVAL '15 minutes'`);
+    let activeDevs = parseInt(activeRes.rows[0]?.count || 0);
+    const lastUpdate = activeRes.rows[0]?.last_update || new Date();
+
+    if (activeDevs === 0) {
+      status = "No Live Data";
+    } else if (activeDevs === 0 && status === "Operational") {
+      status = "Monitoring";
+    }
+
+    res.json({
+      systemStatus: status,
+      lastUpdateTimestamp: lastUpdate,
+      alertingDevices: alertDevs,
+      respondingDevices: activeDevs
+    });
+  } catch (err) {
+    console.error("Error status:", err);
+    res.status(500).json({ error: "Error fetching status" });
+  }
+});
+
+// DEVICE STATS
+router.get("/devices/stats", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Authentication required" });
+  try {
+    const locsRes = await req.pool.query(`SELECT COUNT(DISTINCT barangay) as count FROM device_registry WHERE barangay IS NOT NULL`);
+    const locs = parseInt(locsRes.rows[0]?.count || 0);
+
+    const activeRes = await req.pool.query(`SELECT COUNT(DISTINCT h_id) as count FROM final_sensor_events WHERE received_at > NOW() - INTERVAL '15 minutes'`);
+    const online = parseInt(activeRes.rows[0]?.count || 0);
+
+    const totalRes = await req.pool.query(`SELECT COUNT(h_id) as count FROM device_registry`);
+    const total = parseInt(totalRes.rows[0]?.count || 0);
+
+    // Query count of alerting devices (status >= 1)
+    const alertRes = await req.pool.query(
+      `SELECT COUNT(DISTINCT h_id) as count 
+       FROM final_sensor_latest 
+       WHERE status >= 1 AND received_at > NOW() - INTERVAL '20 minutes'`
+    );
+    const alerts = parseInt(alertRes.rows[0]?.count || 0);
+    
+    res.json({ 
+      onlineDevices: online, 
+      offlineDevices: Math.max(0, total - online), 
+      totalLocations: locs,
+      warningStatus: alerts
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Device stats error" });
+  }
+});
+
+// ==========================================
+// 3. SYSTEM ANALYTICS ENDPOINTS
+// ==========================================
+
+// A. GET DEVICE LIST
+router.get("/analytics/devices", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Auth required" });
+  try {
+    const result = await req.pool.query("SELECT DISTINCT m FROM sensor_data_aggregated ORDER BY m ASC");
+    res.json(result.rows); 
+  } catch (err) {
+    console.error("Error fetching devices:", err);
+    res.status(500).json({ error: "Error fetching device list" });
+  }
+});
+
+// B. SENSOR READINGS CHART
+router.get("/analytics/hourly", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Auth required" });
+  try {
+    const { device, startDate, endDate } = req.query;
+
+    let query = `
+      SELECT 
+        date_trunc('hour', to_manila(received_at)) as timestamp_window,
+        -- Backwards compatibility: Map status to sensor fields for existing charts
+        ROUND(AVG(status)::numeric, 2) as status,
+        ROUND(AVG(status)::numeric, 2) as ta, 
+        ROUND(AVG(status)::numeric, 2) as sa,
+        ROUND(AVG(status)::numeric, 2) as fa,
+        ROUND(AVG(status)::numeric, 2) as ga
+      FROM final_sensor_events 
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let idx = 1;
+
+    if (device) { query += ` AND h_id = $${idx++}`; params.push(device); }
+    if (startDate) { 
+        query += ` AND received_at >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
+        params.push(startDate); 
+    } else { 
+        query += ` AND received_at >= NOW() - INTERVAL '24 hours'`; 
+    }
+    
+    if (endDate) { 
+        query += ` AND received_at <= ($${idx++}::date AT TIME ZONE 'Asia/Manila' + INTERVAL '1 day')`; 
+        params.push(endDate); 
+    }
+
+    query += ` GROUP BY 1 ORDER BY 1 ASC`;
+    const result = await req.pool.query(query, params);
+    res.json({ rows: result.rows });
+
+  } catch (err) {
+    console.error("Error fetching sensor chart:", err);
+    res.status(500).json({ error: "Error fetching sensor chart" });
+  }
+});
+
+// C. HEATMAP DATA (SERVER-SIDE CONVERSION TO TEXT)
+// This guarantees the frontend sees "2025-12-07" regardless of browser timezone
+router.get("/analytics/heatmap", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Auth required" });
+
+  try {
+    const { type, start, end, device, level } = req.query;
+    const isVerified = type === 'verified';
+    const tableName = isVerified ? 'verified_incidents' : 'historical_fire_incidents';
+    const dateCol = isVerified ? 'timestamp' : 'incident_timestamp';
+    const deviceCol = isVerified ? 'device_id' : 'h_id'; 
+
+    // USE TO_CHAR to force Postgres to output a strict string 'YYYY-MM-DD'
+    // relative to Asia/Manila. This avoids JSON Date Object conversion issues.
+    let query = `
+      SELECT 
+        TO_CHAR(
+          ${dateCol} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila', 
+          'YYYY-MM-DD'
+        ) as date_key, 
+        COUNT(*) as count 
+      FROM ${tableName} 
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let idx = 1;
+
+    if (start) { query += ` AND ${dateCol} >= $${idx++}::timestamp`; params.push(`${start} 00:00:00`); }
+    if (end) { query += ` AND ${dateCol} <= $${idx++}::timestamp`; params.push(`${end} 23:59:59`); }
+
+    if (device) { query += ` AND ${deviceCol} = $${idx++}`; params.push(device); }
+    if (!isVerified && level) {
+      if (level === 'critical') query += ` AND status >= 3`; 
+      else query += ` AND status = 2`; 
+    }
+
+    // Group by the formatted string
+    query += ` GROUP BY 1`; 
+
+    const result = await req.pool.query(query, params);
+    
+    // Create Dictionary { "2025-12-07": { count: 5 } }
+    const heatmapData = {};
+    result.rows.forEach(r => {
+      if (r.date_key) {
+        heatmapData[r.date_key] = { count: parseInt(r.count) };
+      }
+    });
+
+    res.json({ heatmap: heatmapData });
+  } catch (err) {
+    console.error("Error fetching heatmap:", err);
+    res.status(500).json({ error: "Error fetching heatmap" });
+  }
+});
+
+// D. PERFORMANCE METRICS
+router.get("/analytics/performance", async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: "Auth required" });
+  try {
+    const { days = 30 } = req.query; 
+    const query = `
+      SELECT 
         TO_CHAR(received_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') as date, 
         100 as uptime, 
         COUNT(DISTINCT h_id) as "activeDevices"

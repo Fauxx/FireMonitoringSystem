@@ -16,7 +16,7 @@ router.get("/latest", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, status, lat, lon, received_at
+      SELECT id, h_id, status, lat, lon, received_at, raw_payload
       FROM final_sensor_latest
       WHERE 1=1
     `;
@@ -29,7 +29,20 @@ router.get("/latest", async (req, res) => {
     params.push(parseInt(limit, 10) || 100);
 
     const result = await req.pool.query(query, params);
-    res.json({ rows: result.rows });
+    
+    // Parse out telemetry values so the frontend table doesn't render 0.0 for offline nodes
+    const enrichedRows = result.rows.map(row => {
+      const p = row.raw_payload || {};
+      return {
+        ...row,
+        temp: p.temp ?? p.readings?.temperature_c,
+        smoke: p.smoke ?? p.readings?.smoke_ppm,
+        flame: p.flame ?? p.readings?.flame_intensity,
+        raw_payload: undefined // Keep payload skinny over network
+      };
+    });
+
+    res.json({ rows: enrichedRows });
   } catch (err) {
     console.error("Error fetching latest final sensor data:", err);
     res.status(500).json({ error: "Error fetching latest final sensor data" });

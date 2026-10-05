@@ -20,7 +20,10 @@ interface MapCanvasProps {
 }
 
 // Custom DivIcon for our sensors
-const createCustomIcon = (status: number) => {
+const createCustomIcon = (sensor: SensorState) => {
+  const isOffline = Date.now() - sensor.lastUpdated > 15 * 60 * 1000;
+  const status = isOffline ? -1 : sensor.status;
+  
   const config = getStatusConfig(status);
   const isPulsing = status >= 1;
   const isCritical = status === 2;
@@ -63,7 +66,7 @@ const MemoizedSensorMarker = memo(({ sensor, onSelect }: { sensor: SensorState, 
   return (
     <Marker
       position={[sensor.lat, sensor.lon]}
-      icon={createCustomIcon(sensor.status)}
+      icon={createCustomIcon(sensor)}
       eventHandlers={{
         click: () => onSelect(sensor.h_id)
       }}

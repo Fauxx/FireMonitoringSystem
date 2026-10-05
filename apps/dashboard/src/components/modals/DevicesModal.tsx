@@ -32,7 +32,8 @@ export function DevicesModal({ onClose, sensors }: DevicesModalProps) {
               </tr>
             ) : (
               sensors.map(sensor => {
-                const statusConfig = getStatusConfig(sensor.status);
+                const isOffline = Date.now() - sensor.lastUpdated > 15 * 60 * 1000;
+                const statusConfig = getStatusConfig(isOffline ? -1 : sensor.status);
                 return (
                   <tr key={sensor.h_id} className="hover:bg-base-dark/50 transition-colors">
                     <td className="px-4 py-3">

@@ -59,7 +59,8 @@ export function SensorDrawer({ sensor, onClose }: SensorDrawerProps) {
 
   if (!sensor) return null;
 
-  const statusConfig = getStatusConfig(sensor.status);
+  const isOffline = Date.now() - sensor.lastUpdated > 15 * 60 * 1000;
+  const statusConfig = getStatusConfig(isOffline ? -1 : sensor.status);
 
   return (
     <div className="absolute top-0 right-0 bottom-0 w-[420px] bg-surface shadow-[2xl_0_0_rgba(0,0,0,0.1)] border-l border-surface-border z-[1000] animate-in slide-in-from-right duration-300 flex flex-col pointer-events-auto">

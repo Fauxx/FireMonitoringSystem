@@ -59,13 +59,21 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
 
   const stats = useMemo(() => {
     const s = Object.values(sensors);
-    let n = 0, w = 0, c = 0;
+    let n = 0, w = 0, c = 0, off = 0;
+    const now = Date.now();
     s.forEach(sensor => {
-      if (sensor.status === 0) n++;
-      else if (sensor.status === 1) w++;
-      else if (sensor.status >= 2) c++;
+      // Treat devices with no updates for 15 minutes as Offline
+      if (now - sensor.lastUpdated > 15 * 60 * 1000) {
+        off++;
+      } else if (sensor.status === 0) {
+        n++;
+      } else if (sensor.status === 1) {
+        w++;
+      } else if (sensor.status >= 2) {
+        c++;
+      }
     });
-    return { total: s.length, normal: n, warning: w, critical: c };
+    return { total: s.length, normal: n, warning: w, critical: c, offline: off };
   }, [sensors]);
 
   const handleSearch = (id: string) => {

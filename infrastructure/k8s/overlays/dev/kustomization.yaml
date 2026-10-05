@@ -21,7 +21,7 @@ replicas:
 images:
 - name: api
   newName: ghcr.io/fauxx/firemonitoringsystem-v2/api
-  newTag: 43f2fcc
+  newTag: e111fab
 - name: dashboard
   newName: ghcr.io/fauxx/firemonitoringsystem-v2/dashboard
   newTag: 2c054b2

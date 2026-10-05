@@ -16,16 +16,17 @@ router.get("/latest", async (req, res) => {
 
   try {
     let query = `
-      SELECT id, h_id, status, lat, lon, received_at, raw_payload
-      FROM final_sensor_latest
+      SELECT l.id, l.h_id, l.status, l.lat, l.lon, l.received_at, e.raw_payload
+      FROM final_sensor_latest l
+      LEFT JOIN final_sensor_events e ON l.id = e.id
       WHERE 1=1
     `;
     const params = [];
     let idx = 1;
 
-    if (householdId) { query += ` AND h_id = $${idx++}`; params.push(householdId); }
+    if (householdId) { query += ` AND l.h_id = $${idx++}`; params.push(householdId); }
 
-    query += ` ORDER BY received_at DESC LIMIT $${idx}`;
+    query += ` ORDER BY l.received_at DESC LIMIT $${idx}`;
     params.push(parseInt(limit, 10) || 100);
 
     const result = await req.pool.query(query, params);

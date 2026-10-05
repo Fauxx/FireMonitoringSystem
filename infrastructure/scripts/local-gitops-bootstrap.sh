@@ -55,6 +55,20 @@ echo "🚀 Step 5: Applying Root ArgoCD App-of-Apps..."
 kubectl apply -f build/local/argocd-apps.yaml
 kubectl apply -f build/local/argocd-apps-dev.yaml
 
+echo "🚀 Step 5.5: Generating GitHub App Installation Token for GHCR..."
+if [ ! -f "${GITHUB_APP_PEM}" ]; then
+  echo "  ❌ Error: GitHub App PEM file not found at ${GITHUB_APP_PEM}"
+  exit 1
+fi
+
+INSTALL_TOKEN=$(python3 - <<PYEOF
+import base64
+import json
+import time
+import urllib.request
+import urllib.error
+import sys
+
 with open("${GITHUB_APP_PEM}", "rb") as f:
     pem = f.read()
 
@@ -86,11 +100,17 @@ try:
         print(json.loads(resp.read())["token"])
 except ImportError:
     print("ERROR: missing 'cryptography' library. Run: pip install cryptography", flush=True)
-    exit(1)
+    sys.exit(1)
+except urllib.error.HTTPError as e:
+    print(f"ERROR: HTTP {e.code} {e.reason}: {e.read().decode('utf-8')}", flush=True)
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: {e}", flush=True)
+    sys.exit(1)
 PYEOF
 )
 
-if [[ "$INSTALL_TOKEN" == ERROR* ]]; then
+if [[ "$INSTALL_TOKEN" == ERROR* ]] || [ -z "$INSTALL_TOKEN" ]; then
   echo "  ❌ Failed to generate GitHub App token: $INSTALL_TOKEN"
   exit 1
 fi

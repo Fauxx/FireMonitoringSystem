@@ -86,11 +86,15 @@ export function SystemAnalyticsModal({ onClose }: SystemAnalyticsModalProps) {
       if (res.ok) {
         const data = await res.json();
         let chartData: any[] = [];
-        if (data.cpu && data.cpu.length > 0 && data.memory && data.memory.length > 0) {
-           chartData = data.cpu[0].values.map((v: any, idx: number) => ({
+        const cpuValues = data.cpu && data.cpu.length > 0 ? data.cpu[0].values : [];
+        const memValues = data.memory && data.memory.length > 0 ? data.memory[0].values : [];
+        const refArr = cpuValues.length > memValues.length ? cpuValues : memValues;
+
+        if (refArr.length > 0) {
+           chartData = refArr.map((v: any, idx: number) => ({
              time: new Date(v[0] * 1000).toLocaleTimeString(),
-             cpu: parseFloat(v[1]),
-             memory: data.memory[0] && data.memory[0].values[idx] ? parseFloat(data.memory[0].values[idx][1]) : 0
+             cpu: cpuValues[idx] ? parseFloat(cpuValues[idx][1]) : 0,
+             memory: memValues[idx] ? parseFloat(memValues[idx][1]) : 0
            }));
         }
         
@@ -108,11 +112,15 @@ export function SystemAnalyticsModal({ onClose }: SystemAnalyticsModalProps) {
       if (res.ok) {
         const data = await res.json();
         let chartData: any[] = [];
-        if (data.mqtt && data.mqtt.length > 0 && data.postgres && data.postgres.length > 0) {
-           chartData = data.postgres[0].values.map((v: any, idx: number) => ({
+        const mqttValues = data.mqtt && data.mqtt.length > 0 ? data.mqtt[0].values : [];
+        const pgValues = data.postgres && data.postgres.length > 0 ? data.postgres[0].values : [];
+        const refArr = mqttValues.length > pgValues.length ? mqttValues : pgValues;
+
+        if (refArr.length > 0) {
+           chartData = refArr.map((v: any, idx: number) => ({
              time: new Date(v[0] * 1000).toLocaleTimeString(),
-             postgres: parseFloat(v[1]),
-             mqtt: data.mqtt[0] && data.mqtt[0].values[idx] ? parseFloat(data.mqtt[0].values[idx][1]) : 0
+             postgres: pgValues[idx] ? parseFloat(pgValues[idx][1]) : 0,
+             mqtt: mqttValues[idx] ? parseFloat(mqttValues[idx][1]) : 0
            }));
         }
         let currentMqtt = chartData.length > 0 ? chartData[chartData.length - 1].mqtt : 0;

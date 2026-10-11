@@ -33,7 +33,7 @@ images:
   newTag: "2716575"
 - name: mcu-simulator
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/mcu-simulator
-  newTag: cead6ea
+  newTag: "028f7a1"
 
 labels:
 - includeSelectors: true

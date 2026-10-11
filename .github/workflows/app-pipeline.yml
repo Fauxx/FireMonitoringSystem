@@ -5,13 +5,11 @@ on:
   pull_request:
     paths:
       - 'apps/**'
-      - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
   push:
     branches: [ main ]
     paths:
       - 'apps/**'
-      - 'infrastructure/k8s/base/sql/**'
       - '.github/workflows/app-pipeline.yml'
     tags:
       - 'v*.*.*'   # Production release-only trigger
@@ -25,6 +23,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/fauxx/firemonitoringsystem-v2
+  GAR_REGISTRY: asia-east1-docker.pkg.dev
+  GAR_PREFIX: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev
 
 jobs:
   # ─────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ jobs:
             etl-processor:
               - 'apps/etl-processor/**'
             db-migrations:
-              - 'infrastructure/k8s/base/sql/**'
+              - 'apps/db-migrations/**'
             mcu-simulator:
               - 'apps/simulators/**'
 
@@ -125,6 +125,7 @@ jobs:
     name: "Build & Scan: ${{ matrix.service }}"
     needs: [detect_changes, test]
     runs-on: ubuntu-latest
+    environment: gke-dev
     strategy:
       fail-fast: true
       matrix:
@@ -158,7 +159,7 @@ jobs:
         id: ctx
         run: |
           if [ "${{ matrix.service }}" = "db-migrations" ]; then
-            echo "path=./infrastructure/k8s/base/sql" >> $GITHUB_OUTPUT
+            echo "path=./apps/db-migrations" >> $GITHUB_OUTPUT
           elif [ "${{ matrix.service }}" = "mcu-simulator" ]; then
             echo "path=./apps/simulators" >> $GITHUB_OUTPUT
           else
@@ -186,8 +187,26 @@ jobs:
           severity:   HIGH,CRITICAL
           trivyignores: .trivyignore
 
-      # ── Step C: Push to registry (main merges and release tags only) ──
-      - name: Push Container Image to GHCR
+      # ── Step B.5: Authenticate to Google Cloud via WIF & Log in to GAR ──
+      - name: Authenticate to Google Cloud via WIF
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        id: gcp_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format:               access_token
+
+      - name: Log in to Google Artifact Registry
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GAR_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.gcp_auth.outputs.access_token }}
+
+      # ── Step C: Push to registries (main merges and release tags only) ──
+      - name: Push Container Image to GHCR & GAR
         uses: docker/build-push-action@v6
         with:
           context: ${{ steps.ctx.outputs.path }}
@@ -195,6 +214,8 @@ jobs:
           tags: |
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.set_tag.outputs.tag }}
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+            ${{ env.GAR_PREFIX }}/${{ matrix.service }}:${{ steps.set_tag.outputs.tag }}
+            ${{ env.GAR_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha
           cache-to:   type=gha,mode=max
 
@@ -228,7 +249,7 @@ jobs:
           cd infrastructure/k8s/overlays/dev
           for service in $(echo '${{ needs.detect_changes.outputs.services }}' | jq -r '.[]'); do
             kustomize edit set image \
-              "${service}=${{ env.IMAGE_PREFIX }}/${service}:${{ needs.build_scan_push.outputs.image_tag }}"
+              "${service}=${{ env.GAR_PREFIX }}/${service}:${{ needs.build_scan_push.outputs.image_tag }}"
           done
 
       - name: Commit & Push Dev Overlay

@@ -261,7 +261,7 @@ build-local:
 	docker build -t localhost/dashboard:local ./apps/dashboard
 	docker build -t localhost/etl-processor:local ./apps/etl-processor
 	docker build -t localhost/mcu-simulator:local ./apps/simulators
-	docker build -t localhost/db-migrations:local ./infrastructure/k8s/base/sql
+	docker build -t localhost/db-migrations:local ./apps/db-migrations
 kind-load: build-local
 	kind load docker-image localhost/api:local --name $(KIND_CLUSTER_NAME)
 	kind load docker-image localhost/dashboard:local --name $(KIND_CLUSTER_NAME)

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - prometheus/deployment.yaml
+  - prometheus/service.yaml
+  - prometheus/pvc.yaml
+  - loki/deployment.yaml
+  - loki/service.yaml
+  - loki/pvc.yaml
+  - node-exporter/daemonset.yaml
+  - node-exporter/service.yaml
+  - cadvisor/daemonset.yaml
+  - cadvisor/service.yaml
+  - alloy/daemonset.yaml
+
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=prometheus/prometheus.yml
+  - name: loki-config
+    files:
+      - local-config.yaml=loki/local-config.yaml
+  - name: alloy-config
+    files:
+      - config.alloy=alloy/config.alloy

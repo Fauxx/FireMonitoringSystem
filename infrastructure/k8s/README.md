@@ -6,16 +6,15 @@ This directory houses the Kubernetes resource manifests and Kustomize overlays t
 
 ## 📂 Layout Index
 
-*   [**`base/`**](./base/): Defines the fundamental cluster resources (Deployments, StatefulSets, Services, Claims, DaemonSets).
-    *   [**`sql/` (Flyway Migrations)**](./base/sql/): Relational database schemas and initialization scripts.
-    *   [**`grafana/`**](./base/grafana/): Deployment configurations, provisioning engines, and telemetry dashboards.
-    *   [**`alloy/`**](./base/alloy/): DaemonSet configurations for container log scraping.
-    *   [**`prometheus/`**](./base/prometheus/): Scrape metrics definitions.
-    *   [**`telegraf/`**](./base/telegraf/): Ingestion parsers for MQTT payloads.
-*   [**`overlays/`**](./overlays/): Houses environment overrides configuring replica bounds, namespaces, domain configurations, and ingress settings:
-    *   `dev/`: Scales down resources for development, overrides image versions with active tags, and sets namespace to `fire-monitoring-dev`.
-    *   `prod/`: Adds ModSecurity annotations, sets Namespace to `fire-monitoring-prod`, and configures automated cert-manager TLS.
-    *   `local/`: Compatibility overlay for local Kind execution.
+*   [**`base/`**](./base/): Defines the fundamental cluster resources partitioned by architectural domains:
+    *   [`apps/`](./base/apps/): Core microservices (`api`, `dashboard`, `etl`, `simulator`, `flyway`).
+    *   [`data/`](./base/data/): In-cluster state and messaging (`influx`, `mqtt`, `telegraf`).
+    *   [`observability/`](./base/observability/): Complete metrics & log collection suite (`prometheus`, `loki`, `alloy`, `cadvisor`, `node-exporter`).
+    *   [`networking/`](./base/networking/): Edge ingress rules and tunnel gateways (`ingress`, `cloudflared`).
+*   [**`overlays/`**](./overlays/): Houses environment-specific overrides configuring replicas, namespaces, domains, and patches:
+    *   `dev/`: Development environment (`fire-monitoring-dev`), targeting `dev.fires.systems`.
+    *   `prod/`: Production environment (`fire-monitoring-prod`), targeting `fires.systems`.
+    *   `local/`: Compatibility overlay for local Kind execution (includes local Postgres).
 
 ---
 

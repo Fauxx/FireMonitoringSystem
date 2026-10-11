@@ -9,9 +9,10 @@ This directory contains the core application services that power the Fire Monito
 | Microservice | Location | Role | Key Technologies | Documentation |
 |:---|:---|:---|:---|:---|
 | **Express API** | [`api/`](./api/) | Serving REST API, authentication gating, user approvals, reporting. | Node.js, Express, `pg`, `prom-client` | [**API Setup Guide 📖**](./api/README.md) |
-| **Nginx Dashboard** | [`dashboard/`](./dashboard/) | Frontend interface, interactive analytics charts, user profiles. | Nginx, HTML5, Vanilla CSS, JS | [**Dashboard Guide 📖**](./dashboard/README.md) |
+| **Vite Dashboard** | [`dashboard/`](./dashboard/) | Frontend interface, interactive analytics charts, user profiles. | React, TypeScript, Tailwind CSS, Vite, Nginx | [**Dashboard Guide 📖**](./dashboard/README.md) |
 | **Python ETL** | [`etl-processor/`](./etl-processor/) | Subscribes to time-series streams, debounces alerts, aggregates logs. | Python, `pandas`, `psycopg2`, InfluxDB | [**ETL Guide 📖**](./etl-processor/README.md) |
 | **MCU Simulator** | [`simulators/`](./simulators/) | Generates edge sensor streams to test alerting thresholds and networks. | Python, `paho-mqtt` | [**Simulator Guide 📖**](./simulators/README.md) |
+| **DB Migrations** | [`db-migrations/`](./db-migrations/) | Schema versioning and automated DDL migrations. | Flyway, PostgreSQL, Google Cloud SDK | [**Migrations Guide 📖**](./db-migrations/README.md) |
 
 ---
 

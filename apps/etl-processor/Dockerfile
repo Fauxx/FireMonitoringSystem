@@ -1,37 +1,35 @@
-FROM python:3.12-alpine
+# -------------------------------------------------------------
+# Stage 1: Build binary wheels with compilation dependencies
+# -------------------------------------------------------------
+FROM python:3.12-alpine AS builder
+
+WORKDIR /app
+RUN apk add --no-cache build-base postgresql-dev gcc musl-dev python3-dev
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
+
+# -------------------------------------------------------------
+# Stage 2: Minimal Production Runner (No compilers)
+# -------------------------------------------------------------
+FROM python:3.12-alpine AS runner
 
 WORKDIR /app
 
-# Upgrade Alpine packages to fix vulnerabilities (cache busted 2026-10-02)
+# Upgrade packages and install runtime-only libraries
 RUN apk update && apk upgrade --no-cache && \
-    apk add --no-cache \
-    build-base \
-    postgresql-dev \
-    gcc \
-    musl-dev \
-    python3-dev \
-    procps
+    apk add --no-cache libpq procps
 
-COPY requirements.txt ./
-
-# Upgrade base python tools and install dependencies
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir --upgrade "jaraco.context>=6.1.0" "msgpack>=1.2.1" "setuptools>=78.1.1"
-
-# Security: Remove pip and setuptools to eliminate their vendored vulnerabilities (like old msgpack)
-# and reduce the container's attack surface in production
-RUN pip uninstall -y pip setuptools wheel
+COPY --from=builder /app/wheels /wheels
+COPY requirements.txt .
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
 COPY . .
 
-# Security: Run as non-root user
-RUN adduser -D etluser && chown -R etluser /app
+# Security: Non-root user with UID 1000
+RUN adduser -u 1000 -D etluser && chown -R etluser /app
 USER etluser
-
-# Healthcheck: Verify the python process is active
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD pgrep -f "python -m src.main" || exit 1
 
 ENTRYPOINT ["python", "-m", "src.main"]
 LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

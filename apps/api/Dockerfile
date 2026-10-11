@@ -1,31 +1,39 @@
-# Production-ready Dockerfile for Node.js app
-FROM node:22-alpine
+# -------------------------------------------------------------
+# Stage 1: Dependency Builder
+# -------------------------------------------------------------
+FROM node:22-alpine AS builder
 
-# Create app directory
 WORKDIR /usr/src/app
 
-# Upgrade Alpine packages to fix vulnerabilities (cache busted 2026-10-02)
-RUN apk update && apk upgrade --no-cache
-RUN npm install -g npm@latest
+# Install native compilation dependencies required for native addons (e.g., bcrypt)
+RUN apk add --no-cache python3 make g++
 
-# Install dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
-# Copy app source
-COPY . .
+# -------------------------------------------------------------
+# Stage 2: Minimal Production Runner
+# -------------------------------------------------------------
+FROM node:22-alpine AS runner
 
-# Ensure non-root user (recommended)
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
+WORKDIR /usr/src/app
 
-# Expose application port
-EXPOSE 8000
+# Apply Alpine security patches
+RUN apk update && apk upgrade --no-cache
 
 ENV NODE_ENV=production
+ENV PORT=8000
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8000/health || exit 1
+# Copy installed production dependencies and application files
+# Alpine node image comes pre-configured with non-root user 'node' (UID 1000)
+COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node package*.json ./
+COPY --chown=node:node . .
 
-CMD [ "node", "src/server.js" ]
+USER node
+
+EXPOSE 8000
+
+CMD ["node", "src/server.js"]
+
 LABEL org.opencontainers.image.source=https://github.com/Fauxx/FireMonitoringSystem

@@ -20,19 +20,19 @@ replicas:
 
 images:
 - name: api
-  newName: ghcr.io/fauxx/firemonitoringsystem-v2/api
+  newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/api
   newTag: e111fab
 - name: dashboard
-  newName: ghcr.io/fauxx/firemonitoringsystem-v2/dashboard
+  newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/dashboard
   newTag: 2c054b2
 - name: db-migrations
-  newName: ghcr.io/fauxx/firemonitoringsystem-v2/db-migrations
+  newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/db-migrations
   newTag: b9f3566
 - name: etl-processor
-  newName: ghcr.io/fauxx/firemonitoringsystem-v2/etl-processor
+  newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/etl-processor
   newTag: cead6ea
 - name: mcu-simulator
-  newName: ghcr.io/fauxx/firemonitoringsystem-v2/mcu-simulator
+  newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/mcu-simulator
   newTag: cead6ea
 
 labels:
@@ -51,13 +51,6 @@ patches:
   target:
     kind: StatefulSet
     name: influx
-- patch: |-
-    - op: add
-      path: /spec/storageClassName
-      value: standard-rwo
-  target:
-    kind: PersistentVolumeClaim
-    name: grafana-data
 - patch: |-
     - op: add
       path: /spec/storageClassName

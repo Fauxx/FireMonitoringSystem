@@ -57,20 +57,22 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-            runAsUser: 100
-            runAsGroup: 101
+            runAsUser: 1000
+            runAsGroup: 1000
           envFrom:
             - configMapRef:
                 name: fire-monitoring-config
             - secretRef:
                 name: fire-monitoring-secrets
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 30

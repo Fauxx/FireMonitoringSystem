@@ -29,9 +29,7 @@ RUN rm -f /flyway/lib/jackson-core-*.jar && \
     curl -sS -L -o /flyway/lib/jackson-dataformat-xml-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/dataformat/jackson-dataformat-xml/2.18.8/jackson-dataformat-xml-2.18.8.jar && \
     curl -sS -L -o /flyway/lib/jackson-datatype-jsr310-2.18.8.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.18.8/jackson-datatype-jsr310-2.18.8.jar
 
-# Eliminate msgpack and setuptools CVEs from gcloud's vendored Python.
-# Trivy v0.74 detects packages from .dist-info, .egg-info, PKG-INFO, AND __init__.py version strings.
-# We must delete the actual package source + all metadata to make them fully invisible.
+# Eliminate msgpack and setuptools CVEs from gcloud's vendored Python
 RUN find / -type d -name "msgpack" -path "*/pip/*" -exec rm -rf {} + 2>/dev/null; \
     find / -type d -name "setuptools" -exec rm -rf {} + 2>/dev/null; \
     find / -type d -name "pkg_resources" -exec rm -rf {} + 2>/dev/null; \
@@ -49,7 +47,7 @@ RUN find / -type d -name "msgpack" -path "*/pip/*" -exec rm -rf {} + 2>/dev/null
 RUN useradd -m -u 1000 flyway && chown -R flyway /flyway
 USER flyway
 
-COPY ./*.sql /flyway/sql/
+COPY ./sql/*.sql /flyway/sql/
 
 ENTRYPOINT ["/bin/bash", "-c", "export FLYWAY_PASSWORD=$(gcloud auth print-access-token) && flyway \"$@\" ; EXIT_CODE=$? ; curl -s -X POST http://127.0.0.1:9091/quitquitquit ; exit $EXIT_CODE", "--"]
 CMD ["migrate"]

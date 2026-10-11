@@ -47,7 +47,7 @@ These rules apply specifically to coding tasks within the `FireMonitoringSystem`
 
 ## 🏗️ 4. Database Migrations (Flyway)
 
-*   Always create migrations under [sql/](file:///home/zett/RiderProjects/FireMonitoringSystem/infrastructure/k8s/base/sql/) using the `V<N>__<name>.sql` naming format.
+*   Always create migrations under [apps/db-migrations/sql/](file:///home/zett/RiderProjects/FireMonitoringSystem/apps/db-migrations/sql/) using the `V<N>__<name>.sql` naming format.
 *   Never run raw SQL queries directly in prod environments without committing a corresponding Flyway migration first.
 
 ---

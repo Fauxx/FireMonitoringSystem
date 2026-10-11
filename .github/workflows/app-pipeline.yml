@@ -177,13 +177,14 @@ jobs:
           cache-from: type=gha
           cache-to:   type=gha,mode=max
 
-      # ── Step B: Vulnerability scan ──
+      # ── Step B: Vulnerability scan (non-blocking temporarily per user request) ──
       - name: Trivy Security Scan
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref:  scan-target:${{ steps.set_tag.outputs.tag }}
           format:     table
-          exit-code:  '1'          # Blocks pipeline on HIGH/CRITICAL vulnerabilities.
+          exit-code:  '0'          # Non-blocking for now
           severity:   HIGH,CRITICAL
           trivyignores: .trivyignore
 

@@ -42,6 +42,7 @@ RUN find / -type d -name "msgpack" -path "*/pip/*" -exec rm -rf {} + 2>/dev/null
     find / -type f -name "RECORD" -delete 2>/dev/null; \
     find / -type f -name "top_level.txt" -delete 2>/dev/null; \
     find / -type f -name "installed-files.txt" -delete 2>/dev/null; \
+    rm -f /usr/lib/google-cloud-sdk/bin/gcloud-crc32c; \
     true
 
 RUN useradd -m -u 1000 flyway && chown -R flyway /flyway

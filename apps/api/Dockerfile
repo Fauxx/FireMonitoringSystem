@@ -18,8 +18,9 @@ FROM node:22-alpine AS runner
 
 WORKDIR /usr/src/app
 
-# Apply Alpine security patches
-RUN apk update && apk upgrade --no-cache
+# Apply Alpine security patches and remove npm/npx (unused in production runtime) to eliminate bundled vulnerabilities
+RUN apk update && apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /root/.npm
 
 ENV NODE_ENV=production
 ENV PORT=8000

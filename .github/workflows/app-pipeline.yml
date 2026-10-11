@@ -127,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: gke-dev
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         service: ${{ fromJSON(needs.detect_changes.outputs.services) }}
     outputs:

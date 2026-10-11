@@ -10,8 +10,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Patch vulnerabilities (cache busted 2026-10-02)
-USER root
-RUN apk update && apk upgrade --no-cache
+RUN apk update && apk upgrade --no-cache && apk add --no-cache "tiff>=4.7.2-r0"
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

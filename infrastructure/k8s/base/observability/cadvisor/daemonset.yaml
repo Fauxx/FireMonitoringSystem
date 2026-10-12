@@ -21,7 +21,7 @@ spec:
             - --max_housekeeping_interval=15s
             - --event_storage_event_limit=default=0
             - --event_storage_age_limit=default=0
-            - --disable_metrics=disk,tcp,udp,percpu,sched,process
+            - --enable_metrics=cpu,memory,network,oom_event
           ports:
             - containerPort: 8080
           resources:

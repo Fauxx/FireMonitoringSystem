@@ -35,7 +35,8 @@ router.get('/logs', async (req, res) => {
             'mcu-simulator-fleet': 'fleet-runner',
             'fleet': 'fleet-runner',
             'mqtt': 'mosquitto',
-            'db': 'postgres',
+            'db': 'postgres|cloud-sql-proxy',
+            'postgres': 'postgres|cloud-sql-proxy',
             'influx': 'influxdb'
         };
         

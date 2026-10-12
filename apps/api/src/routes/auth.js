@@ -88,13 +88,20 @@ router.post('/login', async (req, res) => {
       username: user.username,
       role: user.role
     };
-    
-    console.log(`[auth-debug] Session established for ${user.username}. Session ID: ${req.sessionID}`);
 
-    if (req.xhr || req.headers.accept.indexOf('json') > -1) {
-      return res.json({ success: true, user: req.session.user });
-    }
-    return res.redirect('/protected/dashboard.html');
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error('Session save error:', saveErr);
+        if (isJsonRequest) return res.status(500).json({ error: 'Failed to save session' });
+        return res.redirect('/login.html?message=server');
+      }
+      console.log(`[auth-debug] Session established for ${user.username}. Session ID: ${req.sessionID}`);
+
+      if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {
+        return res.json({ success: true, user: req.session.user });
+      }
+      return res.redirect('/protected/dashboard.html');
+    });
   } catch (err) {
     console.error('Login error:', err);
     if (req.xhr || (req.headers.accept && req.headers.accept.indexOf('json') > -1)) {

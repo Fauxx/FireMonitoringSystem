@@ -85,8 +85,7 @@ const PgSession = require('connect-pg-simple')(session);
 app.use(session({
   store: new PgSession({
     pool: pool,
-    tableName: 'session',
-    createTableIfMissing: true
+    tableName: 'session'
   }),
   secret: process.env.SESSION_SECRET || 'super-secret-key',
   resave: false,

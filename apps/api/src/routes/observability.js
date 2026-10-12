@@ -4,6 +4,7 @@ const { ensureAuthenticated } = require('../middleware/auth');
 
 const PROM_URL = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
 const LOKI_URL = process.env.LOKI_URL || 'http://loki:3100';
+const CURRENT_NAMESPACE = process.env.K8S_NAMESPACE || process.env.POD_NAMESPACE || 'fire-monitoring-.*';
 
 router.use(ensureAuthenticated);
 
@@ -41,10 +42,10 @@ router.get('/logs', async (req, res) => {
         const actualContainer = CONTAINER_ALIASES[container] || container;
         let logql;
         if (actualContainer && actualContainer !== 'all') {
-            logql = `{namespace="fire-monitoring-local", container=~"${actualContainer}"}`;
+            logql = `{namespace=~"${CURRENT_NAMESPACE}", container=~"${actualContainer}"}`;
         } else {
             // Target the core application namespace to tail active cluster workloads
-            logql = '{namespace="fire-monitoring-local"}';
+            logql = `{namespace=~"${CURRENT_NAMESPACE}"}`;
         }
 
         if (search) {
@@ -335,7 +336,7 @@ router.get('/infra/health', async (req, res) => {
         // Live cAdvisor query in Prometheus for monitored application pods
         let podCount = 15;
         try {
-            const podQ = encodeURIComponent(`count(count by (container_label_io_kubernetes_pod_name) (container_last_seen{container_label_io_kubernetes_pod_namespace="fire-monitoring-local"}))`);
+            const podQ = encodeURIComponent(`count(count by (container_label_io_kubernetes_pod_name) (container_last_seen{container_label_io_kubernetes_pod_namespace=~"${CURRENT_NAMESPACE}"}))`);
             const podReq = await fetch(`${PROM_URL}/api/v1/query?query=${podQ}`);
             const podData = await podReq.json();
             podCount = parseInt(podData?.data?.result?.[0]?.value?.[1] || 15, 10);
@@ -367,6 +368,20 @@ router.get('/data/health', async (req, res) => {
         const pgReq = await fetch(`${PROM_URL}/api/v1/query_range?query=${pgQ}&start=${start}&end=${end}&step=${step}`);
         const pgData = await pgReq.json();
 
+        // In environments where postgres-exporter is not scraping (e.g. Cloud SQL in dev/prod),
+        // fallback to live connection count from PostgreSQL session pool
+        let pgMetrics = pgData?.data?.result || [];
+        if (!pgMetrics.length) {
+            try {
+                const actRes = await req.pool.query("SELECT COUNT(*) as count FROM pg_stat_activity WHERE state = 'active'");
+                const activeConn = parseInt(actRes.rows[0]?.count || 1, 10);
+                pgMetrics = [{
+                    metric: { state: "active" },
+                    values: [[end, String(activeConn)]]
+                }];
+            } catch (e) { /* direct query fallback */ }
+        }
+
         // Live Mosquitto Exporter query in Prometheus for active TCP clients
         let activeClients = 14;
         try {
@@ -385,7 +400,7 @@ router.get('/data/health', async (req, res) => {
 
         res.json({
             mqtt: mqttData?.data?.result || [],
-            postgres: pgData?.data?.result || [],
+            postgres: pgMetrics,
             activeClients,
             pointsPerHour
         });

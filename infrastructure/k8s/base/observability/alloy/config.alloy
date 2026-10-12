@@ -5,6 +5,7 @@ logging {
 
 local.file_match "pod_logs" {
   path_targets = [{"__address__" = "localhost", "__path__" = "/var/log/pods/**/*.log"}]
+  sync_period  = "5s"
 }
 
 discovery.relabel "pods" {

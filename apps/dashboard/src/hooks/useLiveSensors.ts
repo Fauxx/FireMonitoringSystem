@@ -7,19 +7,28 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
   const [activeAlert, setActiveAlert] = useState<SensorState | null>(null);
   const [mqttClient, setMqttClient] = useState<mqtt.MqttClient | null>(null);
 
+  // Keep a ref of known sensor metadata (coordinates) so incoming live MQTT payloads never drop coordinates
+  const initialSensorsRef = useRef<Record<string, SensorState>>(initialSensors);
+  useEffect(() => {
+    initialSensorsRef.current = initialSensors;
+  }, [initialSensors]);
+
   useEffect(() => {
     if (Object.keys(initialSensors).length > 0) {
       setSensors((prev) => {
         const merged = { ...prev };
         for (const [id, sensor] of Object.entries(initialSensors)) {
+          const lat = sensor.lat != null && !isNaN(Number(sensor.lat)) ? Number(sensor.lat) : undefined;
+          const lon = sensor.lon != null && !isNaN(Number(sensor.lon)) ? Number(sensor.lon) : undefined;
+
           if (!merged[id]) {
-            merged[id] = sensor;
+            merged[id] = { ...sensor, lat, lon };
           } else {
-            // Keep live telemetry but ensure missing static DB fields (lat/lon) are restored
+            // Keep live telemetry but ensure missing static DB fields (lat/lon) are preserved
             merged[id] = {
               ...merged[id],
-              lat: merged[id].lat ?? (sensor.lat ? Number(sensor.lat) : undefined),
-              lon: merged[id].lon ?? (sensor.lon ? Number(sensor.lon) : undefined),
+              lat: merged[id].lat ?? lat,
+              lon: merged[id].lon ?? lon,
             };
           }
         }
@@ -33,15 +42,16 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const isLocal = window.location.hostname !== 'dev.fires.systems' && window.location.hostname !== 'fires.systems';
-    const host = isLocal ? window.location.hostname + ':9001' : window.location.hostname + '/mqtt';
+    // Use /mqtt through ingress / proxy or direct websocket port if on local dev
+    const isDevPort = window.location.port === '5173' || window.location.port === '3000';
+    const host = isDevPort ? `${window.location.hostname}:9001` : `${window.location.host}/mqtt`;
     
     const client = mqtt.connect(`${protocol}://${host}`, {
       clientId: `dash-v2-${Math.random().toString(16).slice(2)}`,
     });
 
     client.on('connect', () => {
-      console.log('🔌 Connected to live MQTT stream');
+      console.log('🔌 Connected to live MQTT stream at', `${protocol}://${host}`);
       client.subscribe('fire/sensors/#');
       setMqttClient(client);
     });
@@ -52,10 +62,13 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
         const h_id: string = raw.h_id || raw.device_id;
         if (!h_id) return;
         
+        const rawLat = raw.lat != null ? Number(raw.lat) : undefined;
+        const rawLon = raw.lon != null ? Number(raw.lon) : undefined;
+
         const payload: SensorTelemetry = {
             h_id: h_id,
-            lat: raw.lat,
-            lon: raw.lon,
+            lat: rawLat != null && !isNaN(rawLat) ? rawLat : undefined,
+            lon: rawLon != null && !isNaN(rawLon) ? rawLon : undefined,
             status: raw.status ?? raw.status_code ?? 0,
             temp: raw.temp ?? raw.readings?.temperature_c,
             smoke: raw.smoke ?? raw.readings?.smoke_ppm,
@@ -66,12 +79,10 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
         // Check for transition to Critical (2) using stable Ref
         const prevStatus = statusRef.current[h_id] || 0;
         if (payload.status >= 1 && prevStatus < payload.status) {
-          // It's a new alert (warning or critical) or escalating from warning to critical
           setTimeout(() => {
             setActiveAlert({ ...payload, lastUpdated: Date.now() } as SensorState);
           }, 0);
         } else if (payload.status === 0 && prevStatus >= 1) {
-          // Auto-dismiss if it returns to normal
           setTimeout(() => {
             setActiveAlert(current => current?.h_id === h_id ? null : current);
           }, 0);
@@ -81,14 +92,18 @@ export function useLiveSensors(initialSensors: Record<string, SensorState>) {
         statusRef.current[h_id] = payload.status;
 
         setSensors((prev) => {
-          const existing = prev[h_id] || {} as SensorState;
+          const existing = prev[h_id] || ({} as SensorState);
+          const initial = initialSensorsRef.current[h_id];
+          const lat = payload.lat ?? existing.lat ?? (initial?.lat != null ? Number(initial.lat) : undefined);
+          const lon = payload.lon ?? existing.lon ?? (initial?.lon != null ? Number(initial.lon) : undefined);
+
           return {
             ...prev,
             [h_id]: { 
                 ...existing, 
                 ...payload,
-                lat: payload.lat ?? existing.lat,
-                lon: payload.lon ?? existing.lon,
+                lat,
+                lon,
                 lastUpdated: Date.now() 
             }
           };

@@ -3,15 +3,11 @@ import { MapLibreCanvas } from './components/MapLibreCanvas';
 import { FloatingTopBar } from './components/FloatingTopBar';
 import { SensorDrawer } from './components/SensorDrawer';
 import { AlertsModal } from './components/modals/AlertsModal';
+import { ProfileModal } from './components/modals/ProfileModal';
+import { CommandCenterModal, type CommandCenterTab } from './components/modals/CommandCenterModal';
 import { LoginOverlay } from './components/LoginOverlay';
 import { useLiveSensors } from './hooks/useLiveSensors';
 import { useDashboardData } from './hooks/useDashboardData';
-import { DevicesModal } from './components/modals/DevicesModal';
-import { SystemAnalyticsModal } from './components/modals/SystemAnalyticsModal';
-import { SensorAnalyticsModal } from './components/modals/SensorAnalyticsModal';
-import { LogsModal } from './components/modals/LogsModal';
-import { SimulatorModal } from "./components/modals/SimulatorModal";
-import { ExportModal } from './components/modals/ExportModal';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -97,7 +93,7 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
         sensor={selectedSensorId ? sensors[selectedSensorId] : null} 
         onClose={() => setSelectedSensorId(null)} 
       />
-      {/* Modals */}
+      {/* Emergency Alerts Modal */}
       <AlertsModal 
         isOpen={activeModal === 'alerts'}
         onClose={() => setActiveModal(null)}
@@ -107,12 +103,33 @@ function DashboardContent({ isAuthenticated }: { isAuthenticated: boolean }) {
           setFlyToTrigger({ id, ts: Date.now() });
         }}
       />
-      {activeModal === 'devices' && <DevicesModal sensors={Object.values(sensors)} onClose={() => setActiveModal(null)} />}
-      {activeModal === 'analytics' && <SensorAnalyticsModal onClose={() => setActiveModal(null)} />}
-      {activeModal === 'system' && <SystemAnalyticsModal onClose={() => setActiveModal(null)} />}
-      {activeModal === 'logs' && <LogsModal onClose={() => setActiveModal(null)} />}
-      {activeModal === 'export' && <ExportModal onClose={() => setActiveModal(null)} />}
-      {activeModal === 'simulator' && <SimulatorModal sensors={sensors} publishCommand={publishCommand} onClose={() => setActiveModal(null)} />}
+
+      {/* Profile Settings Modal */}
+      {activeModal === 'profile' && (
+        <ProfileModal 
+          isOpen={true} 
+          onClose={() => setActiveModal(null)} 
+        />
+      )}
+
+      {/* Unified Command Center Hub */}
+      {activeModal && activeModal !== 'alerts' && activeModal !== 'profile' && (
+        <CommandCenterModal 
+          initialTab={
+            activeModal === 'command-center' ? 'devices' :
+            activeModal === 'system' ? 'observability' :
+            activeModal === 'logs' ? 'incidents' :
+            (activeModal as CommandCenterTab)
+          }
+          onClose={() => setActiveModal(null)}
+          sensors={sensors}
+          publishCommand={publishCommand}
+          onLocate={(id) => {
+            setSelectedSensorId(id);
+            setFlyToTrigger({ id, ts: Date.now() });
+          }}
+        />
+      )}
     </>
   );
 }

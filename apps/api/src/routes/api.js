@@ -243,8 +243,15 @@ router.get("/devices/stats", async (req, res) => {
 router.get("/analytics/devices", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Auth required" });
   try {
-    const result = await req.pool.query("SELECT DISTINCT m FROM sensor_data_aggregated ORDER BY m ASC");
-    res.json(result.rows); 
+    const result = await req.pool.query(`
+      SELECT DISTINCT h_id FROM (
+        SELECT h_id FROM device_registry
+        UNION
+        SELECT h_id FROM final_sensor_events
+      ) all_devs WHERE h_id IS NOT NULL ORDER BY h_id ASC
+    `);
+    const formatted = result.rows.map(r => ({ h_id: r.h_id, m: r.h_id }));
+    res.json(formatted); 
   } catch (err) {
     console.error("Error fetching devices:", err);
     res.status(500).json({ error: "Error fetching device list" });
@@ -255,7 +262,8 @@ router.get("/analytics/devices", async (req, res) => {
 router.get("/analytics/hourly", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Auth required" });
   try {
-    const { device, startDate, endDate } = req.query;
+    const device = req.query.device || req.query.h_id || req.query.m;
+    const { startDate, endDate } = req.query;
 
     let query = `
       SELECT 
@@ -264,7 +272,7 @@ router.get("/analytics/hourly", async (req, res) => {
         ROUND(AVG(status)::numeric, 2) as status,
         ROUND(AVG(status)::numeric, 2) as ta, 
         ROUND(AVG(status)::numeric, 2) as sa,
-        ROUND(AVG(status)::numeric, 2) as fa,
+        ROUND(AVG(CASE WHEN flame_intensity = 'NaN' THEN NULL ELSE flame_intensity END)::numeric, 2) as fa,
         ROUND(AVG(status)::numeric, 2) as ga
       FROM final_sensor_events 
       WHERE 1=1
@@ -302,11 +310,12 @@ router.get("/analytics/heatmap", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Auth required" });
 
   try {
-    const { type, start, end, device, level } = req.query;
+    const { type, start, end, level } = req.query;
+    const device = req.query.device || req.query.h_id || req.query.m;
     const isVerified = type === 'verified';
     const tableName = isVerified ? 'verified_incidents' : 'historical_fire_incidents';
     const dateCol = isVerified ? 'timestamp' : 'incident_timestamp';
-    const deviceCol = isVerified ? 'device_id' : 'h_id'; 
+    const deviceCol = 'h_id'; 
 
     // USE TO_CHAR to force Postgres to output a strict string 'YYYY-MM-DD'
     // relative to Asia/Manila. This avoids JSON Date Object conversion issues.
@@ -410,7 +419,7 @@ router.get("/incidents", async (req, res) => {
         WHERE hfi.status >= 2
           AND NOT EXISTS (
             SELECT 1 FROM verified_incidents vi
-            WHERE vi.device_id = hfi.h_id AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - hfi.incident_timestamp))) < 3600
+            WHERE vi.h_id = hfi.h_id AND ABS(EXTRACT(EPOCH FROM (vi.timestamp - hfi.incident_timestamp))) < 3600
           )
       `;
       const pendingParams = [];
@@ -444,7 +453,7 @@ router.get("/incidents", async (req, res) => {
     if (type === "all" || type === "verified") {
       let verifiedQuery = `
         SELECT 
-          vi.id, vi.device_id, vi.alert_level, vi.flame_value, vi.smoke_value, vi.temp_value, vi.notes,
+          vi.id, vi.h_id AS device_id, vi.h_id, vi.alert_level, vi.flame_value, vi.smoke_value, vi.temp_value, vi.notes,
           to_manila(vi.timestamp) as timestamp,
           to_manila(vi.verified_at) as verified_at,
           u.username as verified_by_username
@@ -454,7 +463,7 @@ router.get("/incidents", async (req, res) => {
       `;
       const verifiedParams = [];
       let idx = 1;
-      if (device) { verifiedQuery += ` AND vi.device_id = $${idx++}`; verifiedParams.push(device); }
+      if (device) { verifiedQuery += ` AND vi.h_id = $${idx++}`; verifiedParams.push(device); }
       
       if (startDate) { 
         verifiedQuery += ` AND vi.timestamp >= ($${idx++}::date AT TIME ZONE 'Asia/Manila')`; 
@@ -499,7 +508,8 @@ router.post("/incidents/verify", async (req, res) => {
 // OFFICIAL INCIDENTS (BFP)
 router.post("/official-incidents", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Auth required" });
-  const { verified_incident_id, device_id, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks } = req.body;
+  const { verified_incident_id, device_id, h_id, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks } = req.body;
+  const targetHid = h_id || device_id;
 
   try {
     const vRes = await req.pool.query("SELECT verified_by, verified_at FROM verified_incidents WHERE id = $1", [verified_incident_id]);
@@ -507,9 +517,9 @@ router.post("/official-incidents", async (req, res) => {
 
     const result = await req.pool.query(
       `INSERT INTO official_incidents 
-       (verified_incident_id, device_id, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks, verified_by, verified_at, generated_by)
+       (verified_incident_id, h_id, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks, verified_by, verified_at, generated_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
-      [verified_incident_id, device_id, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks, vRes.rows[0].verified_by, vRes.rows[0].verified_at, req.session.user.id]
+      [verified_incident_id, targetHid, incident_timestamp, alert_level, flame_value, smoke_value, temp_value, incident_type, barangay, city, establishment_type, probable_cause, estimated_damage, responding_units, casualties_injured, casualties_fatalities, narrative_remarks, vRes.rows[0].verified_by, vRes.rows[0].verified_at, req.session.user.id]
     );
     res.json({ success: true, record: result.rows[0] });
   } catch (err) {
@@ -521,7 +531,7 @@ router.get("/official-incidents", async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: "Auth required" });
   try {
     const { startDate, endDate, limit = 100 } = req.query;
-    let query = `SELECT oi.*, u1.username as verified_by_username, u2.username as generated_by_username FROM official_incidents oi LEFT JOIN users u1 ON oi.verified_by = u1.id LEFT JOIN users u2 ON oi.generated_by = u2.id WHERE 1=1`;
+    let query = `SELECT oi.*, oi.h_id as device_id, u1.username as verified_by_username, u2.username as generated_by_username FROM official_incidents oi LEFT JOIN users u1 ON oi.verified_by = u1.id LEFT JOIN users u2 ON oi.generated_by = u2.id WHERE 1=1`;
     const params = [];
     let idx = 1;
     if (startDate) { query += ` AND oi.incident_timestamp >= $${idx++}`; params.push(startDate); }
@@ -542,7 +552,7 @@ router.get("/official-incidents/export", async (req, res) => {
   try {
     const format = req.query.format || 'csv';
     const { startDate, endDate } = req.query;
-    let query = `SELECT oi.id, oi.device_id, oi.incident_timestamp, oi.alert_level, oi.incident_type, oi.barangay, oi.city, oi.probable_cause FROM official_incidents oi WHERE 1=1`;
+    let query = `SELECT oi.id, oi.h_id as device_id, oi.h_id, oi.incident_timestamp, oi.alert_level, oi.incident_type, oi.barangay, oi.city, oi.probable_cause FROM official_incidents oi WHERE 1=1`;
     const params = [];
     let idx = 1;
     if (startDate) { query += ` AND oi.incident_timestamp >= $${idx++}`; params.push(startDate); }

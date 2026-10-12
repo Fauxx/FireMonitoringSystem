@@ -8,7 +8,7 @@ router.use(ensureAuthenticated);
 // /api/analytics?m=081925BR98-1&start=2025-11-01&end=2025-11-20
 router.get('/', async (req, res) => {
     const pool = req.pool;
-    const deviceId = req.query.m;
+    const deviceId = req.query.m || req.query.h_id || req.query.device;
     const start = req.query.start;
     const end = req.query.end;
 
@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 
     if (deviceId) {
         params.push(deviceId);
-        whereClauses.push(`m = $${params.length}`);
+        whereClauses.push(`h_id = $${params.length}`);
     }
     if (start) {
         params.push(start);
@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
     const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
     const query = `
-        SELECT m, timestamp_window, fa, fb, ga, gb, sa, sb, ta, tb, la, lo, alert_level
+        SELECT h_id, h_id as m, timestamp_window, fa, fb, ga, gb, sa, sb, ta, tb, la, lo, alert_level
         FROM sensor_data_aggregated
         ${where}
         ORDER BY timestamp_window ASC
@@ -53,8 +53,15 @@ router.get('/', async (req, res) => {
 router.get('/devices', async (req, res) => {
     const pool = req.pool;
     try {
-        const result = await pool.query(`SELECT DISTINCT m FROM sensor_data_aggregated WHERE m IS NOT NULL ORDER BY m`);
-        res.json({ devices: result.rows.map(r => r.m) });
+        const result = await pool.query(`
+            SELECT DISTINCT h_id FROM (
+                SELECT h_id FROM device_registry
+                UNION
+                SELECT h_id FROM final_sensor_events
+            ) all_devs WHERE h_id IS NOT NULL ORDER BY h_id ASC
+        `);
+        const rows = result.rows.map(r => ({ h_id: r.h_id, m: r.h_id }));
+        res.json({ devices: rows.map(r => r.h_id), rows });
     } catch (err) {
         console.error("Error fetching devices:", err);
         return res.status(500).json({ error: err.message });
@@ -65,7 +72,10 @@ router.get('/devices', async (req, res) => {
 router.get('/heatmap', async (req, res) => {
 
     const pool = req.pool;
-    const { days = 365, type = 'system', device, start, end } = req.query;
+    const { days = 365, type = 'system', device: queryDevice, h_id, m, start, end, startDate, endDate } = req.query;
+    const device = queryDevice || h_id || m;
+    const effectiveStart = start || startDate;
+    const effectiveEnd = end || endDate;
 
     try {
         let query;
@@ -73,36 +83,37 @@ router.get('/heatmap', async (req, res) => {
         let paramIndex = 1;
         
         if (type === 'verified') {
-            // Get verified incidents
+            // Get verified incidents from historical_fire_incidents
             query = `
                 SELECT 
-                    DATE(timestamp) as date,
+                    to_char(incident_timestamp, 'YYYY-MM-DD') as date,
                     COUNT(*) as count,
-                    MAX(alert_level) as max_level,
-                    COUNT(CASE WHEN alert_level >= 3 THEN 1 END) as critical_count,
-                    COUNT(CASE WHEN alert_level = 2 THEN 1 END) as warning_count
-                FROM verified_incidents
-                WHERE timestamp >= NOW() - INTERVAL '${parseInt(days)} days'
-                    AND alert_level >= 2
+                    MAX(status) as max_level,
+                    COUNT(CASE WHEN status >= 2 THEN 1 END) as critical_count,
+                    COUNT(CASE WHEN status = 1 THEN 1 END) as warning_count
+                FROM historical_fire_incidents
+                WHERE 1=1
             `;
             
             if (device) {
-                query += ` AND device_id = $${paramIndex}`;
+                query += ` AND h_id = $${paramIndex}`;
                 params.push(device);
                 paramIndex++;
             }
-            if (start) {
-                query += ` AND timestamp >= $${paramIndex}`;
-                params.push(start);
+            if (effectiveStart) {
+                query += ` AND incident_timestamp >= $${paramIndex}::timestamptz`;
+                params.push(effectiveStart);
                 paramIndex++;
+            } else if (days) {
+                query += ` AND incident_timestamp >= NOW() - INTERVAL '${parseInt(days)} days'`;
             }
-            if (end) {
-                query += ` AND timestamp <= $${paramIndex}`;
-                params.push(end);
+            if (effectiveEnd) {
+                query += ` AND incident_timestamp <= $${paramIndex}::timestamptz`;
+                params.push(effectiveEnd);
                 paramIndex++;
             }
             
-            query += ` GROUP BY DATE(timestamp) ORDER BY date ASC`;
+            query += ` GROUP BY to_char(incident_timestamp, 'YYYY-MM-DD') ORDER BY date ASC`;
         } else {
             // Get system-generated incidents (from final_sensor_events)
             query = `
@@ -113,8 +124,7 @@ router.get('/heatmap', async (req, res) => {
                     COUNT(CASE WHEN status = 2 THEN 1 END) as critical_count,
                     COUNT(CASE WHEN status = 1 THEN 1 END) as warning_count
                 FROM final_sensor_events
-                WHERE received_at >= NOW() - INTERVAL '${parseInt(days)} days'
-                    AND status >= 1
+                WHERE status >= 1
             `;
             
             if (device) {
@@ -122,14 +132,16 @@ router.get('/heatmap', async (req, res) => {
                 params.push(device);
                 paramIndex++;
             }
-            if (start) {
-                query += ` AND received_at >= $${paramIndex}`;
-                params.push(start);
+            if (effectiveStart) {
+                query += ` AND received_at >= $${paramIndex}::timestamptz`;
+                params.push(effectiveStart);
                 paramIndex++;
+            } else if (days) {
+                query += ` AND received_at >= NOW() - INTERVAL '${parseInt(days)} days'`;
             }
-            if (end) {
-                query += ` AND received_at <= $${paramIndex}`;
-                params.push(end);
+            if (effectiveEnd) {
+                query += ` AND received_at <= $${paramIndex}::timestamptz`;
+                params.push(effectiveEnd);
                 paramIndex++;
             }
             
@@ -152,96 +164,100 @@ router.get('/heatmap', async (req, res) => {
         res.json({ heatmap: heatmapData });
     } catch (err) {
         console.error("Error fetching heatmap data:", err);
-        // Fallback to empty if tables don't exist
+        // Fallback to empty if error
         res.json({ heatmap: {} });
     }
 });
 
 // GET incident metrics - system-generated vs verified (with filters)
 router.get('/incident-metrics', async (req, res) => {
-
     const pool = req.pool;
-    const { days = 30, device, start, end } = req.query;
+    const { days = 30, device: queryDevice, h_id, m, start, end, startDate, endDate } = req.query;
+    const device = queryDevice || h_id || m;
+    const effectiveStart = start || startDate;
+    const effectiveEnd = end || endDate;
 
     try {
         // Build WHERE clauses for filters
-        const systemWhere = [];
-        const verifiedWhere = [];
+        const systemWhere = ['status >= 1'];
+        const verifiedWhere = ['1=1'];
         const systemParams = [];
         const verifiedParams = [];
         let systemParamIndex = 1;
         let verifiedParamIndex = 1;
 
         // Date filter
-        if (start && end) {
-            systemWhere.push(`time >= $${systemParamIndex} AND time <= $${systemParamIndex + 1}`);
-            systemParams.push(start, end);
+        if (effectiveStart && effectiveEnd) {
+            systemWhere.push(`received_at >= $${systemParamIndex}::timestamptz AND received_at <= $${systemParamIndex + 1}::timestamptz`);
+            systemParams.push(effectiveStart, effectiveEnd);
             systemParamIndex += 2;
             
-            verifiedWhere.push(`timestamp >= $${verifiedParamIndex} AND timestamp <= $${verifiedParamIndex + 1}`);
-            verifiedParams.push(start, end);
+            verifiedWhere.push(`incident_timestamp >= $${verifiedParamIndex}::timestamptz AND incident_timestamp <= $${verifiedParamIndex + 1}::timestamptz`);
+            verifiedParams.push(effectiveStart, effectiveEnd);
             verifiedParamIndex += 2;
-        } else {
-            systemWhere.push(`time >= NOW() - INTERVAL '${parseInt(days)} days'`);
-            verifiedWhere.push(`created_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
+        } else if (days) {
+            systemWhere.push(`received_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
+            verifiedWhere.push(`incident_timestamp >= NOW() - INTERVAL '${parseInt(days)} days'`);
         }
 
         // Device filter
         if (device) {
-            systemWhere.push(`m = $${systemParamIndex}`);
+            systemWhere.push(`h_id = $${systemParamIndex}`);
             systemParams.push(device);
             systemParamIndex++;
             
-            verifiedWhere.push(`device_id = $${verifiedParamIndex}`);
+            verifiedWhere.push(`h_id = $${verifiedParamIndex}`);
             verifiedParams.push(device);
             verifiedParamIndex++;
         }
 
-        const systemWhereClause = systemWhere.length > 0 ? 'WHERE ' + systemWhere.join(' AND ') + ' AND alert_level >= 2' : 'WHERE alert_level >= 2';
-        const verifiedWhereClause = verifiedWhere.length > 0 ? 'WHERE ' + verifiedWhere.join(' AND ') + ' AND alert_level >= 2' : 'WHERE alert_level >= 2';
+        const systemWhereClause = 'WHERE ' + systemWhere.join(' AND ');
+        const verifiedWhereClause = 'WHERE ' + verifiedWhere.join(' AND ');
 
-        // System-generated incidents (from incident_alerts)
+        // System-generated incidents (from final_sensor_events)
         const systemGeneratedQuery = `
             SELECT 
                 COUNT(*) as total,
-                COUNT(CASE WHEN alert_level >= 3 THEN 1 END) as critical,
-                COUNT(CASE WHEN alert_level = 2 THEN 1 END) as warning
-            FROM incident_alerts
+                COUNT(CASE WHEN status = 2 THEN 1 END) as critical,
+                COUNT(CASE WHEN status = 1 THEN 1 END) as warning
+            FROM final_sensor_events
             ${systemWhereClause}
         `;
 
-        // Verified incidents
+        // Verified incidents (from historical_fire_incidents)
         const verifiedQuery = `
             SELECT 
                 COUNT(*) as total,
-                COUNT(CASE WHEN alert_level >= 3 THEN 1 END) as critical,
-                COUNT(CASE WHEN alert_level = 2 THEN 1 END) as warning
-            FROM verified_incidents
+                COUNT(CASE WHEN status >= 2 THEN 1 END) as critical,
+                COUNT(CASE WHEN status = 1 THEN 1 END) as warning
+            FROM historical_fire_incidents
             ${verifiedWhereClause}
         `;
 
         const [systemResult, verifiedResult] = await Promise.all([
-            pool.query(systemGeneratedQuery, systemParams.length > 0 ? systemParams : undefined).catch(() => ({ rows: [{ total: 0, critical: 0, warning: 0 }] })),
-            pool.query(verifiedQuery, verifiedParams.length > 0 ? verifiedParams : undefined).catch(() => ({ rows: [{ total: 0, critical: 0, warning: 0 }] }))
+            pool.query(systemGeneratedQuery, systemParams.length > 0 ? systemParams : undefined).catch(e => { console.error("Sys gen query err:", e); return { rows: [{ total: 0, critical: 0, warning: 0 }] }; }),
+            pool.query(verifiedQuery, verifiedParams.length > 0 ? verifiedParams : undefined).catch(e => { console.error("Verified query err:", e); return { rows: [{ total: 0, critical: 0, warning: 0 }] }; })
         ]);
 
         const systemGenerated = systemResult.rows[0] || { total: 0, critical: 0, warning: 0 };
         const verified = verifiedResult.rows[0] || { total: 0, critical: 0, warning: 0 };
+        const sysTotal = parseInt(systemGenerated.total, 10) || 0;
+        const verTotal = parseInt(verified.total, 10) || 0;
 
         res.json({
             systemGenerated: {
-                total: parseInt(systemGenerated.total),
-                critical: parseInt(systemGenerated.critical),
-                warning: parseInt(systemGenerated.warning)
+                total: sysTotal,
+                critical: parseInt(systemGenerated.critical, 10) || 0,
+                warning: parseInt(systemGenerated.warning, 10) || 0
             },
             verified: {
-                total: parseInt(verified.total),
-                critical: parseInt(verified.critical),
-                warning: parseInt(verified.warning)
+                total: verTotal,
+                critical: parseInt(verified.critical, 10) || 0,
+                warning: parseInt(verified.warning, 10) || 0
             },
-            verificationRate: systemGenerated.total > 0 
-                ? ((verified.total / systemGenerated.total) * 100).toFixed(1)
-                : 0
+            verificationRate: sysTotal > 0 
+                ? ((verTotal / sysTotal) * 100).toFixed(1)
+                : (verTotal > 0 ? 100.0 : 0.0)
         });
     } catch (err) {
         console.error("Error fetching incident metrics:", err);

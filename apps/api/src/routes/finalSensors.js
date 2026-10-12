@@ -16,7 +16,7 @@ router.get("/latest", async (req, res) => {
 
   try {
     let query = `
-      SELECT l.id, l.h_id, l.status, l.lat, l.lon, l.received_at, e.raw_payload
+      SELECT l.id, l.h_id, l.status, l.lat, l.lon, l.received_at, e.flame_intensity
       FROM final_sensor_latest l
       LEFT JOIN final_sensor_events e ON l.id = e.id
       WHERE 1=1
@@ -24,7 +24,8 @@ router.get("/latest", async (req, res) => {
     const params = [];
     let idx = 1;
 
-    if (householdId) { query += ` AND l.h_id = $${idx++}`; params.push(householdId); }
+    const targetHid = householdId || deviceId;
+    if (targetHid) { query += ` AND l.h_id = $${idx++}`; params.push(targetHid); }
 
     query += ` ORDER BY l.received_at DESC LIMIT $${idx}`;
     params.push(parseInt(limit, 10) || 100);
@@ -33,13 +34,12 @@ router.get("/latest", async (req, res) => {
     
     // Parse out telemetry values so the frontend table doesn't render 0.0 for offline nodes
     const enrichedRows = result.rows.map(row => {
-      const p = row.raw_payload || {};
+      const flame = row.flame_intensity != null && row.flame_intensity !== 'NaN' ? parseFloat(row.flame_intensity) : null;
       return {
         ...row,
-        temp: p.temp ?? p.readings?.temperature_c,
-        smoke: p.smoke ?? p.readings?.smoke_ppm,
-        flame: p.flame ?? p.readings?.flame_intensity,
-        raw_payload: undefined // Keep payload skinny over network
+        temp: null,
+        smoke: null,
+        flame: flame
       };
     });
 

@@ -53,7 +53,7 @@ function MapFlyTo({ selectedSensor, sensors }: { selectedSensor: string | null, 
   useEffect(() => {
     if (selectedSensor) {
       const sensor = sensors.find(s => s.h_id === selectedSensor);
-      if (sensor) {
+      if (sensor && sensor.lat != null && sensor.lon != null) {
         map.flyTo([sensor.lat, sensor.lon], 16, { duration: 1.5 });
       }
     }
@@ -81,6 +81,7 @@ export function MapCanvas({ sensors, selectedSensorId, onSensorSelect }: MapCanv
         <MapFlyTo selectedSensor={selectedSensorId} sensors={sensors} />
 
         {sensors.map((sensor) => {
+          if (sensor.lat == null || sensor.lon == null) return null;
           const config = getStatusConfig(sensor.status);
           const isCritical = sensor.status === 2;
           

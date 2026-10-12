@@ -5,9 +5,10 @@ import { getStatusConfig } from '../../utils/statusColors';
 
 interface LogsModalProps {
   onClose: () => void;
+  embedMode?: boolean;
 }
 
-export function LogsModal({ onClose }: LogsModalProps) {
+export function LogsModal({ onClose, embedMode = false }: LogsModalProps) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,9 +35,8 @@ export function LogsModal({ onClose }: LogsModalProps) {
     return () => { isMounted = false; };
   }, []);
 
-  return (
-    <ModalOverlay title="System Incident Logs" onClose={onClose} width="max-w-5xl">
-      <div className="bg-surface rounded-lg border border-surface-border overflow-hidden">
+  const modalContent = (
+    <div className="bg-surface rounded-lg border border-surface-border overflow-hidden">
         
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 text-surface-muted">
@@ -103,6 +103,15 @@ export function LogsModal({ onClose }: LogsModalProps) {
         )}
 
       </div>
+  );
+
+  if (embedMode) {
+    return modalContent;
+  }
+
+  return (
+    <ModalOverlay title="System Incident Logs" onClose={onClose} width="max-w-5xl">
+      {modalContent}
     </ModalOverlay>
   );
 }

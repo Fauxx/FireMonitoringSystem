@@ -14,43 +14,51 @@ export function useDashboardData(isAuthenticated: boolean) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    // 1. Fetch devices registry metadata (public coordinates)
+    const fetchDevices = fetch('/api/devices')
+      .then(res => (res.ok ? res.json() : { rows: [] }))
+      .catch(() => ({ rows: [] }));
 
-    Promise.all([
-      fetch('/api/devices').then(res => {
-        if (!res.ok) throw new Error('Failed to fetch devices');
-        return res.json();
-      }),
-      fetch('/api/final-sensors/latest').then(res => {
-        if (!res.ok) throw new Error('Failed to fetch initial sensors');
-        return res.json();
-      })
-    ])
+    // 2. Fetch latest telemetry (requires authenticated session)
+    const fetchLatest = isAuthenticated
+      ? fetch('/api/final-sensors/latest')
+          .then(res => (res.ok ? res.json() : { rows: [] }))
+          .catch(() => ({ rows: [] }))
+      : Promise.resolve({ rows: [] });
+
+    Promise.all([fetchDevices, fetchLatest])
       .then(([devicesData, latestData]) => {
         const sensorMap: Record<string, SensorState> = {};
-        
-        // 1. Pre-populate all devices with coordinates
-        if (devicesData && devicesData.rows) {
+
+        // Pre-populate all devices with coordinates from registry
+        if (devicesData && Array.isArray(devicesData.rows)) {
           devicesData.rows.forEach((dev: any) => {
+            const lat = Number(dev.lat);
+            const lon = Number(dev.lon);
             sensorMap[dev.h_id] = {
               h_id: dev.h_id,
-              lat: Number(dev.lat),
-              lon: Number(dev.lon),
+              lat: !isNaN(lat) ? lat : undefined,
+              lon: !isNaN(lon) ? lon : undefined,
               status: 0,
-              lastUpdated: 0
+              lastUpdated: 0,
             };
           });
         }
 
-        // 2. Merge latest telemetry (if any)
-        if (latestData && latestData.rows) {
+        // Merge latest telemetry if available
+        if (latestData && Array.isArray(latestData.rows)) {
           latestData.rows.forEach((row: any) => {
+            const existingLat = sensorMap[row.h_id]?.lat;
+            const existingLon = sensorMap[row.h_id]?.lon;
+            const rowLat = row.lat != null ? Number(row.lat) : undefined;
+            const rowLon = row.lon != null ? Number(row.lon) : undefined;
+
             sensorMap[row.h_id] = {
               ...(sensorMap[row.h_id] || {}),
               ...row,
-              lat: row.lat != null ? Number(row.lat) : sensorMap[row.h_id]?.lat,
-              lon: row.lon != null ? Number(row.lon) : sensorMap[row.h_id]?.lon,
-              lastUpdated: new Date(row.received_at).getTime()
+              lat: rowLat != null && !isNaN(rowLat) ? rowLat : existingLat,
+              lon: rowLon != null && !isNaN(rowLon) ? rowLon : existingLon,
+              lastUpdated: row.received_at ? new Date(row.received_at).getTime() : 0,
             };
           });
         }
@@ -67,7 +75,7 @@ export function useDashboardData(isAuthenticated: boolean) {
         setLoading(false);
       })
       .catch((err) => {
-        console.error(err);
+        console.error('Dashboard data fetch error:', err);
         setLoading(false);
       });
   }, [isAuthenticated]);

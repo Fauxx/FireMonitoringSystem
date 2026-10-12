@@ -44,16 +44,16 @@ export function DevicesModal({ onClose, sensors }: DevicesModalProps) {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900 text-sm">
+                    <td className="px-4 py-3 font-semibold text-white text-sm">
                       {sensor.h_id}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-700 font-medium font-mono text-sm">
+                    <td className="px-4 py-3 text-right text-slate-300 font-medium font-mono text-sm">
                       {(sensor.temp || 0).toFixed(1)}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-700 font-medium font-mono text-sm">
+                    <td className="px-4 py-3 text-right text-slate-300 font-medium font-mono text-sm">
                       {(sensor.smoke || 0).toFixed(1)}
                     </td>
-                    <td className="px-4 py-3 text-right text-slate-700 font-medium font-mono text-sm">
+                    <td className="px-4 py-3 text-right text-slate-300 font-medium font-mono text-sm">
                       {(sensor.flame || 0).toFixed(0)}
                     </td>
                     <td className="px-4 py-3 text-right text-surface-muted text-xs">

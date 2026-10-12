@@ -21,7 +21,7 @@ replicas:
 images:
 - name: api
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/api
-  newTag: bb14d1a
+  newTag: 3d51840
 - name: dashboard
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/dashboard
   newTag: bb14d1a

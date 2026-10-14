@@ -29,7 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Echo parameters
-        run: echo "Environment: ${{ inputs.environment }}"
+        run: |
+          echo "Environment: ${{ inputs.environment }}"
 
   bootstrap:
     name: "00-bootstrap"

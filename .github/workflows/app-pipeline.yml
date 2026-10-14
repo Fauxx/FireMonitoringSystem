@@ -221,6 +221,30 @@ jobs:
           cache-to:   type=gha,mode=max
 
   # ─────────────────────────────────────────────────────────────
+  # Stage 1.5: CI Gate — Consolidated Status for PR Gates
+  # Provides a single, stable check name for branch protection rules
+  # ─────────────────────────────────────────────────────────────
+  ci_gate:
+    name: "CI Gate / All Checks Passed"
+    needs: [detect_changes, test, build_scan_push]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify All CI Checks
+        run: |
+          echo "Detect changes status : ${{ needs.detect_changes.result }}"
+          echo "Tests status          : ${{ needs.test.result }}"
+          echo "Build & scan status   : ${{ needs.build_scan_push.result }}"
+
+          if [ "${{ needs.detect_changes.result }}" = "failure" ] || \
+             [ "${{ needs.test.result }}" = "failure" ] || \
+             [ "${{ needs.build_scan_push.result }}" = "failure" ]; then
+            echo "❌ One or more CI stages failed."
+            exit 1
+          fi
+          echo "✅ All CI checks passed successfully."
+
+  # ─────────────────────────────────────────────────────────────
   # Stage 2a: Dev Deploy — Direct Commit to overlays/dev
   # Triggers: push to main only (NOT on tags, NOT on PR)
   # ─────────────────────────────────────────────────────────────

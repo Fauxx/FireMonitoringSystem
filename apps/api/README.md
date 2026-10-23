@@ -1,77 +1,103 @@
-# 🟢 FireMonitor — REST API
+# 🟢 FireMonitor — Backend REST API (`apps/api/`)
 
-[![Runtime](https://img.shields.io/badge/Runtime-Node.js%2022-green.svg)](#)
-[![Framework](https://img.shields.io/badge/Framework-Express.js-lightgrey.svg)](#)
-[![Database](https://img.shields.io/badge/Database-PostgreSQL-blue.svg)](#)
-[![Metrics](https://img.shields.io/badge/Metrics-Prometheus-orange.svg)](#)
+[![Runtime](https://img.shields.io/badge/Runtime-Node.js%2022-green.svg)](https://nodejs.org/)
+[![Framework](https://img.shields.io/badge/Framework-Express.js-lightgrey.svg)](https://expressjs.com/)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL%20%2F%20Cloud%20SQL-blue.svg)](https://www.postgresql.org/)
+[![Metrics](https://img.shields.io/badge/Metrics-Prometheus-orange.svg)](https://prometheus.io/)
+[![Security](https://img.shields.io/badge/User-UID%201000%20(node)-blueviolet.svg)](#)
 
-Express.js REST API serving the Fire Monitoring Dashboard. Handles authentication, sensor telemetry queries, device registry, and analytics.
+The **FireMonitor REST API** is the central data orchestration and session controller service. Built with Express.js, it manages authenticated user sessions, interfaces with managed PostgreSQL (Google Cloud SQL), aggregates incident telemetry, and proxies in-cluster observability data (Prometheus and Loki) directly to the operator dashboard.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Integration
 
+```mermaid
+flowchart TD
+    Client[Dashboard UI / Ingress] -->|HTTP / JSON Requests| API[Express REST API :8000]
+
+    subgraph Core ["API Internal Services"]
+        API --> Auth[Session & Auth Handler]
+        API --> Telemetry[Device & Telemetry Router]
+        API --> ObsProxy[Observability Proxy Router]
+        API --> Health[Health Probes & Metrics]
+    end
+
+    subgraph Data ["Data & Storage"]
+        Auth <-->|connect-pg-simple| PG[(PostgreSQL / Cloud SQL)]
+        Telemetry <-->|Parameterized Queries| PG
+    end
+
+    subgraph Monitoring ["Cluster Observability"]
+        ObsProxy <-->|PromQL Query API| Prom[Prometheus :9090]
+        ObsProxy <-->|LogQL Query API| Loki[Loki :3100]
+        Health -->|Scraped by| Prom
+    end
 ```
-Nginx (Dashboard) → proxy_pass → API :8000
-                                    │
-                          ┌─────────┼─────────┐
-                          ▼         ▼         ▼
-                       /auth   /api/*    /metrics
-                          │         │
-                     Session     PostgreSQL Pool
-                     (PgStore)    (pg.Pool)
-```
 
 ---
 
-## 📡 API Reference
+## 📡 API Endpoint Reference
 
-### Auth (`/auth`)
-| Verb | Endpoint | Description |
-|---|---|---|
-| `POST` | `/auth/login` | Login with email + password, sets session cookie |
-| `POST` | `/auth/logout` | Destroys session |
-| `GET` | `/auth/me` | Returns current session user |
-
-### Devices (`/api/devices`)
-| Verb | Endpoint | Auth | Description |
+### 1. Authentication & Session (`/auth`)
+| HTTP Verb | Endpoint | Access Level | Description |
 |---|---|---|---|
-| `GET` | `/api/devices` | None | Lists all registered devices (`h_id`, `lat`, `lon`, `barangay`) |
+| `POST` | `/auth/login` | Public | Authenticates credentials with `bcrypt`, initializes cookie session, and executes explicit `req.session.save()` to guarantee persistence. |
+| `POST` | `/auth/logout` | Authenticated | Destroys current session and clears cookie. |
+| `GET` | `/auth/me` | Authenticated | Returns currently authenticated user record and role. |
+| `GET` | `/auth/verify` | Authenticated | Subrequest verification endpoint used by Nginx `auth_request` gateway; injects `X-WEBAUTH-USER` and `X-USER-ROLE` headers. |
+| `POST` | `/auth/register` | Public | Submits registration request to the pending approval queue. |
 
-> Used by the Dashboard Simulator Controller to populate the device list.
-
-### Telemetry (`/api/final-sensors`)
-| Verb | Endpoint | Auth | Description |
+### 2. Device Registry & Fleet (`/api/devices`)
+| HTTP Verb | Endpoint | Access Level | Description |
 |---|---|---|---|
-| `GET` | `/api/final-sensors/latest` | Session | Latest reading per device from `final_sensor_latest` view |
-| `GET` | `/api/final-sensors/history` | Session | Historical logs with time + limit bounds |
+| `GET` | `/api/devices` | Authenticated | Lists all registered IoT nodes (`h_id`, `lat`, `lon`, `barangay`, `structure_type`), joining real-time telemetry while preserving historical last-known states during disconnection. |
 
-### Analytics (`/api/analytics`)
-| Verb | Endpoint | Auth | Description |
+### 3. Sensor Telemetry (`/api/final-sensors` & `/api/telemetry`)
+| HTTP Verb | Endpoint | Access Level | Description |
 |---|---|---|---|
-| `GET` | `/api/analytics/devices` | Session | Unique active device tags |
-| `GET` | `/api/analytics/hourly` | Session | Hourly status/temp/smoke averages |
-| `GET` | `/api/analytics/heatmap` | Session | Daily alert heatmap (Manila timezone) |
+| `GET` | `/api/final-sensors/latest` | Authenticated | Fetches latest sensor readings per device from the normalized `final_sensor_latest` relational view. |
+| `GET` | `/api/final-sensors/history` | Authenticated | Returns bounded historical telemetry with timestamp filtering. |
+| `GET` | `/api/telemetry/active` | Authenticated | Summarizes active alerts and device states. |
 
-### Users (`/api/users`)
-| Verb | Endpoint | Auth | Description |
+### 4. Historical Analytics (`/api/analytics`)
+| HTTP Verb | Endpoint | Access Level | Description |
 |---|---|---|---|
-| `GET` | `/api/users` | Session | List all registered users |
-| `POST` | `/api/users` | Admin | Register a user directly |
-| `PUT` | `/api/users/:id` | Admin | Update user data |
-| `DELETE` | `/api/users/:id` | Admin | Delete user |
-| `GET` | `/api/users/pending` | Admin | Pending approval queue |
-| `POST` | `/api/users/approve` | Admin | Approve pending registration |
+| `GET` | `/api/analytics/devices` | Authenticated | Returns distinct active sensor identifiers. |
+| `GET` | `/api/analytics/hourly` | Authenticated | Calculates hourly rollups of temperature, smoke, and flame metrics. |
+| `GET` | `/api/analytics/heatmap` | Authenticated | Daily incident distribution heatmap aligned to Asia/Manila (PHT) timezone. |
+| `GET` | `/api/analytics/stats` | Authenticated | High-level summary of active incidents, resolved emergencies, and total alerts. |
+
+### 5. In-Cluster Observability Proxy (`/api/observability`)
+| HTTP Verb | Endpoint | Access Level | Description |
+|---|---|---|---|
+| `GET` | `/api/observability/metrics` | Authenticated | Queries Prometheus directly for container CPU and resident memory usage. |
+| `GET` | `/api/observability/logs` | Authenticated | Queries Loki via LogQL over dynamic namespaces (`CURRENT_NAMESPACE`). Automatically resolves container stream aliases (`fleet-runner`, `mosquitto`, `postgres|cloud-sql-proxy`, `influxdb`). |
+| `GET` | `/api/observability/logs/errors` | Authenticated | Traps high-severity error logs across cluster workloads for rapid diagnostics. |
+
+### 6. User Management & Administration (`/api/users`)
+| HTTP Verb | Endpoint | Access Level | Description |
+|---|---|---|---|
+| `GET` | `/api/users` | Admin | Lists all user accounts. |
+| `POST` | `/api/users` | Admin | Directly provisions a new user with assigned role. |
+| `PUT` | `/api/users/:id` | Admin | Updates user information and role assignments. |
+| `DELETE` | `/api/users/:id` | Admin | Deletes user record. |
+| `GET` | `/api/users/pending` | Admin | Retrieves users waiting in the registration approval queue. |
+| `POST` | `/api/users/approve` | Admin | Approves a pending user account. |
+
+### 7. Health & Metrics
+| HTTP Verb | Endpoint | Access Level | Description |
+|---|---|---|---|
+| `GET` | `/health` | Public | Deep health probe verifying active database pool connectivity for Kubernetes liveness/readiness checks. |
+| `GET` | `/metrics` | Public | Standard Prometheus scraping endpoint instrumented via `prom-client` (`http_request_duration_seconds`, process CPU/RAM, event loop lag). |
 
 ---
 
-## 📊 Observability
+## 🔒 Security & Reliability Engineering
 
-Prometheus metrics exposed at `GET /metrics`:
-
-- `http_request_duration_seconds` (Histogram)
-- `http_requests_total` (Counter)
-- Node.js runtime defaults (`process_cpu_seconds_total`, etc.)
+*   **Session Persistence Race Conditions**: Eliminates `connect-pg-simple` login lost-session bugs by executing explicit asynchronous `req.session.save()` before returning response headers.
+*   **Workload Identity & Cloud SQL Proxy**: Seamlessly connects to managed Google Cloud SQL instances either through direct Unix/TCP sockets via a local Cloud SQL Auth Proxy sidecar container or via standard parameterized connection strings.
+*   **Dynamic Namespace Discovery**: Dynamically resolves in-cluster Prometheus and Loki service hostnames based on `K8S_NAMESPACE` / `POD_NAMESPACE` environment variables, avoiding hardcoded URLs across `dev` and `prod`.
 
 ---
 
@@ -80,26 +106,34 @@ Prometheus metrics exposed at `GET /metrics`:
 ```bash
 cd apps/api
 npm install
-npm run dev   # nodemon hot-reload at http://localhost:8000
+npm run dev     # Hot-reloading development server via nodemon on http://localhost:8000
 ```
 
-### Environment Variables
+### Running Unit Tests
+```bash
+npm test        # Runs Jest unit test suites
+```
 
+### Environment Variables Reference
 ```ini
-DATABASE_URL=postgresql://postgres:localdevpassword@localhost:5432/fire_monitoring
-SESSION_SECRET=a-secure-cookie-signing-key
-COOKIE_SECURE=false
-PGSSLMODE=disable
 PORT=8000
 NODE_ENV=development
+DATABASE_URL=postgresql://postgres:localdevpassword@localhost:5432/fire_monitoring
+SESSION_SECRET=supersecret-session-key
+COOKIE_SECURE=false
+PGSSLMODE=disable
+PROMETHEUS_URL=http://localhost:9090
+LOKI_URL=http://localhost:3100
+K8S_NAMESPACE=fire-monitoring-local
 ```
 
 ---
 
-## 🐳 Docker Build
+## 🐳 Container Build
 
 ```bash
+# Build multi-stage hardened image
 docker build -t localhost/api:local .
 ```
-
-Built on Node.js 22 Alpine with a non-root `appuser` for security.
+* **Stage 1 (Builder)**: Installs build toolchain (`python3`, `make`, `g++`) to compile native modules (`bcrypt`).
+* **Stage 2 (Runtime)**: Minimal `node:22-alpine` image running under non-root system user `node` (`UID 1000`).

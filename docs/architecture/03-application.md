@@ -10,15 +10,15 @@ title: Application Layer
 
 ## 📦 Service Relationships
 
-- **Dashboard (Nginx SPA)**: Serves static HTML/JS/CSS assets. Acts as a smart proxy gating protected resources.
-- **API (Node.js/Express)**: "Headless" backend managing user sessions, querying relational data, and serving analytical API endpoints.
-- **ETL Processor (Python/Pandas)**: Background worker converting raw high-volume telemetry into curated, relational alert records.
-- **Simulators**: Standalone IoT edge emulators publishing synthetic MQTT payloads.
+- **Dashboard (React 19 Command Center)**: Real-time UI built with React 19, TypeScript, Vite, and Tailwind CSS. Subscribes to Mosquitto via WebSockets (port `9001`) for live MapLibre GL 3D spatial visualization and sends bi-directional simulation controls (`fire/control/{h_id}`).
+- **API (Node.js/Express)**: Backend REST API managing user sessions, querying relational Cloud SQL PostgreSQL, exposing Prometheus instrumentation, and proxying in-cluster observability logs (Loki) and metrics.
+- **ETL Processor (Python/Pandas)**: Stream worker converting high-volume InfluxDB time-series telemetry into curated relational incident logs in PostgreSQL using 30-minute debouncing and 5-minute downsampling.
+- **Simulators**: Standalone IoT edge emulators publishing synthetic MQTT payloads across 10 NCR coordinate nodes.
 
 ## 📡 MQTT Telemetry Flow
 
 The core operational loop of the system begins at the Edge:
-1. **Sensor Emulation**: The Python-based IoT Fleet Simulator publishes JSON telemetry (e.g., `h_id`, `lat`, `lon`, `status`) to the MQTT broker (`fire/sensors/#`).
+1. **Sensor Emulation**: The Python-based IoT Fleet Simulator publishes JSON telemetry (`h_id`, `status`, `temp`, `smoke`, `flame`, `_time`) to the MQTT broker (`fire/sensors/{device_id}`). Coordinates (`lat`, `lon`) are normalized in PostgreSQL `device_registry`.
 2. **Mosquitto Broker**: Operates on `ClusterIP` port `1883` (internal MQTT) and `9001` (WebSocket for the frontend).
 3. **Ingestion & Time-Series**:
    - `Telegraf` subscribes to the MQTT topic, parses the JSON payload, and writes the raw telemetry directly into **InfluxDB**.

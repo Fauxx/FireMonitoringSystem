@@ -1,34 +1,43 @@
-# 🤖 IoT Fleet Simulator (MCU Simulator)
+# 🟣 FireMonitor — IoT Fleet Simulator (`apps/simulators/`)
 
-[![Runtime](https://img.shields.io/badge/Runtime-Python%203.10+-blue.svg)](#)
-[![Protocol](https://img.shields.io/badge/Protocol-MQTT%20%28paho--mqtt%202.x%29-lightgrey.svg)](#)
+[![Runtime](https://img.shields.io/badge/Runtime-Python%203.12-blue.svg)](https://www.python.org/)
+[![Protocol](https://img.shields.io/badge/Protocol-MQTT%20%28paho--mqtt%202.x%29-lightgrey.svg)](https://eclipse.dev/paho/)
+[![Security](https://img.shields.io/badge/User-UID%201000%20(simuser)-blueviolet.svg)](#)
 
-A lightweight Python MQTT publisher that emulates physical ESP32 microcontrollers streaming real-world fire sensor telemetry. Designed as the **data generation engine** of the Fire Monitoring System — fully controllable in real-time from the Dashboard.
+The **IoT Fleet Simulator** is a lightweight, asynchronous Python service that emulates physical ESP32 edge microcontrollers streaming real-world fire telemetry over MQTT. It acts as the primary data generation engine for the Fire Monitoring Platform and features **sub-second bi-directional control** from the operator command center.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Control Loop
 
-```
-Dashboard Controller (MQTT publish fire/control/{h_id})
-          │
-          ▼  {"power":"on"} / {"status_code": 2}
-  ┌─────────────────────┐
-  │  mcu_sim.py (Python) │   ◄── subscribed to fire/control/{h_id}
-  │  on_message callback │                and fire/control/all
-  └─────────────────────┘
-          │  publishes every 5s
-          ▼
-  fire/sensors/{device_id}
-  {"h_id":"node-sim-01","status":2,"temp":68.3,"smoke":0.9,...}
-          │
-          ▼
-  ETL Processor → PostgreSQL
+```mermaid
+flowchart TD
+    subgraph Dashboard ["Operator Command Center"]
+        UI[Simulation Controller Modal]
+    end
+
+    subgraph MQTTBroker ["Mosquitto Broker"]
+        ControlTopic[Control Topics<br/>fire/control/{h_id} & fire/control/all]
+        SensorTopic[Telemetry Topic<br/>fire/sensors/{device_id}]
+    end
+
+    subgraph Simulator ["IoT Fleet Simulator (10 Pod Processes)"]
+        Sub[on_message Callback<br/>Power Toggle / Status Override]
+        Pub[Telemetry Generator Loop<br/>Every 5 Seconds]
+    end
+
+    UI -->|Publish ws://:9001| ControlTopic
+    ControlTopic -->|Subscribe :1883| Sub
+    Sub -->|Adjust Runtime State| Pub
+    Pub -->|Publish :1883| SensorTopic
+    SensorTopic -->|Telegraf Ingestion| Influx[(InfluxDB)]
 ```
 
 ---
 
 ## 📦 Payload Specification
+
+Each telemetry payload represents a flat, structured JSON object:
 
 ```json
 {
@@ -37,51 +46,53 @@ Dashboard Controller (MQTT publish fire/control/{h_id})
   "temp": 68.3,
   "smoke": 0.91,
   "flame": 1,
-  "_time": "2026-10-03T08:15:36Z"
+  "_time": "2026-10-22T08:15:36Z"
 }
 ```
 
-| Field | Description |
-|---|---|
-| `h_id` | Unique device ID — must match a record in `device_registry` |
-| `status` | `0` = Normal, `1` = Warning, `2` = Critical |
-| `temp` | Temperature in °C (ranges by status) |
-| `smoke` | Smoke density 0.0–1.0 |
-| `flame` | Flame detected: `0` or `1` |
-| `_time` | ISO 8601 UTC timestamp |
-
----
-
-## 🎮 Real-time Control via Dashboard
-
-The simulator subscribes to two MQTT control topics:
-
-| Topic | Payload | Effect |
+| Field | Type | Description |
 |---|---|---|
-| `fire/control/{h_id}` | `{"power": "on"}` | Resume publishing |
-| `fire/control/{h_id}` | `{"power": "off"}` | Pause publishing |
-| `fire/control/{h_id}` | `{"status_code": 2}` | Force Critical readings |
-| `fire/control/all` | `{"status_code": 0}` | Reset all simulators to Normal |
+| `h_id` | `string` | Unique device identifier matching an entry in `device_registry` |
+| `status` | `integer` | Alert severity code: `0` = Normal, `1` = Warning, `2` = Critical |
+| `temp` | `float` | Ambient temperature in °C (dynamically calculated based on alert status) |
+| `smoke` | `float` | Smoke concentration index between `0.0` and `1.0` |
+| `flame` | `integer` | Optical flame sensor detection flag (`0` or `1`) |
+| `_time` | `string` | ISO 8601 UTC timestamp |
 
 ---
 
-## 🏃 Kubernetes Fleet Mode
+## 🎮 Real-Time Bi-Directional Control via MQTT
 
-The simulator runs as a Kubernetes `Deployment` with a single pod that spawns 10 independent Python processes — one per registered `node-sim-*` device.
+The simulator listens for real-time control directives issued by the web dashboard:
 
-Each process:
-1. Connects to the in-cluster MQTT broker (`mqtt:1883`)
-2. Subscribes to its private control topic
-3. Publishes telemetry every 5 seconds
-
-```yaml
-# infrastructure/k8s/base/simulator/deployment.yaml
-command: ["/bin/bash", "./run_10.sh"]
-```
+| Control Topic | Payload Directive | Simulation Behavior |
+|---|---|---|
+| `fire/control/{h_id}` | `{"power": "off"}` | Pauses publishing loop; puts emulated MCU into sleep mode |
+| `fire/control/{h_id}` | `{"power": "on"}` | Wakes MCU; resumes active telemetry streaming |
+| `fire/control/{h_id}` | `{"status_code": 0}` | Forces reading state to **Normal** (25–35°C, low smoke) |
+| `fire/control/{h_id}` | `{"status_code": 1}` | Forces reading state to **Warning** (40–55°C, elevated smoke) |
+| `fire/control/{h_id}` | `{"status_code": 2}` | Forces reading state to **Critical** (65–95°C, optical flame active) |
+| `fire/control/all` | `{"status_code": 0}` | Broadcast reset returning all fleet nodes to normal |
 
 ---
 
-## 🏃 Local Standalone Execution
+## 🏃 Kubernetes Fleet Mode (`run_10.sh`)
+
+In staging and production clusters, the simulator deploys as a single Pod executing `run_10.sh`. The script forks 10 isolated background Python processes—one for each registered household in Metro Manila:
+* `node-sim-01` (Intramuros, Commercial)
+* `node-sim-02` (Ermita, Residential)
+* `node-sim-03` (Malate, Residential)
+* `node-sim-04` (Sampaloc, Commercial)
+* `node-sim-05` (Tondo, Industrial)
+* `node-sim-06` (Sampaloc, Residential)
+* `node-sim-07` (Malate, Commercial)
+* `node-sim-08` (Ermita, Residential)
+* `node-sim-09` (Tondo, Commercial)
+* `node-sim-10` (Pandacan, Industrial)
+
+---
+
+## 💻 Local Standalone Execution
 
 ```bash
 cd apps/simulators
@@ -89,23 +100,24 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Single device
+# Run a single simulated device
 python mcu_sim.py --device-id node-sim-01 --status 0 --host localhost --port 1883
 ```
 
 ### CLI Parameters
-
-| Flag | Default | Description |
-|---|---|---|
-| `--device-id` | required | Device ID (must match `device_registry.h_id`) |
-| `--host` | `localhost` | MQTT broker host |
-| `--port` | `1883` | MQTT broker TCP port |
-| `--status` | `0` | Initial status: `0` Normal, `1` Warning, `2` Critical |
+| Argument | Type | Default | Description |
+|---|---|---|---|
+| `--device-id` | `str` | *Required* | Device ID matching a database entry in `device_registry` |
+| `--status` | `int` | `0` | Initial alert status (`0` Normal, `1` Warning, `2` Critical) |
+| `--host` | `str` | `localhost` | MQTT broker hostname or IP address |
+| `--port` | `int` | `1883` | MQTT broker port |
+| `--interval` | `int` | `5` | Publication frequency in seconds |
 
 ---
 
-## 🐳 Docker Build
+## 🐳 Hardened Container Packaging
 
 ```bash
-docker build -t localhost/mcu-simulator:local .
+docker build -t localhost/simulators:local .
 ```
+Built on `python:3.12-slim` and executes under a dedicated unprivileged user `simuser` (`UID 1000`) with no root privileges, complying with Kubernetes Restricted Pod Security Standards.

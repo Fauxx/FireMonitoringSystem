@@ -10,22 +10,22 @@ This document outlines the architecture for the **Fire Monitoring System**, an I
 ## 🏗️ Overall System Architecture
 
 The Fire Monitoring System follows a decoupled, microservices-based architecture:
-- **Edge / Ingestion**: IoT sensors push telemetry via MQTT.
-- **Processing Layer**: A Python ETL processor debounces alerts and downsamples metrics.
-- **Data Layer**: PostgreSQL (relational logs, sessions, incidents) and InfluxDB (time-series).
-- **Application Layer**: A Node.js Express REST API serving data to an Nginx-backed web dashboard.
-- **Observability**: A robust Prometheus, Loki, and Grafana stack.
+- **Edge / Ingestion**: IoT sensors push telemetry via MQTT to Mosquitto and Telegraf.
+- **Processing Layer**: A Python pandas ETL processor debounces alerts (30-min window) and downsamples metrics (5-min rollups).
+- **Data Layer**: Cloud SQL PostgreSQL (relational logs, sessions, incidents) and InfluxDB v2 (time-series).
+- **Application Layer**: A Node.js Express REST API serving real-time and analytical data to a React 19 + Vite + Tailwind CSS Command Center Dashboard.
+- **Observability**: A robust Prometheus, Loki, Grafana Alloy, and Grafana stack with dynamic namespace discovery.
 
-## 🔄 Current vs. Target Architecture
+## 🔄 Cloud & Runtime Architecture
 
-| Component | **CURRENT (Implementation)** | **TARGET (Planned/GKE)** | **LEGACY (Deprecated)** |
+| Component | **Target / Production (GKE)** | **Staging / Dev (GKE Dev)** | **Local Sandbox (Kind / Docker Compose)** |
 | :--- | :--- | :--- | :--- |
-| **Cloud Provider** | Local (Kind Kubernetes) | **Google Cloud Platform (GCP)** | DigitalOcean (DOKS), Azure (AKS) |
-| **Cluster Engine** | Kind | **Google Kubernetes Engine (GKE)** | DigitalOcean Kubernetes |
-| **Ingress Network**| `cloudflared` (dev/prod) | `cloudflared` over GKE Dataplane V2 | DO Load Balancers |
-| **State Storage**  | DigitalOcean Spaces (S3 API)| GCS Bucket (assumed/pending setup) | DigitalOcean Spaces |
-
-> **Note:** The GCP/GKE migration is currently in the **PLANNED** phase. Terraform modules (`infrastructure/terraform/modules/gke`) and CI/CD pipelines (`gcp-terraform-deploy.yml`) exist, but the live cloud deployment relies on local Kind emulation during this transition.
+| **Cloud Provider** | **Google Cloud Platform (GCP)** | **Google Cloud Platform (GCP)** | Local Workstation (Kind / Podman / Docker) |
+| **Cluster Engine** | **GKE Dataplane V2 (eBPF)** | **GKE Dataplane V2 (eBPF)** | Kind (Kubernetes-in-Docker) |
+| **Ingress Network**| `cloudflared` Zero Trust Tunnels | `cloudflared` Zero Trust Tunnels | Nginx Ingress / Local Port-Forwarding |
+| **State Storage**  | Google Cloud Storage (`gs://firemonitoring-tfstate`) | Google Cloud Storage (`gs://firemonitoring-tfstate`) | Local directory / `.env` config |
+| **Relational Database** | Managed Google Cloud SQL (PostgreSQL 16) | Managed Google Cloud SQL (PostgreSQL 16) | In-cluster / Compose PostgreSQL |
+| **Delivery Model** | GitOps via ArgoCD (Semver Release Tags) | GitOps via ArgoCD (Direct Main Merge) | Local Kustomize / Compose Reload |
 
 ## 🧩 Major Architectural Boundaries
 

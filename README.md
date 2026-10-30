@@ -215,9 +215,10 @@ flowchart TD
 ---
 
 ### 🚀 8. Automated CI/CD Pipelines ([`.github/`](./.github/))
-*   **Architectural Role**: Automated GitHub Actions pipelines governing continuous integration, security gates, container publishing, and GitOps image promotion.
+*   **Architectural Role**: Automated GitHub Actions pipelines governing continuous integration, runtime Kubernetes validation, security gates, container publishing, and GitOps image promotion.
 *   **Key Implementations**:
     *   **Matrix Change Detection**: Uses `dorny/paths-filter` to build and test only the services with code modifications (`apps/**`).
+    *   **Automated Kind Runtime Smoke Tests**: Provisions an ephemeral Kind cluster directly in GitHub Actions runners (`helm/kind-action`), builds & loads container images, deploys Kustomize manifests (`overlays/local`), verifies pod rollouts with zero `CrashLoopBackOff`, and curls backend `/health` endpoints prior to PR merge.
     *   **Security & CVE Gates**: Automated linting, unit tests (`npm test`, `pytest`), and Trivy container vulnerability scanning before pushing to GHCR and Google Artifact Registry (GAR).
     *   **Passwordless Workload Identity Federation (WIF)**: Ephemeral OIDC authentication with GCP, completely removing long-lived JSON service account keys.
     *   **Automated GitOps Tag Promotion**: Merges to `main` commit image tag updates to `overlays/dev` via a GitHub App token; semver Git release tags (`v*.*.*`) automatically open a Production Promotion PR against `overlays/prod`.
@@ -227,32 +228,48 @@ flowchart TD
 
 ## 🚦 Developer Tooling & SDLC Lifecycle
 
-The repository includes a unified [**Makefile**](./Makefile) supporting 4 distinct Software Development Life Cycle (SDLC) environments:
+The repository follows a modern Cloud-Native SDLC that offloads resource-heavy Kubernetes runtime validation from developer workstations into automated GitHub Actions CI runners, pairing lightweight local iterations with bulletproof CI gates:
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   1. Local Dev  │ ──► │  2. Kind K8s    │ ──► │ 3. GKE Staging  │ ──► │ 4. Production   │
-│ (Docker Compose)│     │ (Local Cluster) │     │ (dev.fires.systems)   │ (fires.systems) │
-└─────────────────┘     └─────────────────┘     └─────────────────┘     └─────────────────┘
+┌──────────────────────────┐      ┌──────────────────────────┐      ┌─────────────────────────┐      ┌────────────────────────┐
+│  1. Fast Local Dev       │ ──►  │  2. Ephemeral CI (Kind)  │ ──►  │ 3. GKE Staging (ArgoCD) │ ──►  │ 4. Production (ArgoCD) │
+│  (Docker Compose)        │      │  (GitHub Actions Runner) │      │ (dev.fires.systems)     │      │ (fires.systems)        │
+│  • Volumes preserved     │      │  • Automated K8s rollout │      │ • ArgoCD Sync Wave 5/10 │      │ • ArgoCD Sync Wave 5/10│
+│  • Fast service reload   │      │  • 0 host RAM overhead   │      │ • Workload Identity     │      │ • High-availability HA │
+│  • Dedicated log tailing │      │  • Zero CrashLoop checks │      │ • Private GKE eBPF      │      │ • Zero-Trust Cloudflare│
+└──────────────────────────┘      └──────────────────────────┘      └─────────────────────────┘      └────────────────────────┘
 ```
 
 ### 1. Fast Local Sandbox (Docker Compose)
-Best for rapid frontend or backend feature development without requiring Kubernetes:
+The primary day-to-day development workflow. Data volumes (PostgreSQL, InfluxDB, Mosquitto) are **persisted across stops and restarts**:
 ```bash
-make dev-up            # Starts API, Dashboard, ETL, Simulators, InfluxDB, Postgres, Mosquitto
-make dev-logs          # Tails application container logs
-make dev-query-backend # Tests /health and /metrics endpoints on :8000
-make dev-down          # Stops containers and purges local volumes
+# Lifecycle & Reloads
+make dev-up                 # Boots full local sandbox (preserves existing database state)
+make dev-reload             # Rebuilds updated code & restarts containers (preserves DB volumes)
+make dev-reload-api         # Rebuild & reload only the API service
+make dev-reload-dashboard   # Rebuild & reload only the Dashboard service
+make dev-reload-etl         # Rebuild & reload only the ETL Processor service
+make dev-query-backend      # Tests /health and /metrics endpoints on :8000 (alias: make health)
+make dev-down               # Stops containers & networks safely (PRESERVES volume data)
+make dev-down-volumes       # ⚠️ CAUTION: Stops containers and wipes all database/storage volumes
+
+# Granular Observability & Logging
+make dev-logs               # Tails all application container logs
+make dev-logs-api           # Follow API logs
+make dev-logs-dashboard     # Follow React Dashboard logs
+make dev-logs-etl           # Follow Python ETL logs
+make dev-logs-db            # Follow PostgreSQL queries & logs
+make dev-logs-mqtt          # Follow Mosquitto broker messages
 ```
 
-### 2. Local Kubernetes Sandbox (Kind)
-Runs the complete production manifest topology in a local Kubernetes-in-Docker cluster:
+### 2. Kubernetes Validation (CI Automated & Local Debugging)
+Full Kubernetes runtime verification is automated on every PR via GitHub Actions (`k8s_smoke_test`). If you need to debug Kubernetes manifests locally:
 ```bash
-make kind-up           # Boots Kind cluster, builds images, and applies overlays/local
-make kind-port-forward # Forwards Dashboard (:8080), InfluxDB (:8086), Postgres (:5432), Prometheus (:9090)
-make kind-logs         # Tails pod logs across the fire-monitoring-local namespace
-make kind-stop         # Pauses cluster container (preserves all data, resume with make kind-up)
-make kind-down         # Destroys Kind cluster and data
+make kind-up-debug          # Boots minimal Kind cluster for manual debugging
+make kind-reload            # Rebuilds, loads images into Kind, and rollout-restarts pods
+make kind-port-forward      # Port-forwards Ingress & services (cleanly kills stale tunnels first)
+make kind-port-forward-stop # Terminates all background port-forward tunnels cleanly
+make kind-down              # Stops and deletes local Kind cluster
 ```
 
 ### 3. Staging Environment (GKE Dev via ArgoCD)
@@ -269,7 +286,8 @@ make staging-resume       # Restores replicas and auto-sync
 ### 4. Seed Simulator Devices
 When running locally, initialize the simulated hardware fleet in PostgreSQL:
 ```bash
-kubectl exec -n fire-monitoring-local db-0 -- psql -U postgres -d fire_monitoring -c "
+# Docker Compose (Local Sandbox):
+docker compose exec db psql -U postgres -d fire_monitoring -c "
 INSERT INTO device_registry (h_id, lat, lon, owner_name, barangay, structure_type) VALUES
   ('node-sim-01', 14.5985, 120.9850, 'Sim Owner 1', 'Intramuros', 'Commercial'),
   ('node-sim-02', 14.5912, 120.9780, 'Sim Owner 2', 'Ermita', 'Residential'),
@@ -282,6 +300,9 @@ INSERT INTO device_registry (h_id, lat, lon, owner_name, barangay, structure_typ
   ('node-sim-09', 14.6220, 120.9750, 'Sim Owner 9', 'Tondo', 'Commercial'),
   ('node-sim-10', 14.5930, 121.0110, 'Sim Owner 10', 'Pandacan', 'Industrial')
 ON CONFLICT (h_id) DO NOTHING;"
+
+# Or if running inside Kind:
+# kubectl exec -n fire-monitoring-local db-0 -- psql -U postgres -d fire_monitoring -c "..."
 ```
 
 ### 5. Control Live Simulations

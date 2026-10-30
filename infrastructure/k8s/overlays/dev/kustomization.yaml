@@ -21,19 +21,19 @@ replicas:
 images:
 - name: api
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/api
-  newTag: 8b8947c
+  newTag: 7f3eee4
 - name: dashboard
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/dashboard
-  newTag: 8b8947c
+  newTag: 7f3eee4
 - name: db-migrations
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/db-migrations
-  newTag: 8b8947c
+  newTag: 7f3eee4
 - name: etl-processor
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/etl-processor
-  newTag: 8b8947c
+  newTag: 7f3eee4
 - name: mcu-simulator
   newName: asia-east1-docker.pkg.dev/firemonitoring-dev/firemonitoring-dev/mcu-simulator
-  newTag: 8b8947c
+  newTag: 7f3eee4
 
 labels:
 - includeSelectors: true

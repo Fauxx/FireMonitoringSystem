@@ -18,16 +18,17 @@ COMPOSE_FILE        ?= docker-compose.yml
 ENV_FILE            ?= .env
 
 .PHONY: help \
-        dev dev-up dev-down dev-stop dev-restart dev-logs dev-ps dev-build \
-        up down stop restart logs ps build \
+        dev dev-up dev-down dev-down-volumes dev-stop dev-restart dev-reload dev-reload-api dev-reload-dashboard dev-reload-etl \
+        dev-logs dev-logs-api dev-logs-dashboard dev-logs-etl dev-logs-db dev-logs-mqtt dev-ps dev-build \
+        up down stop restart reload logs ps build \
         rapid-up rapid-down rapid-logs \
         dev-query-backend query-backend health \
-        kind kind-up kind-up-debug kind-down kind-stop kind-restart kind-logs kind-port-forward kind-query-backend \
+        kind kind-up kind-up-debug kind-down kind-stop kind-restart kind-reload kind-logs kind-port-forward kind-port-forward-stop kind-query-backend \
         local-up local-down local-stop local-restart local-logs local-port-forward \
         staging-up staging-down staging-sync staging-watch staging-pause staging-resume \
         staging-port-forward staging-port-forward-stop staging-logs-api staging-logs-etl staging-logs-sim \
         staging-argocd-pass staging-query-backend \
-        dev-port-forward dev-port-forward-stop dev-logs-api dev-logs-etl dev-logs-sim dev-argocd-pass \
+        dev-port-forward dev-port-forward-stop dev-argocd-pass \
         prod-up prod-down prod-pause prod-resume \
         gitops-bootstrap gitops-ui status \
         build-local kind-load clean-images ci-validate clean \
@@ -49,25 +50,37 @@ help:
 	@echo "==========================================================================="
 	@echo ""
 	@echo "🐳 [1] DEV (Docker Compose — fast local sandbox, no K8s)"
-	@echo "  make dev-up            - Start local development environment (alias: make dev, make up)"
-	@echo "  make dev-down          - Stop and remove containers & volumes (alias: make down)"
-	@echo "  make dev-stop          - Pause running containers (preserves volume data)"
-	@echo "  make dev-restart       - Restart all development services"
-	@echo "  make dev-logs          - Tail Compose application logs (alias: make logs)"
+	@echo "  make dev-up            - Start local dev environment (preserves data volumes) (alias: make dev, make up)"
+	@echo "  make dev-down          - Stop dev containers & networks (PRESERVES data volumes) (alias: make down)"
+	@echo "  make dev-reload        - Rebuild images & restart containers (PRESERVES data volumes) (alias: make reload)"
+	@echo "  make dev-reload-api    - Rebuild & restart only API service"
+	@echo "  make dev-reload-dashboard - Rebuild & restart only Dashboard service"
+	@echo "  make dev-reload-etl    - Rebuild & restart only ETL Processor service"
+	@echo "  make dev-stop          - Pause running containers without removing them (alias: make stop)"
+	@echo "  make dev-restart       - Quick restart all services without rebuild (alias: make restart)"
+	@echo "  make dev-logs          - Tail all application logs (alias: make logs)"
+	@echo "  make dev-logs-api      - Tail only API logs"
+	@echo "  make dev-logs-etl      - Tail only ETL Processor logs"
+	@echo "  make dev-logs-dashboard- Tail only Dashboard logs"
+	@echo "  make dev-logs-db       - Tail only PostgreSQL logs"
+	@echo "  make dev-logs-mqtt     - Tail only MQTT logs"
 	@echo "  make dev-ps            - List running development containers (alias: make ps)"
-	@echo "  make dev-build         - Rebuild development images without cache"
+	@echo "  make dev-build         - Rebuild development images (alias: make build)"
 	@echo "  make dev-query-backend - Query local backend health & metrics (alias: make health)"
+	@echo "  make dev-down-volumes  - [CAUTION] Stop & wipe persistent DB/Influx/MQTT volumes"
 	@echo ""
-	@echo "☸️  [2] KIND (Local Kubernetes — DEPRECATED: Validation moved to CI)"
+	@echo "☸️  [2] KIND (Local Kubernetes — Manual Debugging / CI Automated)"
 	@echo "  make kind-up-debug     - Start minimal Kind cluster for manual debugging"
 	@echo "  make kind-down         - Stop & destroy Kind cluster"
-	@echo "  make kind-up           - [DEPRECATED] Use 'make dev-up' or 'make kind-up-debug'"
-	@echo "  make kind-restart      - [DEPRECATED] Rebuild & rollout restart in Kind"
-	@echo "  make kind-load         - [DEPRECATED] Build & load local images into Kind"
-	@echo "  make kind-port-forward - [DEPRECATED] Port-forward Kind ingress & services"
 	@echo "  make kind-stop         - Pause Kind cluster container (preserves state)"
+	@echo "  make kind-reload       - Rebuild images, load into Kind & rollout restart (preserves PVs!)"
+	@echo "  make kind-load         - Build & load local images into Kind"
+	@echo "  make kind-port-forward - Port-forward Kind ingress & services to localhost"
+	@echo "  make kind-port-forward-stop - Stop background Kind port-forwards"
 	@echo "  make kind-logs         - Tail local namespace pod logs"
 	@echo "  make kind-query-backend- Query Prometheus in Kind for backend API metrics"
+	@echo "  make kind-up           - [DEPRECATED] Use 'make dev-up' or 'make kind-up-debug'"
+	@echo "  make kind-restart      - [DEPRECATED] Rebuild & rollout restart in Kind"
 	@echo ""
 	@echo "🚀 [3] STAGING (GKE Dev — ArgoCD GitOps → dev.fires.systems)"
 	@echo "  make staging-up        - Apply apps-dev to ArgoCD (triggers automated GitOps)"
@@ -77,6 +90,7 @@ help:
 	@echo "  make staging-pause     - Pause auto-sync & scale pods to 0 (cost saver)"
 	@echo "  make staging-resume    - Restore auto-sync and replicas"
 	@echo "  make staging-port-forward - Forward Staging Prometheus, ArgoCD, Influx to localhost"
+	@echo "  make staging-port-forward-stop - Stop Staging port-forwards"
 	@echo "  make staging-logs-api  - Tail live API logs in GKE Dev"
 	@echo "  make staging-argocd-pass - Get ArgoCD admin password"
 	@echo "  make staging-query-backend - Query Prometheus in GKE Dev for backend API metrics"
@@ -91,7 +105,7 @@ help:
 	@echo "🔧 [6] CLUSTER & GITOPS UTILITIES"
 	@echo "  make status            - Show cluster context, nodes, and pods across namespaces"
 	@echo "  make ci-validate       - Validate all Kustomize overlays locally"
-	@echo "  make clean             - Prune stopped containers, dangling images, and processes"
+	@echo "  make clean             - Prune stopped containers, dangling images, and port-forwards"
 
 # ------------------------------------------------------------------------------
 # [1] DEV — Docker Compose (Fast Local Sandbox)
@@ -102,7 +116,7 @@ dev-up:
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up --build -d
 	@echo ""
 	@echo "======================================================"
-	@echo "✅ Rapid Dev environment is live!"
+	@echo "✅ Rapid Dev environment is live! (Data volumes preserved)"
 	@echo "======================================================"
 	@echo "🖥️  Dashboard UI  : http://localhost:8080"
 	@echo "🔌 REST API       : http://localhost:8000"
@@ -113,7 +127,11 @@ dev-up:
 	@echo "Tip: Run 'make dev-logs' to follow logs, or 'make dev-down' to stop."
 
 dev-down:
-	@echo "🛑 Stopping Rapid Dev sandbox..."
+	@echo "🛑 Stopping Rapid Dev sandbox (preserving database & data volumes)..."
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) down
+
+dev-down-volumes:
+	@echo "⚠️  WARNING: Removing all containers AND deleting persistent data volumes..."
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) down -v
 
 dev-stop:
@@ -124,8 +142,39 @@ dev-restart:
 	@echo "🔄 Restarting Rapid Dev services..."
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) restart
 
+dev-reload:
+	@echo "🔄 Rebuilding and reloading all services (preserving data volumes)..."
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up --build -d
+
+dev-reload-api:
+	@echo "🔄 Rebuilding and reloading API service..."
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up --build -d api
+
+dev-reload-dashboard:
+	@echo "🔄 Rebuilding and reloading Dashboard service..."
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up --build -d dashboard
+
+dev-reload-etl:
+	@echo "🔄 Rebuilding and reloading ETL Processor service..."
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up --build -d etl-processor
+
 dev-logs:
-	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f api dashboard etl-processor simulator
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f api dashboard etl-processor
+
+dev-logs-api:
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f api
+
+dev-logs-dashboard:
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f dashboard
+
+dev-logs-etl:
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f etl-processor
+
+dev-logs-db:
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f db
+
+dev-logs-mqtt:
+	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) logs -f mqtt
 
 dev-ps:
 	docker compose --env-file $(ENV_FILE) -f $(COMPOSE_FILE) ps
@@ -139,6 +188,7 @@ up: dev-up
 down: dev-down
 stop: dev-stop
 restart: dev-restart
+reload: dev-reload
 logs: dev-logs
 ps: dev-ps
 build: dev-build
@@ -208,6 +258,9 @@ kind-port-forward:
 	@echo "⚠️  Kind validation has moved to CI. Use 'make dev-up' for local development. To run Kind locally for debugging, use 'make kind-up-debug'."
 	@echo "🌐 Starting background port-forwards for Kind..."
 	@killall kubectl 2>/dev/null || true
+	@pkill -f "[k]ubectl port-forward -n ingress-nginx" 2>/dev/null || true
+	@pkill -f "[k]ubectl port-forward -n fire-monitoring-local" 2>/dev/null || true
+	@sleep 1
 	@echo "🔍 Checking for port conflicts..."
 	@for port in 8080 5432 8086 9090 1883 9001; do \
 		if ss -tuln | grep -qE ":$$port\b"; then \
@@ -230,7 +283,15 @@ kind-port-forward:
 	@echo "🗄️  PostgreSQL      : localhost:5432  (user: postgres, pass: localdevpassword)"
 	@echo "📡 MQTT Broker     : localhost:1883"
 	@echo "======================================================"
-	@echo "(Run 'make kind-down' to clean everything up)"
+	@echo "(Run 'make kind-port-forward-stop' to stop, or 'make kind-down' to clean up)"
+
+kind-port-forward-stop:
+	@echo "🛑 Stopping Kind background port-forwards..."
+	@pkill -f "[k]ubectl port-forward -n ingress-nginx" 2>/dev/null || true
+	@pkill -f "[k]ubectl port-forward -n fire-monitoring-local" 2>/dev/null || true
+	@echo "✅ Stopped!"
+
+kind-reload: kind-restart
 
 kind-query-backend:
 	@echo "📊 Querying Kind Prometheus for backend API metrics (http_requests_total)..."
@@ -503,10 +564,10 @@ ci-validate:
 clean:
 	@echo "🧹 Cleaning background processes & logs..."
 	-@killall kubectl 2>/dev/null || true
+	-@pkill -f "[k]ubectl port-forward" 2>/dev/null || true
 	@rm -f /tmp/pf.log
-	@echo "🧹 Cleaning dangling containers & images..."
+	@echo "🧹 Cleaning dangling containers & images (preserving persistent data volumes)..."
 	-@make clean-images 2>/dev/null || true
 	-podman container prune -f 2>/dev/null || true
-	-podman volume prune -f 2>/dev/null || true
 	-podman image prune -f 2>/dev/null || true
 	@echo "✅ Cleanup complete!"

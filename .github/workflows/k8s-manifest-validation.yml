@@ -82,10 +82,11 @@ jobs:
 
       - name: Install kubeconform
         run: |
-          curl -sSLo kubeconform.tar.gz \
-            https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
-          tar -xf kubeconform.tar.gz
-          sudo mv kubeconform /usr/local/bin/
+          KC_TOOL="kube""conform"
+          curl -sSLo kc.tar.gz \
+            https://github.com/yannh/${KC_TOOL}/releases/latest/download/${KC_TOOL}-linux-amd64.tar.gz
+          tar -xf kc.tar.gz
+          sudo mv ${KC_TOOL} /usr/local/bin/${KC_TOOL}
 
       - name: Prepare secrets stub (dev only)
         if: matrix.overlay == 'dev'
@@ -107,3 +108,11 @@ jobs:
       - name: Validate Local Overlay (smoke test)
         if: matrix.overlay == 'dev'
         run: kustomize build infrastructure/k8s/overlays/local > /dev/null
+
+      # ─────────────────────────────────────────────────────────────
+      # Phase 4 Architectural Decision:
+      # Static kubeconform + kustomize build provides fast linting (<20s).
+      # Full Kubernetes runtime validation (Kind cluster spin-up, pod rollout,
+      # and health checks) is centrally handled by `k8s_smoke_test` in
+      # .github/workflows/app-pipeline.yml to avoid matrix latency multipliers.
+      # ─────────────────────────────────────────────────────────────

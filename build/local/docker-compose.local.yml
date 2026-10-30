@@ -1,0 +1,221 @@
+services:
+  db:
+    image: postgres:14-alpine
+    container_name: fire-db-local
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-fire_monitoring}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      default:
+        aliases:
+          - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-fire_monitoring}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: fire-flyway-local
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps/db-migrations/sql:/flyway/sql:Z
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-fire_monitoring}
+      FLYWAY_USER: ${POSTGRES_USER:-postgres}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
+    command: -connectRetries=60 migrate
+
+  influx:
+    image: influxdb:2.7-alpine
+    container_name: fire-influx-local
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: "setup"
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-adminpassword123}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-fire-monitoring}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-sensor-data}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-local-influx-token}
+    ports:
+      - "8086:8086"
+    volumes:
+      - influx_data:/var/lib/influxdb2
+    networks:
+      default:
+        aliases:
+          - influx
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8086/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    container_name: fire-mqtt-local
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infrastructure/k8s/base/data/mqtt/config:/mosquitto/config:Z
+      - mqtt_data:/mosquitto/data:Z
+    networks:
+      default:
+        aliases:
+          - mqtt
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t 'test' -E -i 'healthcheck' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: fire-api-local
+    depends_on:
+      db:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+      influx:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api/src:/usr/src/app/src:Z
+    env_file:
+      - .env
+    networks:
+      default:
+        aliases:
+          - api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@db:5432/${POSTGRES_DB:-fire_monitoring}
+      INFLUXDB_URL: http://influx:8086
+      MQTT_BROKER_HOST: mqtt
+      DASHBOARD_DIR: /usr/share/nginx/html
+
+  dashboard:
+    image: node:22-alpine
+    container_name: fire-dashboard-local
+    working_dir: /app
+    ports:
+      - "8080:5173"
+    volumes:
+      - ./apps/dashboard:/app:Z
+    environment:
+      - API_URL=http://api:8000
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - api
+
+  etl-processor:
+    build:
+      context: ./apps/etl-processor
+      dockerfile: Dockerfile
+    container_name: fire-etl-local
+    depends_on:
+      db:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+      influx:
+        condition: service_healthy
+    volumes:
+      - ./apps/etl-processor/src:/app/src:Z
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@db:5432/${POSTGRES_DB:-fire_monitoring}
+      INFLUXDB_URL: http://influx:8086
+      MQTT_BROKER_HOST: mqtt
+
+  simulator:
+    build:
+      context: ./apps/simulators
+      dockerfile: Dockerfile
+    container_name: fire-simulator-local
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    volumes:
+      - ./apps/simulators:/app:Z
+    environment:
+      MQTT_HOST: mqtt
+      MQTT_BROKER_PORT: 1883
+      PUBLISH_INTERVAL: 3.0
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: fire-prometheus-local
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/k8s/base/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+      - prometheus_data:/prometheus
+    networks:
+      default:
+        aliases:
+          - prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: fire-loki-local
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infrastructure/k8s/base/observability/loki/local-config.yaml:/etc/loki/local-config.yaml:Z
+    networks:
+      default:
+        aliases:
+          - loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: fire-node-exporter-local
+    networks:
+      default:
+        aliases:
+          - node-exporter
+
+  telegraf:
+    image: telegraf:1.29
+    entrypoint: ["telegraf"]
+    container_name: fire-telegraf-local
+    depends_on:
+      influx:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    volumes:
+      - ./infrastructure/k8s/base/data/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:Z
+    env_file:
+      - .env
+    networks:
+      default:
+        aliases:
+          - telegraf
+
+volumes:
+  db_data:
+  influx_data:
+  mqtt_data:
+  prometheus_data:

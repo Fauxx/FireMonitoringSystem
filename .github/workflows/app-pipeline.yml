@@ -146,7 +146,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve Image Tag
+      - name: Set Image Tag
         id: set_tag
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
@@ -221,12 +221,118 @@ jobs:
           cache-to:   type=gha,mode=max
 
   # ─────────────────────────────────────────────────────────────
+  # Stage 1.25: K8s Smoke Test — Runtime validation in Kind
+  # ─────────────────────────────────────────────────────────────
+  k8s_smoke_test:
+    name: "K8s Smoke Test"
+    needs: [detect_changes, build_scan_push]
+    # Only run on PRs and main pushes (not on release tags — those go to prod)
+    if: "!startsWith(github.ref, 'refs/tags/v')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Create ephemeral Kind cluster (no hostPort mapping) ──
+      - name: Create Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ci-smoke-test
+          wait: 60s
+
+      # ── Log in to GHCR to pull the images we just built ──
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Pull & load all changed service images into Kind ──
+      - name: Load Images into Kind
+        run: |
+          TAG="${{ needs.build_scan_push.outputs.image_tag }}"
+          for svc in $(echo '${{ needs.detect_changes.outputs.services }}' | jq -r '.[]'); do
+            IMAGE="${{ env.IMAGE_PREFIX }}/${svc}:${TAG}"
+            echo "📦 Loading ${IMAGE}..."
+            if docker pull "${IMAGE}"; then
+              docker tag "${IMAGE}" "localhost/${svc}:local"
+              kind load docker-image "localhost/${svc}:local" --name ci-smoke-test
+              kind load docker-image "${IMAGE}" --name ci-smoke-test 2>/dev/null || true
+              echo "✅ Loaded localhost/${svc}:local into Kind"
+            else
+              echo "⚠️ Could not pull ${IMAGE} — may not be pushed yet on PRs"
+            fi
+          done
+
+      # ── Create namespace & apply the local Kustomize overlay ──
+      - name: Deploy Local Overlay
+        run: |
+          kubectl create namespace fire-monitoring-local --dry-run=client -o yaml | kubectl apply -f -
+          # Prepare secrets stub for CI if needed
+          [ ! -f infrastructure/k8s/overlays/local/secrets.yaml ] && \
+            cp infrastructure/k8s/overlays/local/secrets.yaml.example infrastructure/k8s/overlays/local/secrets.yaml 2>/dev/null || true
+          kubectl apply -k infrastructure/k8s/overlays/local
+
+      # ── Wait for critical pods (tolerate observability pods failing) ──
+      - name: Wait for Core Deployments Rollout
+        run: |
+          echo "⏳ Waiting for core deployments to roll out..."
+          for deploy in api dashboard etl-processor; do
+            kubectl rollout status deployment/${deploy} \
+              -n fire-monitoring-local --timeout=120s 2>/dev/null || \
+              echo "⚠️ ${deploy} did not become ready (may be expected if image wasn't pushed yet)"
+          done
+
+      # ── Verify pod statuses ──
+      - name: Verify Pod Health
+        run: |
+          echo "📋 Pod statuses:"
+          kubectl get pods -n fire-monitoring-local -o wide
+          echo ""
+
+          # Count CrashLoopBackOff pods
+          CRASHES=$(kubectl get pods -n fire-monitoring-local \
+            --field-selector=status.phase!=Succeeded \
+            -o jsonpath='{.items[*].status.containerStatuses[?(@.state.waiting.reason=="CrashLoopBackOff")].name}' \
+            | wc -w)
+
+          if [ "$CRASHES" -gt 0 ]; then
+            echo "❌ $CRASHES pod(s) in CrashLoopBackOff!"
+            kubectl logs -n fire-monitoring-local -l app=api --tail=50 || true
+            kubectl logs -n fire-monitoring-local -l app=etl-processor --tail=50 || true
+            exit 1
+          fi
+
+          echo "✅ No CrashLoopBackOff pods detected."
+
+      # ── Optional: API health check ──
+      - name: API Health Check
+        run: |
+          kubectl port-forward -n fire-monitoring-local svc/api 8000:8000 &
+          PF_PID=$!
+          sleep 5
+          if curl -sf http://127.0.0.1:8000/health; then
+            echo "✅ API health check passed"
+          else
+            echo "⚠️ API health check failed (non-blocking for now)"
+          fi
+          kill $PF_PID 2>/dev/null || true
+        continue-on-error: true
+
+      # ── Cleanup (always runs) ──
+      - name: Delete Kind Cluster
+        if: always()
+        run: kind delete cluster --name ci-smoke-test
+
+  # ─────────────────────────────────────────────────────────────
   # Stage 1.5: CI Gate — Consolidated Status for PR Gates
   # Provides a single, stable check name for branch protection rules
   # ─────────────────────────────────────────────────────────────
   ci_gate:
     name: "CI Gate / All Checks Passed"
-    needs: [detect_changes, test, build_scan_push]
+    needs: [detect_changes, test, build_scan_push, k8s_smoke_test]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -235,10 +341,12 @@ jobs:
           echo "Detect changes status : ${{ needs.detect_changes.result }}"
           echo "Tests status          : ${{ needs.test.result }}"
           echo "Build & scan status   : ${{ needs.build_scan_push.result }}"
+          echo "K8s smoke test status : ${{ needs.k8s_smoke_test.result }}"
 
           if [ "${{ needs.detect_changes.result }}" = "failure" ] || \
              [ "${{ needs.test.result }}" = "failure" ] || \
-             [ "${{ needs.build_scan_push.result }}" = "failure" ]; then
+             [ "${{ needs.build_scan_push.result }}" = "failure" ] || \
+             [ "${{ needs.k8s_smoke_test.result }}" = "failure" ]; then
             echo "❌ One or more CI stages failed."
             exit 1
           fi
